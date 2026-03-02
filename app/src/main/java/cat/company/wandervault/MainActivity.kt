@@ -21,8 +21,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.PreviewScreenSizes
+import cat.company.wandervault.ui.screens.FavoritesScreen
+import cat.company.wandervault.ui.screens.HomeScreen
+import cat.company.wandervault.ui.screens.ProfileScreen
 import cat.company.wandervault.ui.theme.WanderVaultTheme
 
 class MainActivity : ComponentActivity() {
@@ -49,10 +52,10 @@ fun WanderVaultApp() {
                     icon = {
                         Icon(
                             it.icon,
-                            contentDescription = it.label
+                            contentDescription = stringResource(it.contentDescriptionRes)
                         )
                     },
-                    label = { Text(it.label) },
+                    label = { Text(stringResource(it.labelRes)) },
                     selected = it == currentDestination,
                     onClick = { currentDestination = it }
                 )
@@ -60,35 +63,21 @@ fun WanderVaultApp() {
         }
     ) {
         Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-            Greeting(
-                name = "Android",
-                modifier = Modifier.padding(innerPadding)
-            )
+            when (currentDestination) {
+                AppDestinations.HOME -> HomeScreen(modifier = Modifier.padding(innerPadding))
+                AppDestinations.FAVORITES -> FavoritesScreen(modifier = Modifier.padding(innerPadding))
+                AppDestinations.PROFILE -> ProfileScreen(modifier = Modifier.padding(innerPadding))
+            }
         }
     }
 }
 
 enum class AppDestinations(
-    val label: String,
+    val labelRes: Int,
+    val contentDescriptionRes: Int,
     val icon: ImageVector,
 ) {
-    HOME("Home", Icons.Default.Home),
-    FAVORITES("Favorites", Icons.Default.Favorite),
-    PROFILE("Profile", Icons.Default.AccountBox),
-}
-
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    WanderVaultTheme {
-        Greeting("Android")
-    }
+    HOME(R.string.nav_home, R.string.nav_home_desc, Icons.Default.Home),
+    FAVORITES(R.string.nav_favorites, R.string.nav_favorites_desc, Icons.Default.Favorite),
+    PROFILE(R.string.nav_profile, R.string.nav_profile_desc, Icons.Default.AccountBox),
 }

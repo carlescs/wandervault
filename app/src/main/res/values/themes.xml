@@ -1,5 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-
-    <style name="Theme.WanderVault" parent="android:Theme.Material.Light.NoActionBar" />
+    <!--
+        WanderVault XML theme.
+        This is used as the window/activity theme in AndroidManifest.xml so that
+        the system chrome (status bar, navigation bar) matches the brand palette
+        while Jetpack Compose takes over all in-app rendering via WanderVaultTheme.
+    -->
+    <style name="Theme.WanderVault" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/wv_teal_40</item>
+        <item name="colorSecondary">@color/wv_green_40</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
 </resources>
