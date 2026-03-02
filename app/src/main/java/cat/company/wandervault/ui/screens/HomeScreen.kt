@@ -249,6 +249,8 @@ private fun TripFormDialog(
     if (showEndDatePicker) {
         val state = rememberDatePickerState(
             initialSelectedDateMillis = endDate?.toEpochDay()?.times(MILLIS_PER_DAY),
+            initialDisplayedMonthMillis = endDate?.toEpochDay()?.times(MILLIS_PER_DAY)
+                ?: startDate?.toEpochDay()?.times(MILLIS_PER_DAY),
             selectableDates = object : SelectableDates {
                 override fun isSelectableDate(utcTimeMillis: Long): Boolean =
                     startDate == null || utcTimeMillis >= startDate.toEpochDay() * MILLIS_PER_DAY
