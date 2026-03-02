@@ -13,6 +13,8 @@ class TripRepositoryImpl(private val dao: TripDao) : TripRepository {
         entities.map { it.toDomain() }
     }
 
+    override fun getTripById(id: Int): Flow<Trip?> = dao.getById(id).map { it?.toDomain() }
+
     override suspend fun saveTrip(trip: Trip) {
         dao.insert(trip.toEntity())
     }

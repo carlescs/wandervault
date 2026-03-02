@@ -2,6 +2,7 @@ package cat.company.wandervault
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
@@ -26,6 +27,7 @@ import androidx.compose.ui.tooling.preview.PreviewScreenSizes
 import cat.company.wandervault.ui.screens.FavoritesScreen
 import cat.company.wandervault.ui.screens.HomeScreen
 import cat.company.wandervault.ui.screens.ProfileScreen
+import cat.company.wandervault.ui.screens.TripDetailScreen
 import cat.company.wandervault.ui.theme.WanderVaultTheme
 
 class MainActivity : ComponentActivity() {
@@ -44,29 +46,43 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun WanderVaultApp() {
     var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.HOME) }
+    var tripDetailId by rememberSaveable { mutableStateOf<Int?>(null) }
 
-    NavigationSuiteScaffold(
-        navigationSuiteItems = {
-            AppDestinations.entries.forEach {
-                item(
-                    icon = {
-                        Icon(
-                            it.icon,
-                            contentDescription = stringResource(it.contentDescriptionRes)
-                        )
-                    },
-                    label = { Text(stringResource(it.labelRes)) },
-                    selected = it == currentDestination,
-                    onClick = { currentDestination = it }
-                )
-            }
+    if (tripDetailId != null) {
+        BackHandler { tripDetailId = null }
+        tripDetailId?.let { id ->
+            TripDetailScreen(
+                tripId = id,
+                modifier = Modifier.fillMaxSize(),
+            )
         }
-    ) {
-        Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-            when (currentDestination) {
-                AppDestinations.HOME -> HomeScreen(modifier = Modifier.padding(innerPadding))
-                AppDestinations.FAVORITES -> FavoritesScreen(modifier = Modifier.padding(innerPadding))
-                AppDestinations.PROFILE -> ProfileScreen(modifier = Modifier.padding(innerPadding))
+    } else {
+        NavigationSuiteScaffold(
+            navigationSuiteItems = {
+                AppDestinations.entries.forEach {
+                    item(
+                        icon = {
+                            Icon(
+                                it.icon,
+                                contentDescription = stringResource(it.contentDescriptionRes)
+                            )
+                        },
+                        label = { Text(stringResource(it.labelRes)) },
+                        selected = it == currentDestination,
+                        onClick = { currentDestination = it }
+                    )
+                }
+            }
+        ) {
+            Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+                when (currentDestination) {
+                    AppDestinations.HOME -> HomeScreen(
+                        modifier = Modifier.padding(innerPadding),
+                        onTripClick = { tripDetailId = it },
+                    )
+                    AppDestinations.FAVORITES -> FavoritesScreen(modifier = Modifier.padding(innerPadding))
+                    AppDestinations.PROFILE -> ProfileScreen(modifier = Modifier.padding(innerPadding))
+                }
             }
         }
     }

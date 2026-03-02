@@ -44,4 +44,10 @@
     <string name="trip_image_pick">Pick background image</string>
     <string name="trip_image_remove">Remove image</string>
     <string name="trip_image_content_desc">Trip background image</string>
+
+    <!-- Trip Detail screen -->
+    <string name="trip_detail_tab_details">Details</string>
+    <string name="trip_detail_loading">Loading trip…</string>
+    <string name="trip_detail_error">Could not load trip details.</string>
+    <string name="trip_detail_cover_image_desc">Cover image for %1$s</string>
 </resources>
