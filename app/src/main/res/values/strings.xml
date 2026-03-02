@@ -46,6 +46,8 @@
     <string name="trip_image_content_desc">Trip background image</string>
 
     <!-- Trip Detail screen -->
+    <string name="trip_detail_navigate_up">Navigate up</string>
+    <string name="trip_detail_title">Trip Details</string>
     <string name="trip_detail_tab_details">Details</string>
     <string name="trip_detail_loading">Loading trip…</string>
     <string name="trip_detail_error">Could not load trip details.</string>

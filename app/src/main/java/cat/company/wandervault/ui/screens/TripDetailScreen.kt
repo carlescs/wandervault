@@ -11,13 +11,17 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -55,16 +59,18 @@ private enum class TripDetailTab(@StringRes val labelRes: Int, val icon: ImageVe
  * Fetches trip state via [TripDetailViewModel] and renders the detail content.
  *
  * @param tripId The ID of the trip to display.
+ * @param onNavigateUp Called when the user taps the back/up button.
  * @param modifier Optional [Modifier].
  */
 @Composable
 fun TripDetailScreen(
     tripId: Int,
+    onNavigateUp: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: TripDetailViewModel = koinViewModel(parameters = { parametersOf(tripId) }),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    TripDetailContent(uiState = uiState, modifier = modifier)
+    TripDetailContent(uiState = uiState, onNavigateUp = onNavigateUp, modifier = modifier)
 }
 
 /**
@@ -72,15 +78,38 @@ fun TripDetailScreen(
  *
  * Accepts a [TripDetailUiState] snapshot so it can be reused in `@Preview` without a real ViewModel.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun TripDetailContent(
     uiState: TripDetailUiState,
+    onNavigateUp: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var selectedTab by rememberSaveable { mutableStateOf(TripDetailTab.DETAILS) }
 
     Scaffold(
         modifier = modifier,
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        if (uiState is TripDetailUiState.Success) {
+                            uiState.trip.title
+                        } else {
+                            stringResource(R.string.trip_detail_title)
+                        },
+                    )
+                },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateUp) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.trip_detail_navigate_up),
+                        )
+                    }
+                },
+            )
+        },
         bottomBar = {
             TripDetailBottomBar(
                 selectedTab = selectedTab,
@@ -196,7 +225,7 @@ private fun TripDetailsTabContent(
 @Composable
 private fun TripDetailLoadingPreview() {
     WanderVaultTheme {
-        TripDetailContent(uiState = TripDetailUiState.Loading)
+        TripDetailContent(uiState = TripDetailUiState.Loading, onNavigateUp = {})
     }
 }
 
@@ -204,7 +233,7 @@ private fun TripDetailLoadingPreview() {
 @Composable
 private fun TripDetailErrorPreview() {
     WanderVaultTheme {
-        TripDetailContent(uiState = TripDetailUiState.Error("Could not load trip details."))
+        TripDetailContent(uiState = TripDetailUiState.Error("Could not load trip details."), onNavigateUp = {})
     }
 }
 
@@ -218,6 +247,6 @@ private fun TripDetailSuccessPreview() {
         endDate = LocalDate.of(2024, 6, 10),
     )
     WanderVaultTheme {
-        TripDetailContent(uiState = TripDetailUiState.Success(trip))
+        TripDetailContent(uiState = TripDetailUiState.Success(trip), onNavigateUp = {})
     }
 }
