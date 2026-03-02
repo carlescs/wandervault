@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -51,6 +52,7 @@ import java.time.format.FormatStyle
 /** Tabs shown in the Trip Detail bottom navigation bar. */
 private enum class TripDetailTab(@StringRes val labelRes: Int, val icon: ImageVector) {
     DETAILS(R.string.trip_detail_tab_details, Icons.Default.Info),
+    ITINERARY(R.string.trip_detail_tab_itinerary, Icons.Default.DateRange),
 }
 
 /**
@@ -70,18 +72,21 @@ fun TripDetailScreen(
     viewModel: TripDetailViewModel = koinViewModel(parameters = { parametersOf(tripId) }),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    TripDetailContent(uiState = uiState, onNavigateUp = onNavigateUp, modifier = modifier)
+    TripDetailContent(uiState = uiState, tripId = tripId, onNavigateUp = onNavigateUp, modifier = modifier)
 }
 
 /**
  * Stateless presentation of the Trip Detail screen.
  *
  * Accepts a [TripDetailUiState] snapshot so it can be reused in `@Preview` without a real ViewModel.
+ *
+ * @param tripId The ID of the trip – forwarded to [ItineraryTabContent] when the Itinerary tab is selected.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun TripDetailContent(
     uiState: TripDetailUiState,
+    tripId: Int,
     onNavigateUp: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -119,6 +124,7 @@ internal fun TripDetailContent(
     ) { innerPadding ->
         when (selectedTab) {
             TripDetailTab.DETAILS -> TripDetailsTabContent(uiState = uiState, innerPadding = innerPadding)
+            TripDetailTab.ITINERARY -> ItineraryTabContent(tripId = tripId, innerPadding = innerPadding)
         }
     }
 }
@@ -225,7 +231,7 @@ private fun TripDetailsTabContent(
 @Composable
 private fun TripDetailLoadingPreview() {
     WanderVaultTheme {
-        TripDetailContent(uiState = TripDetailUiState.Loading, onNavigateUp = {})
+        TripDetailContent(uiState = TripDetailUiState.Loading, tripId = 0, onNavigateUp = {})
     }
 }
 
@@ -233,7 +239,7 @@ private fun TripDetailLoadingPreview() {
 @Composable
 private fun TripDetailErrorPreview() {
     WanderVaultTheme {
-        TripDetailContent(uiState = TripDetailUiState.Error("Could not load trip details."), onNavigateUp = {})
+        TripDetailContent(uiState = TripDetailUiState.Error("Could not load trip details."), tripId = 0, onNavigateUp = {})
     }
 }
 
@@ -247,6 +253,6 @@ private fun TripDetailSuccessPreview() {
         endDate = LocalDate.of(2024, 6, 10),
     )
     WanderVaultTheme {
-        TripDetailContent(uiState = TripDetailUiState.Success(trip), onNavigateUp = {})
+        TripDetailContent(uiState = TripDetailUiState.Success(trip), tripId = 1, onNavigateUp = {})
     }
 }

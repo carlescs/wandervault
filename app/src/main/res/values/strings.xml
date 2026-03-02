@@ -49,7 +49,20 @@
     <string name="trip_detail_navigate_up">Navigate up</string>
     <string name="trip_detail_title">Trip Details</string>
     <string name="trip_detail_tab_details">Details</string>
+    <string name="trip_detail_tab_itinerary">Itinerary</string>
     <string name="trip_detail_loading">Loading trip…</string>
     <string name="trip_detail_error">Could not load trip details.</string>
     <string name="trip_detail_cover_image_desc">Cover image for %1$s</string>
+
+    <!-- Itinerary planner -->
+    <string name="itinerary_add_destination">Add destination</string>
+    <string name="itinerary_add_destination_title">New Destination</string>
+    <string name="itinerary_destination_name_label">Destination name</string>
+    <string name="itinerary_arrival_label">Arrival</string>
+    <string name="itinerary_departure_label">Departure</string>
+    <string name="itinerary_pick_date">Pick date</string>
+    <string name="itinerary_pick_time">Pick time</string>
+    <string name="itinerary_empty_title">No destinations yet</string>
+    <string name="itinerary_empty_subtitle">Add destinations to plan your itinerary</string>
+    <string name="itinerary_delete_destination">Delete destination</string>
 </resources>
