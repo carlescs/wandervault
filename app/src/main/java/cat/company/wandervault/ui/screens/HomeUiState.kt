@@ -9,11 +9,13 @@ data class HomeUiState(
     val addTripTitle: String = "",
     val addTripStartDate: LocalDate? = null,
     val addTripEndDate: LocalDate? = null,
+    val addTripImageUri: String? = null,
     val showEditTripDialog: Boolean = false,
     val editTripId: Int? = null,
     val editTripTitle: String = "",
     val editTripStartDate: LocalDate? = null,
     val editTripEndDate: LocalDate? = null,
+    val editTripImageUri: String? = null,
 ) {
     val isAddTripFormValid: Boolean
         get() = addTripTitle.isNotBlank() &&

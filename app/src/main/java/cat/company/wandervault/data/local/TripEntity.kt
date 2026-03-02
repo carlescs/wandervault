@@ -10,4 +10,5 @@ data class TripEntity(
     val title: String,
     val startDate: LocalDate,
     val endDate: LocalDate,
+    val imageUri: String? = null,
 )

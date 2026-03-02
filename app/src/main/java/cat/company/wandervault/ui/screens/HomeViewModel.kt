@@ -41,6 +41,7 @@ class HomeViewModel(
                 addTripTitle = "",
                 addTripStartDate = null,
                 addTripEndDate = null,
+                addTripImageUri = null,
             )
         }
     }
@@ -62,6 +63,10 @@ class HomeViewModel(
         _uiState.update { it.copy(addTripEndDate = date) }
     }
 
+    fun onAddTripImageUriChange(uri: String?) {
+        _uiState.update { it.copy(addTripImageUri = uri) }
+    }
+
     fun onSaveTrip() {
         val state = _uiState.value
         if (!state.isAddTripFormValid) return
@@ -75,6 +80,7 @@ class HomeViewModel(
                     title = state.addTripTitle,
                     startDate = startDate,
                     endDate = endDate,
+                    imageUri = state.addTripImageUri,
                 ),
             )
             onDismissAddTripDialog()
@@ -89,6 +95,7 @@ class HomeViewModel(
                 editTripTitle = trip.title,
                 editTripStartDate = trip.startDate,
                 editTripEndDate = trip.endDate,
+                editTripImageUri = trip.imageUri,
             )
         }
     }
@@ -101,6 +108,7 @@ class HomeViewModel(
                 editTripTitle = "",
                 editTripStartDate = null,
                 editTripEndDate = null,
+                editTripImageUri = null,
             )
         }
     }
@@ -117,6 +125,10 @@ class HomeViewModel(
         _uiState.update { it.copy(editTripEndDate = date) }
     }
 
+    fun onEditTripImageUriChange(uri: String?) {
+        _uiState.update { it.copy(editTripImageUri = uri) }
+    }
+
     fun onUpdateTrip() {
         val state = _uiState.value
         if (!state.isEditTripFormValid) return
@@ -131,6 +143,7 @@ class HomeViewModel(
                     title = state.editTripTitle,
                     startDate = startDate,
                     endDate = endDate,
+                    imageUri = state.editTripImageUri,
                 ),
             )
             onDismissEditTripDialog()

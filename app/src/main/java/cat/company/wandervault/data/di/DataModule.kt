@@ -13,7 +13,7 @@ val dataModule = module {
             androidContext(),
             WanderVaultDatabase::class.java,
             WanderVaultDatabase.DATABASE_NAME,
-        ).build()
+        ).addMigrations(WanderVaultDatabase.MIGRATION_1_2).build()
     }
     single { get<WanderVaultDatabase>().tripDao() }
     single<TripRepository> { TripRepositoryImpl(get()) }

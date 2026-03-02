@@ -27,6 +27,7 @@ private fun TripEntity.toDomain() = Trip(
     title = title,
     startDate = startDate,
     endDate = endDate,
+    imageUri = imageUri,
 )
 
 private fun Trip.toEntity() = TripEntity(
@@ -34,4 +35,5 @@ private fun Trip.toEntity() = TripEntity(
     title = title,
     startDate = startDate,
     endDate = endDate,
+    imageUri = imageUri,
 )
