@@ -16,6 +16,10 @@ class TripRepositoryImpl(private val dao: TripDao) : TripRepository {
     override suspend fun saveTrip(trip: Trip) {
         dao.insert(trip.toEntity())
     }
+
+    override suspend fun updateTrip(trip: Trip) {
+        dao.update(trip.toEntity())
+    }
 }
 
 private fun TripEntity.toDomain() = Trip(
