@@ -53,6 +53,7 @@ fun WanderVaultApp() {
         tripDetailId?.let { id ->
             TripDetailScreen(
                 tripId = id,
+                onNavigateUp = { tripDetailId = null },
                 modifier = Modifier.fillMaxSize(),
             )
         }
