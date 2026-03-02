@@ -48,7 +48,12 @@ class HomeViewModel(
     }
 
     fun onAddTripStartDateChange(date: LocalDate) {
-        _uiState.update { it.copy(addTripStartDate = date) }
+        _uiState.update { state ->
+            state.copy(
+                addTripStartDate = date,
+                addTripEndDate = if (state.addTripEndDate?.isBefore(date) == true) null else state.addTripEndDate,
+            )
+        }
     }
 
     fun onAddTripEndDateChange(date: LocalDate) {

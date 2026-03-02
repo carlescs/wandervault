@@ -24,6 +24,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -164,6 +165,10 @@ private fun AddTripDialog(
     if (showStartDatePicker) {
         val state = rememberDatePickerState(
             initialSelectedDateMillis = startDate?.toEpochDay()?.times(MILLIS_PER_DAY),
+            selectableDates = object : SelectableDates {
+                override fun isSelectableDate(utcTimeMillis: Long): Boolean =
+                    endDate == null || utcTimeMillis <= endDate.toEpochDay() * MILLIS_PER_DAY
+            },
         )
         DatePickerDialog(
             onDismissRequest = { showStartDatePicker = false },
@@ -186,6 +191,10 @@ private fun AddTripDialog(
     if (showEndDatePicker) {
         val state = rememberDatePickerState(
             initialSelectedDateMillis = endDate?.toEpochDay()?.times(MILLIS_PER_DAY),
+            selectableDates = object : SelectableDates {
+                override fun isSelectableDate(utcTimeMillis: Long): Boolean =
+                    startDate == null || utcTimeMillis >= startDate.toEpochDay() * MILLIS_PER_DAY
+            },
         )
         DatePickerDialog(
             onDismissRequest = { showEndDatePicker = false },
