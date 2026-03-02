@@ -35,6 +35,9 @@ abstract class WanderVaultDatabase : RoomDatabase() {
                     )
                     """.trimIndent(),
                 )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_destinations_tripId_position ON destinations(tripId, position)",
+                )
             }
         }
     }

@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.calculateBottomPadding
+import androidx.compose.foundation.layout.calculateTopPadding
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -130,7 +132,7 @@ internal fun ItineraryContent(
                     bottom = innerPadding.calculateBottomPadding() + 88.dp,
                 ),
             ) {
-                itemsIndexed(uiState.destinations) { index, destination ->
+                itemsIndexed(uiState.destinations, key = { _, destination -> destination.id }) { index, destination ->
                     DestinationTimelineItem(
                         destination = destination,
                         isFirst = index == 0,
@@ -243,7 +245,9 @@ private fun DestinationTimelineItem(
                 }
             }
 
-            if (!isFirst) {
+            val isSingle = isFirst && isLast
+            // Show arrival for: all non-first destinations, AND the single-destination case
+            if (!isFirst || isSingle) {
                 DateTimeRow(
                     label = stringResource(R.string.itinerary_arrival_label),
                     dateTime = destination.arrivalDateTime,
@@ -251,7 +255,8 @@ private fun DestinationTimelineItem(
                 )
                 Spacer(modifier = Modifier.height(4.dp))
             }
-            if (!isLast) {
+            // Show departure for: all non-last destinations, AND the single-destination case
+            if (!isLast || isSingle) {
                 DateTimeRow(
                     label = stringResource(R.string.itinerary_departure_label),
                     dateTime = destination.departureDateTime,

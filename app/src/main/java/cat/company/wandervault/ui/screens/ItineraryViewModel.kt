@@ -7,6 +7,8 @@ import cat.company.wandervault.domain.usecase.DeleteDestinationUseCase
 import cat.company.wandervault.domain.usecase.GetDestinationsForTripUseCase
 import cat.company.wandervault.domain.usecase.SaveDestinationUseCase
 import cat.company.wandervault.domain.usecase.UpdateDestinationUseCase
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -87,7 +89,29 @@ class ItineraryViewModel(
 
     fun onDeleteDestination(destination: Destination) {
         viewModelScope.launch {
+            // Capture remaining list inside the coroutine (before the delete) to ensure
+            // we're working with the latest state.
+            val remaining = _uiState.value.destinations
+                .filter { it.id != destination.id }
+                .sortedBy { it.position }
             deleteDestination(destination)
+            // Re-sequence positions and clear date-times that no longer apply to the
+            // new first (no arrival) and new last (no departure) destinations.
+            // Updates are issued in parallel to avoid partially-visible intermediate states.
+            remaining.mapIndexedNotNull { index, dest ->
+                val isNowFirst = index == 0
+                val isNowLast = index == remaining.lastIndex
+                val needsReindex = dest.position != index
+                val needsArrivalClear = isNowFirst && dest.arrivalDateTime != null
+                val needsDepartureClear = isNowLast && dest.departureDateTime != null
+                if (needsReindex || needsArrivalClear || needsDepartureClear) {
+                    dest.copy(
+                        position = index,
+                        arrivalDateTime = if (isNowFirst) null else dest.arrivalDateTime,
+                        departureDateTime = if (isNowLast) null else dest.departureDateTime,
+                    )
+                } else null
+            }.map { updated -> async { updateDestination(updated) } }.awaitAll()
         }
     }
 }
