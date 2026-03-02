@@ -6,4 +6,5 @@ import kotlinx.coroutines.flow.Flow
 interface TripRepository {
     fun getTrips(): Flow<List<Trip>>
     suspend fun saveTrip(trip: Trip)
+    suspend fun updateTrip(trip: Trip)
 }

@@ -32,6 +32,10 @@
     <string name="add_trip_pick_date">Pick</string>
     <string name="add_trip_save">Save</string>
 
+    <!-- Edit Trip dialog -->
+    <string name="edit_trip_title">Edit Trip</string>
+    <string name="edit_trip_content_desc">Edit trip</string>
+
     <!-- Generic dialog actions -->
     <string name="dialog_ok">OK</string>
     <string name="dialog_cancel">Cancel</string>

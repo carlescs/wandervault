@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -13,6 +14,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.DatePicker
@@ -20,6 +22,7 @@ import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -66,6 +69,12 @@ fun HomeScreen(modifier: Modifier = Modifier, viewModel: HomeViewModel = koinVie
         onStartDateChange = viewModel::onAddTripStartDateChange,
         onEndDateChange = viewModel::onAddTripEndDateChange,
         onSaveTrip = viewModel::onSaveTrip,
+        onEditTripClick = viewModel::onEditTripClick,
+        onDismissEditDialog = viewModel::onDismissEditTripDialog,
+        onEditTitleChange = viewModel::onEditTripTitleChange,
+        onEditStartDateChange = viewModel::onEditTripStartDateChange,
+        onEditEndDateChange = viewModel::onEditTripEndDateChange,
+        onUpdateTrip = viewModel::onUpdateTrip,
         modifier = modifier,
     )
 }
@@ -85,6 +94,12 @@ internal fun HomeScreenContent(
     onStartDateChange: (LocalDate) -> Unit,
     onEndDateChange: (LocalDate) -> Unit,
     onSaveTrip: () -> Unit,
+    onEditTripClick: (Trip) -> Unit,
+    onDismissEditDialog: () -> Unit,
+    onEditTitleChange: (String) -> Unit,
+    onEditStartDateChange: (LocalDate) -> Unit,
+    onEditEndDateChange: (LocalDate) -> Unit,
+    onUpdateTrip: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Box(modifier = modifier.fillMaxSize()) {
@@ -97,7 +112,7 @@ internal fun HomeScreenContent(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(uiState.trips) { trip ->
-                    TripCard(trip = trip)
+                    TripCard(trip = trip, onEditClick = { onEditTripClick(trip) })
                 }
             }
         }
@@ -125,30 +140,73 @@ internal fun HomeScreenContent(
             onDismiss = onDismissDialog,
         )
     }
+
+    if (uiState.showEditTripDialog) {
+        EditTripDialog(
+            title = uiState.editTripTitle,
+            onTitleChange = onEditTitleChange,
+            startDate = uiState.editTripStartDate,
+            onStartDateChange = onEditStartDateChange,
+            endDate = uiState.editTripEndDate,
+            onEndDateChange = onEditEndDateChange,
+            isFormValid = uiState.isEditTripFormValid,
+            onSave = onUpdateTrip,
+            onDismiss = onDismissEditDialog,
+        )
+    }
 }
 
 @Composable
-private fun TripCard(trip: Trip, modifier: Modifier = Modifier) {
+private fun TripCard(trip: Trip, onEditClick: () -> Unit, modifier: Modifier = Modifier) {
     val formatter = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
     Card(modifier = modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = trip.title,
-                style = MaterialTheme.typography.titleMedium,
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "${trip.startDate.format(formatter)} – ${trip.endDate.format(formatter)}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+        Row(
+            modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 16.dp, end = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = trip.title,
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "${trip.startDate.format(formatter)} – ${trip.endDate.format(formatter)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            IconButton(onClick = onEditClick) {
+                Icon(
+                    imageVector = Icons.Default.Edit,
+                    contentDescription = stringResource(R.string.edit_trip_content_desc),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }
 
+/**
+ * Shared dialog for creating or editing a trip.
+ *
+ * Used by [AddTripDialog] and [EditTripDialog] to avoid duplication.
+ *
+ * @param dialogTitle The title shown at the top of the dialog.
+ * @param title The current trip name input value.
+ * @param onTitleChange Called when the user changes the trip name.
+ * @param startDate The currently selected start date, or null if none chosen yet.
+ * @param onStartDateChange Called when the user picks a new start date.
+ * @param endDate The currently selected end date, or null if none chosen yet.
+ * @param onEndDateChange Called when the user picks a new end date.
+ * @param isFormValid Whether the form inputs are valid, enabling the save button.
+ * @param onSave Called when the user confirms the dialog.
+ * @param onDismiss Called when the user cancels or dismisses the dialog.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AddTripDialog(
+private fun TripFormDialog(
+    dialogTitle: String,
     title: String,
     onTitleChange: (String) -> Unit,
     startDate: LocalDate?,
@@ -218,7 +276,7 @@ private fun AddTripDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.add_trip_title)) },
+        title = { Text(dialogTitle) },
         text = {
             Column {
                 OutlinedTextField(
@@ -266,6 +324,58 @@ private fun AddTripDialog(
 }
 
 @Composable
+private fun AddTripDialog(
+    title: String,
+    onTitleChange: (String) -> Unit,
+    startDate: LocalDate?,
+    onStartDateChange: (LocalDate) -> Unit,
+    endDate: LocalDate?,
+    onEndDateChange: (LocalDate) -> Unit,
+    isFormValid: Boolean,
+    onSave: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    TripFormDialog(
+        dialogTitle = stringResource(R.string.add_trip_title),
+        title = title,
+        onTitleChange = onTitleChange,
+        startDate = startDate,
+        onStartDateChange = onStartDateChange,
+        endDate = endDate,
+        onEndDateChange = onEndDateChange,
+        isFormValid = isFormValid,
+        onSave = onSave,
+        onDismiss = onDismiss,
+    )
+}
+
+@Composable
+private fun EditTripDialog(
+    title: String,
+    onTitleChange: (String) -> Unit,
+    startDate: LocalDate?,
+    onStartDateChange: (LocalDate) -> Unit,
+    endDate: LocalDate?,
+    onEndDateChange: (LocalDate) -> Unit,
+    isFormValid: Boolean,
+    onSave: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    TripFormDialog(
+        dialogTitle = stringResource(R.string.edit_trip_title),
+        title = title,
+        onTitleChange = onTitleChange,
+        startDate = startDate,
+        onStartDateChange = onStartDateChange,
+        endDate = endDate,
+        onEndDateChange = onEndDateChange,
+        isFormValid = isFormValid,
+        onSave = onSave,
+        onDismiss = onDismiss,
+    )
+}
+
+@Composable
 private fun TripsEmptyState(modifier: Modifier = Modifier) {
     Column(
         modifier = modifier
@@ -302,6 +412,12 @@ private fun HomeScreenEmptyPreview() {
             onStartDateChange = {},
             onEndDateChange = {},
             onSaveTrip = {},
+            onEditTripClick = {},
+            onDismissEditDialog = {},
+            onEditTitleChange = {},
+            onEditStartDateChange = {},
+            onEditEndDateChange = {},
+            onUpdateTrip = {},
         )
     }
 }
@@ -322,6 +438,13 @@ private fun HomeScreenWithTripsPreview() {
             onStartDateChange = {},
             onEndDateChange = {},
             onSaveTrip = {},
+            onEditTripClick = {},
+            onDismissEditDialog = {},
+            onEditTitleChange = {},
+            onEditStartDateChange = {},
+            onEditEndDateChange = {},
+            onUpdateTrip = {},
         )
     }
 }
+
