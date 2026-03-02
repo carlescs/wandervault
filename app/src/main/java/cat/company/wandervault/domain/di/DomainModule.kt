@@ -1,8 +1,12 @@
 package cat.company.wandervault.domain.di
 
+import cat.company.wandervault.domain.usecase.DeleteDestinationUseCase
+import cat.company.wandervault.domain.usecase.GetDestinationsForTripUseCase
 import cat.company.wandervault.domain.usecase.GetTripUseCase
 import cat.company.wandervault.domain.usecase.GetTripsUseCase
+import cat.company.wandervault.domain.usecase.SaveDestinationUseCase
 import cat.company.wandervault.domain.usecase.SaveTripUseCase
+import cat.company.wandervault.domain.usecase.UpdateDestinationUseCase
 import cat.company.wandervault.domain.usecase.UpdateTripUseCase
 import org.koin.dsl.module
 
@@ -11,4 +15,8 @@ val domainModule = module {
     factory { GetTripsUseCase(get()) }
     factory { SaveTripUseCase(get()) }
     factory { UpdateTripUseCase(get()) }
+    factory { GetDestinationsForTripUseCase(get()) }
+    factory { SaveDestinationUseCase(get()) }
+    factory { UpdateDestinationUseCase(get()) }
+    factory { DeleteDestinationUseCase(get()) }
 }
