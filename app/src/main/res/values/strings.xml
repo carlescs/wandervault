@@ -22,4 +22,17 @@
     <string name="nav_home_desc">Home</string>
     <string name="nav_favorites_desc">Favorites</string>
     <string name="nav_profile_desc">Profile</string>
+
+    <!-- Add Trip dialog -->
+    <string name="add_trip_content_desc">Add trip</string>
+    <string name="add_trip_title">New Trip</string>
+    <string name="add_trip_name_label">Trip name</string>
+    <string name="add_trip_start_date_label">Start date</string>
+    <string name="add_trip_end_date_label">End date</string>
+    <string name="add_trip_pick_date">Pick</string>
+    <string name="add_trip_save">Save</string>
+
+    <!-- Generic dialog actions -->
+    <string name="dialog_ok">OK</string>
+    <string name="dialog_cancel">Cancel</string>
 </resources>
