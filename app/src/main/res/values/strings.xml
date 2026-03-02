@@ -1,3 +1,25 @@
 <resources>
     <string name="app_name">WanderVault</string>
+
+    <!-- Bottom navigation labels -->
+    <string name="nav_home">Home</string>
+    <string name="nav_favorites">Favorites</string>
+    <string name="nav_profile">Profile</string>
+
+    <!-- Home screen – trips list -->
+    <string name="trips_empty_title">No trips yet</string>
+    <string name="trips_empty_subtitle">Your saved trips will appear here</string>
+
+    <!-- Favorites screen -->
+    <string name="favorites_title">Saved Places</string>
+    <string name="favorites_empty">No saved places yet</string>
+
+    <!-- Profile screen -->
+    <string name="profile_title">My Profile</string>
+    <string name="profile_subtitle">Manage your account and preferences</string>
+
+    <!-- Navigation content descriptions (accessibility) -->
+    <string name="nav_home_desc">Home</string>
+    <string name="nav_favorites_desc">Favorites</string>
+    <string name="nav_profile_desc">Profile</string>
 </resources>
