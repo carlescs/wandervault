@@ -21,8 +21,8 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
-import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DateRangePicker
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -32,8 +32,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.SelectableDates
-import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material3.rememberDateRangePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -253,8 +252,7 @@ private fun TripFormDialog(
     onSave: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var showStartDatePicker by remember { mutableStateOf(false) }
-    var showEndDatePicker by remember { mutableStateOf(false) }
+    var showDateRangePicker by remember { mutableStateOf(false) }
 
     val imagePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia(),
@@ -262,58 +260,33 @@ private fun TripFormDialog(
         onImageUriChange(uri?.toString())
     }
 
-    if (showStartDatePicker) {
-        val state = rememberDatePickerState(
-            initialSelectedDateMillis = startDate?.toEpochDay()?.times(MILLIS_PER_DAY),
-            selectableDates = object : SelectableDates {
-                override fun isSelectableDate(utcTimeMillis: Long): Boolean =
-                    endDate == null || utcTimeMillis <= endDate.toEpochDay() * MILLIS_PER_DAY
-            },
+    if (showDateRangePicker) {
+        val state = rememberDateRangePickerState(
+            initialSelectedStartDateMillis = startDate?.toEpochDay()?.times(MILLIS_PER_DAY),
+            initialSelectedEndDateMillis = endDate?.toEpochDay()?.times(MILLIS_PER_DAY),
         )
         DatePickerDialog(
-            onDismissRequest = { showStartDatePicker = false },
+            onDismissRequest = { showDateRangePicker = false },
             confirmButton = {
-                TextButton(onClick = {
-                    state.selectedDateMillis?.let { millis ->
-                        onStartDateChange(LocalDate.ofEpochDay(millis / MILLIS_PER_DAY))
-                    }
-                    showStartDatePicker = false
-                }) { Text(stringResource(R.string.dialog_ok)) }
+                TextButton(
+                    onClick = {
+                        state.selectedStartDateMillis?.let { millis ->
+                            onStartDateChange(LocalDate.ofEpochDay(millis / MILLIS_PER_DAY))
+                        }
+                        state.selectedEndDateMillis?.let { millis ->
+                            onEndDateChange(LocalDate.ofEpochDay(millis / MILLIS_PER_DAY))
+                        }
+                        showDateRangePicker = false
+                    },
+                    enabled = state.selectedStartDateMillis != null && state.selectedEndDateMillis != null,
+                ) { Text(stringResource(R.string.dialog_ok)) }
             },
             dismissButton = {
-                TextButton(onClick = { showStartDatePicker = false }) {
+                TextButton(onClick = { showDateRangePicker = false }) {
                     Text(stringResource(R.string.dialog_cancel))
                 }
             },
-        ) { DatePicker(state = state) }
-    }
-
-    if (showEndDatePicker) {
-        val state = rememberDatePickerState(
-            initialSelectedDateMillis = endDate?.toEpochDay()?.times(MILLIS_PER_DAY),
-            initialDisplayedMonthMillis = endDate?.toEpochDay()?.times(MILLIS_PER_DAY)
-                ?: startDate?.toEpochDay()?.times(MILLIS_PER_DAY),
-            selectableDates = object : SelectableDates {
-                override fun isSelectableDate(utcTimeMillis: Long): Boolean =
-                    startDate == null || utcTimeMillis >= startDate.toEpochDay() * MILLIS_PER_DAY
-            },
-        )
-        DatePickerDialog(
-            onDismissRequest = { showEndDatePicker = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    state.selectedDateMillis?.let { millis ->
-                        onEndDateChange(LocalDate.ofEpochDay(millis / MILLIS_PER_DAY))
-                    }
-                    showEndDatePicker = false
-                }) { Text(stringResource(R.string.dialog_ok)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showEndDatePicker = false }) {
-                    Text(stringResource(R.string.dialog_cancel))
-                }
-            },
-        ) { DatePicker(state = state) }
+        ) { DateRangePicker(state = state) }
     }
 
     val formatter = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
@@ -338,7 +311,7 @@ private fun TripFormDialog(
                     readOnly = true,
                     modifier = Modifier.fillMaxWidth(),
                     trailingIcon = {
-                        TextButton(onClick = { showStartDatePicker = true }) {
+                        TextButton(onClick = { showDateRangePicker = true }) {
                             Text(stringResource(R.string.add_trip_pick_date))
                         }
                     },
@@ -351,7 +324,7 @@ private fun TripFormDialog(
                     readOnly = true,
                     modifier = Modifier.fillMaxWidth(),
                     trailingIcon = {
-                        TextButton(onClick = { showEndDatePicker = true }) {
+                        TextButton(onClick = { showDateRangePicker = true }) {
                             Text(stringResource(R.string.add_trip_pick_date))
                         }
                     },
