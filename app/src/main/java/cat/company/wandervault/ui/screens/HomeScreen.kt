@@ -1,5 +1,9 @@
 package cat.company.wandervault.ui.screens
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,6 +28,7 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -36,6 +41,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -44,6 +51,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cat.company.wandervault.R
 import cat.company.wandervault.domain.model.Trip
 import cat.company.wandervault.ui.theme.WanderVaultTheme
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import org.koin.androidx.compose.koinViewModel
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -68,12 +77,14 @@ fun HomeScreen(modifier: Modifier = Modifier, viewModel: HomeViewModel = koinVie
         onTitleChange = viewModel::onAddTripTitleChange,
         onStartDateChange = viewModel::onAddTripStartDateChange,
         onEndDateChange = viewModel::onAddTripEndDateChange,
+        onImageUriChange = viewModel::onAddTripImageUriChange,
         onSaveTrip = viewModel::onSaveTrip,
         onEditTripClick = viewModel::onEditTripClick,
         onDismissEditDialog = viewModel::onDismissEditTripDialog,
         onEditTitleChange = viewModel::onEditTripTitleChange,
         onEditStartDateChange = viewModel::onEditTripStartDateChange,
         onEditEndDateChange = viewModel::onEditTripEndDateChange,
+        onEditImageUriChange = viewModel::onEditTripImageUriChange,
         onUpdateTrip = viewModel::onUpdateTrip,
         modifier = modifier,
     )
@@ -93,12 +104,14 @@ internal fun HomeScreenContent(
     onTitleChange: (String) -> Unit,
     onStartDateChange: (LocalDate) -> Unit,
     onEndDateChange: (LocalDate) -> Unit,
+    onImageUriChange: (String?) -> Unit,
     onSaveTrip: () -> Unit,
     onEditTripClick: (Trip) -> Unit,
     onDismissEditDialog: () -> Unit,
     onEditTitleChange: (String) -> Unit,
     onEditStartDateChange: (LocalDate) -> Unit,
     onEditEndDateChange: (LocalDate) -> Unit,
+    onEditImageUriChange: (String?) -> Unit,
     onUpdateTrip: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -135,6 +148,8 @@ internal fun HomeScreenContent(
             onStartDateChange = onStartDateChange,
             endDate = uiState.addTripEndDate,
             onEndDateChange = onEndDateChange,
+            imageUri = uiState.addTripImageUri,
+            onImageUriChange = onImageUriChange,
             isFormValid = uiState.isAddTripFormValid,
             onSave = onSaveTrip,
             onDismiss = onDismissDialog,
@@ -149,6 +164,8 @@ internal fun HomeScreenContent(
             onStartDateChange = onEditStartDateChange,
             endDate = uiState.editTripEndDate,
             onEndDateChange = onEditEndDateChange,
+            imageUri = uiState.editTripImageUri,
+            onImageUriChange = onEditImageUriChange,
             isFormValid = uiState.isEditTripFormValid,
             onSave = onUpdateTrip,
             onDismiss = onDismissEditDialog,
@@ -160,6 +177,19 @@ internal fun HomeScreenContent(
 private fun TripCard(trip: Trip, onEditClick: () -> Unit, modifier: Modifier = Modifier) {
     val formatter = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
     Card(modifier = modifier.fillMaxWidth()) {
+        if (trip.imageUri != null) {
+            AsyncImage(
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(Uri.parse(trip.imageUri))
+                    .crossfade(true)
+                    .build(),
+                contentDescription = stringResource(R.string.trip_image_content_desc),
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(120.dp),
+            )
+        }
         Row(
             modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 16.dp, end = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -199,6 +229,8 @@ private fun TripCard(trip: Trip, onEditClick: () -> Unit, modifier: Modifier = M
  * @param onStartDateChange Called when the user picks a new start date.
  * @param endDate The currently selected end date, or null if none chosen yet.
  * @param onEndDateChange Called when the user picks a new end date.
+ * @param imageUri The currently selected background image URI, or null if none chosen.
+ * @param onImageUriChange Called when the user picks or removes a background image.
  * @param isFormValid Whether the form inputs are valid, enabling the save button.
  * @param onSave Called when the user confirms the dialog.
  * @param onDismiss Called when the user cancels or dismisses the dialog.
@@ -213,12 +245,20 @@ private fun TripFormDialog(
     onStartDateChange: (LocalDate) -> Unit,
     endDate: LocalDate?,
     onEndDateChange: (LocalDate) -> Unit,
+    imageUri: String?,
+    onImageUriChange: (String?) -> Unit,
     isFormValid: Boolean,
     onSave: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     var showStartDatePicker by remember { mutableStateOf(false) }
     var showEndDatePicker by remember { mutableStateOf(false) }
+
+    val imagePicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia(),
+    ) { uri: Uri? ->
+        onImageUriChange(uri?.toString())
+    }
 
     if (showStartDatePicker) {
         val state = rememberDatePickerState(
@@ -312,6 +352,38 @@ private fun TripFormDialog(
                         }
                     },
                 )
+                Spacer(modifier = Modifier.height(8.dp))
+                if (imageUri != null) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(Uri.parse(imageUri))
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = stringResource(R.string.trip_image_content_desc),
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(100.dp),
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    OutlinedButton(
+                        onClick = { onImageUriChange(null) },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(stringResource(R.string.trip_image_remove))
+                    }
+                } else {
+                    OutlinedButton(
+                        onClick = {
+                            imagePicker.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(stringResource(R.string.trip_image_pick))
+                    }
+                }
             }
         },
         confirmButton = {
@@ -331,6 +403,8 @@ private fun AddTripDialog(
     onStartDateChange: (LocalDate) -> Unit,
     endDate: LocalDate?,
     onEndDateChange: (LocalDate) -> Unit,
+    imageUri: String?,
+    onImageUriChange: (String?) -> Unit,
     isFormValid: Boolean,
     onSave: () -> Unit,
     onDismiss: () -> Unit,
@@ -343,6 +417,8 @@ private fun AddTripDialog(
         onStartDateChange = onStartDateChange,
         endDate = endDate,
         onEndDateChange = onEndDateChange,
+        imageUri = imageUri,
+        onImageUriChange = onImageUriChange,
         isFormValid = isFormValid,
         onSave = onSave,
         onDismiss = onDismiss,
@@ -357,6 +433,8 @@ private fun EditTripDialog(
     onStartDateChange: (LocalDate) -> Unit,
     endDate: LocalDate?,
     onEndDateChange: (LocalDate) -> Unit,
+    imageUri: String?,
+    onImageUriChange: (String?) -> Unit,
     isFormValid: Boolean,
     onSave: () -> Unit,
     onDismiss: () -> Unit,
@@ -369,6 +447,8 @@ private fun EditTripDialog(
         onStartDateChange = onStartDateChange,
         endDate = endDate,
         onEndDateChange = onEndDateChange,
+        imageUri = imageUri,
+        onImageUriChange = onImageUriChange,
         isFormValid = isFormValid,
         onSave = onSave,
         onDismiss = onDismiss,
@@ -411,12 +491,14 @@ private fun HomeScreenEmptyPreview() {
             onTitleChange = {},
             onStartDateChange = {},
             onEndDateChange = {},
+            onImageUriChange = {},
             onSaveTrip = {},
             onEditTripClick = {},
             onDismissEditDialog = {},
             onEditTitleChange = {},
             onEditStartDateChange = {},
             onEditEndDateChange = {},
+            onEditImageUriChange = {},
             onUpdateTrip = {},
         )
     }
@@ -437,12 +519,14 @@ private fun HomeScreenWithTripsPreview() {
             onTitleChange = {},
             onStartDateChange = {},
             onEndDateChange = {},
+            onImageUriChange = {},
             onSaveTrip = {},
             onEditTripClick = {},
             onDismissEditDialog = {},
             onEditTitleChange = {},
             onEditStartDateChange = {},
             onEditEndDateChange = {},
+            onEditImageUriChange = {},
             onUpdateTrip = {},
         )
     }

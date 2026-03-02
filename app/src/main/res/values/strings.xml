@@ -39,4 +39,9 @@
     <!-- Generic dialog actions -->
     <string name="dialog_ok">OK</string>
     <string name="dialog_cancel">Cancel</string>
+
+    <!-- Trip image picker -->
+    <string name="trip_image_pick">Pick background image</string>
+    <string name="trip_image_remove">Remove image</string>
+    <string name="trip_image_content_desc">Trip background image</string>
 </resources>

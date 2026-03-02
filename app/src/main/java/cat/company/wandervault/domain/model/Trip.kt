@@ -7,4 +7,5 @@ data class Trip(
     val title: String,
     val startDate: LocalDate,
     val endDate: LocalDate,
+    val imageUri: String? = null,
 )
