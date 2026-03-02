@@ -12,20 +12,27 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import cat.company.wandervault.R
 import cat.company.wandervault.ui.theme.WanderVaultTheme
 
 /**
- * Home screen – entry point of the WanderVault experience.
+ * Home screen – displays the user's list of trips.
  *
- * Displays a welcome headline and a short call-to-action subtitle.
- * Replace the placeholder content with trip cards or a map widget as
- * the feature set grows.
+ * When no trips exist an empty-state message is shown.
+ * Replace the empty state with a `LazyColumn` of trip cards
+ * once trips can be created and stored.
  */
 @Composable
 fun HomeScreen(modifier: Modifier = Modifier) {
+    // TODO: load trips from a ViewModel and render a LazyColumn when non-empty
+    TripsEmptyState(modifier = modifier)
+}
+
+@Composable
+private fun TripsEmptyState(modifier: Modifier = Modifier) {
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -34,15 +41,17 @@ fun HomeScreen(modifier: Modifier = Modifier) {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = stringResource(R.string.home_title),
-            style = MaterialTheme.typography.headlineMedium,
-            color = MaterialTheme.colorScheme.primary
+            text = stringResource(R.string.trips_empty_title),
+            style = MaterialTheme.typography.headlineSmall,
+            color = MaterialTheme.colorScheme.primary,
+            textAlign = TextAlign.Center
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = stringResource(R.string.home_subtitle),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onBackground
+            text = stringResource(R.string.trips_empty_subtitle),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center
         )
     }
 }
