@@ -67,7 +67,7 @@ private const val MILLIS_PER_DAY = 86_400_000L
  * A FAB opens the [AddTripDialog] to create a new trip.
  */
 @Composable
-fun HomeScreen(modifier: Modifier = Modifier, viewModel: HomeViewModel = koinViewModel()) {
+fun HomeScreen(modifier: Modifier = Modifier, viewModel: HomeViewModel = koinViewModel(), onTripClick: (Int) -> Unit = {}) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     HomeScreenContent(
@@ -86,6 +86,7 @@ fun HomeScreen(modifier: Modifier = Modifier, viewModel: HomeViewModel = koinVie
         onEditEndDateChange = viewModel::onEditTripEndDateChange,
         onEditImageUriChange = viewModel::onEditTripImageUriChange,
         onUpdateTrip = viewModel::onUpdateTrip,
+        onTripClick = onTripClick,
         modifier = modifier,
     )
 }
@@ -113,6 +114,7 @@ internal fun HomeScreenContent(
     onEditEndDateChange: (LocalDate) -> Unit,
     onEditImageUriChange: (String?) -> Unit,
     onUpdateTrip: () -> Unit,
+    onTripClick: (Int) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Box(modifier = modifier.fillMaxSize()) {
@@ -125,7 +127,7 @@ internal fun HomeScreenContent(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(uiState.trips) { trip ->
-                    TripCard(trip = trip, onEditClick = { onEditTripClick(trip) })
+                    TripCard(trip = trip, onEditClick = { onEditTripClick(trip) }, onCardClick = { onTripClick(trip.id) })
                 }
             }
         }
@@ -174,9 +176,9 @@ internal fun HomeScreenContent(
 }
 
 @Composable
-private fun TripCard(trip: Trip, onEditClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun TripCard(trip: Trip, onEditClick: () -> Unit, onCardClick: () -> Unit = {}, modifier: Modifier = Modifier) {
     val formatter = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
-    Card(modifier = modifier.fillMaxWidth()) {
+    Card(modifier = modifier.fillMaxWidth(), onClick = onCardClick) {
         if (trip.imageUri != null) {
             AsyncImage(
                 model = ImageRequest.Builder(LocalContext.current)
