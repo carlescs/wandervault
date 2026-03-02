@@ -9,4 +9,10 @@ data class HomeUiState(
     val addTripTitle: String = "",
     val addTripStartDate: LocalDate? = null,
     val addTripEndDate: LocalDate? = null,
-)
+) {
+    val isAddTripFormValid: Boolean
+        get() = addTripTitle.isNotBlank() &&
+            addTripStartDate != null &&
+            addTripEndDate != null &&
+            !addTripEndDate.isBefore(addTripStartDate)
+}

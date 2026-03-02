@@ -57,9 +57,9 @@ class HomeViewModel(
 
     fun onSaveTrip() {
         val state = _uiState.value
+        if (!state.isAddTripFormValid) return
         val startDate = state.addTripStartDate ?: return
         val endDate = state.addTripEndDate ?: return
-        if (state.addTripTitle.isBlank()) return
 
         viewModelScope.launch {
             saveTrip(

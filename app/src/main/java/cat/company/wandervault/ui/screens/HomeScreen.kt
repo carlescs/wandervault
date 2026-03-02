@@ -57,6 +57,35 @@ private const val MILLIS_PER_DAY = 86_400_000L
 fun HomeScreen(modifier: Modifier = Modifier, viewModel: HomeViewModel = koinViewModel()) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
+    HomeScreenContent(
+        uiState = uiState,
+        onAddTripClick = viewModel::onAddTripClick,
+        onDismissDialog = viewModel::onDismissAddTripDialog,
+        onTitleChange = viewModel::onAddTripTitleChange,
+        onStartDateChange = viewModel::onAddTripStartDateChange,
+        onEndDateChange = viewModel::onAddTripEndDateChange,
+        onSaveTrip = viewModel::onSaveTrip,
+        modifier = modifier,
+    )
+}
+
+/**
+ * Stateless presentation of the home screen.
+ *
+ * Accepts a [HomeUiState] snapshot and event callbacks so it can be reused
+ * in `@Preview` functions without a real [HomeViewModel].
+ */
+@Composable
+internal fun HomeScreenContent(
+    uiState: HomeUiState,
+    onAddTripClick: () -> Unit,
+    onDismissDialog: () -> Unit,
+    onTitleChange: (String) -> Unit,
+    onStartDateChange: (LocalDate) -> Unit,
+    onEndDateChange: (LocalDate) -> Unit,
+    onSaveTrip: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Box(modifier = modifier.fillMaxSize()) {
         if (uiState.trips.isEmpty()) {
             TripsEmptyState(modifier = Modifier.fillMaxSize())
@@ -73,7 +102,7 @@ fun HomeScreen(modifier: Modifier = Modifier, viewModel: HomeViewModel = koinVie
         }
 
         FloatingActionButton(
-            onClick = viewModel::onAddTripClick,
+            onClick = onAddTripClick,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(16.dp),
@@ -85,13 +114,14 @@ fun HomeScreen(modifier: Modifier = Modifier, viewModel: HomeViewModel = koinVie
     if (uiState.showAddTripDialog) {
         AddTripDialog(
             title = uiState.addTripTitle,
-            onTitleChange = viewModel::onAddTripTitleChange,
+            onTitleChange = onTitleChange,
             startDate = uiState.addTripStartDate,
-            onStartDateChange = viewModel::onAddTripStartDateChange,
+            onStartDateChange = onStartDateChange,
             endDate = uiState.addTripEndDate,
-            onEndDateChange = viewModel::onAddTripEndDateChange,
-            onSave = viewModel::onSaveTrip,
-            onDismiss = viewModel::onDismissAddTripDialog,
+            onEndDateChange = onEndDateChange,
+            isFormValid = uiState.isAddTripFormValid,
+            onSave = onSaveTrip,
+            onDismiss = onDismissDialog,
         )
     }
 }
@@ -124,6 +154,7 @@ private fun AddTripDialog(
     onStartDateChange: (LocalDate) -> Unit,
     endDate: LocalDate?,
     onEndDateChange: (LocalDate) -> Unit,
+    isFormValid: Boolean,
     onSave: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -217,7 +248,7 @@ private fun AddTripDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onSave) { Text(stringResource(R.string.add_trip_save)) }
+            TextButton(onClick = onSave, enabled = isFormValid) { Text(stringResource(R.string.add_trip_save)) }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.dialog_cancel)) }
@@ -254,17 +285,15 @@ private fun TripsEmptyState(modifier: Modifier = Modifier) {
 @Composable
 private fun HomeScreenEmptyPreview() {
     WanderVaultTheme {
-        Box(modifier = Modifier.fillMaxSize()) {
-            TripsEmptyState(modifier = Modifier.fillMaxSize())
-            FloatingActionButton(
-                onClick = {},
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(16.dp),
-            ) {
-                Icon(Icons.Default.Add, contentDescription = null)
-            }
-        }
+        HomeScreenContent(
+            uiState = HomeUiState(),
+            onAddTripClick = {},
+            onDismissDialog = {},
+            onTitleChange = {},
+            onStartDateChange = {},
+            onEndDateChange = {},
+            onSaveTrip = {},
+        )
     }
 }
 
@@ -276,22 +305,14 @@ private fun HomeScreenWithTripsPreview() {
         Trip(2, "Tokyo Adventure", LocalDate.of(2024, 9, 15), LocalDate.of(2024, 9, 25)),
     )
     WanderVaultTheme {
-        Box(modifier = Modifier.fillMaxSize()) {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 88.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                items(sampleTrips) { trip -> TripCard(trip = trip) }
-            }
-            FloatingActionButton(
-                onClick = {},
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(16.dp),
-            ) {
-                Icon(Icons.Default.Add, contentDescription = null)
-            }
-        }
+        HomeScreenContent(
+            uiState = HomeUiState(trips = sampleTrips),
+            onAddTripClick = {},
+            onDismissDialog = {},
+            onTitleChange = {},
+            onStartDateChange = {},
+            onEndDateChange = {},
+            onSaveTrip = {},
+        )
     }
 }
