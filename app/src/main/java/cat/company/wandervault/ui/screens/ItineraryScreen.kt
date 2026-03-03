@@ -309,10 +309,18 @@ private fun DateTimeRow(
 
     if (showDatePicker) {
         val selectableDates = remember(minDateMillis, maxDateMillis) {
+            // Normalize bounds so an inverted range (e.g. from out-of-order existing data)
+            // doesn't disable all dates and lock the user out of correcting them.
+            val (normalizedMin, normalizedMax) =
+                if (minDateMillis != null && maxDateMillis != null && minDateMillis > maxDateMillis) {
+                    maxDateMillis to minDateMillis
+                } else {
+                    minDateMillis to maxDateMillis
+                }
             object : SelectableDates {
                 override fun isSelectableDate(utcTimeMillis: Long): Boolean {
-                    val afterMin = minDateMillis == null || utcTimeMillis >= minDateMillis
-                    val beforeMax = maxDateMillis == null || utcTimeMillis <= maxDateMillis
+                    val afterMin = normalizedMin == null || utcTimeMillis >= normalizedMin
+                    val beforeMax = normalizedMax == null || utcTimeMillis <= normalizedMax
                     return afterMin && beforeMax
                 }
                 override fun isSelectableYear(year: Int): Boolean = true
