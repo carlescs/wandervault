@@ -31,6 +31,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
@@ -46,6 +47,9 @@ import cat.company.wandervault.ui.theme.WanderVaultTheme
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import org.koin.androidx.compose.koinViewModel
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 
 /**
  * Home screen – displays the user's list of trips.
@@ -148,6 +152,7 @@ internal fun HomeScreenContent(
 
 @Composable
 private fun TripCard(trip: Trip, onEditClick: () -> Unit, onCardClick: () -> Unit = {}, modifier: Modifier = Modifier) {
+    val formatter = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
     Card(modifier = modifier.fillMaxWidth(), onClick = onCardClick) {
         if (trip.imageUri != null) {
             AsyncImage(
@@ -171,6 +176,14 @@ private fun TripCard(trip: Trip, onEditClick: () -> Unit, onCardClick: () -> Uni
                     text = trip.title,
                     style = MaterialTheme.typography.titleMedium,
                 )
+                if (trip.startDate != null && trip.endDate != null) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "${trip.startDate.format(formatter)} – ${trip.endDate.format(formatter)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
             IconButton(onClick = onEditClick) {
                 Icon(
@@ -362,7 +375,7 @@ private fun HomeScreenEmptyPreview() {
 @Composable
 private fun HomeScreenWithTripsPreview() {
     val sampleTrips = listOf(
-        Trip(1, "Paris Getaway"),
+        Trip(1, "Paris Getaway", startDate = LocalDate.of(2024, 6, 1), endDate = LocalDate.of(2024, 6, 10)),
         Trip(2, "Tokyo Adventure"),
     )
     WanderVaultTheme {

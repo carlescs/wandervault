@@ -19,6 +19,6 @@ val dataModule = module {
     }
     single { get<WanderVaultDatabase>().tripDao() }
     single { get<WanderVaultDatabase>().destinationDao() }
-    single<TripRepository> { TripRepositoryImpl(get()) }
+    single<TripRepository> { TripRepositoryImpl(get(), get()) }
     single<DestinationRepository> { DestinationRepositoryImpl(get()) }
 }
