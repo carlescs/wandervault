@@ -1,7 +1,7 @@
 package cat.company.wandervault.data.repository
 
 import cat.company.wandervault.data.local.DestinationDao
-import cat.company.wandervault.data.local.DestinationEntity
+import cat.company.wandervault.data.local.DestinationDateProjection
 import cat.company.wandervault.data.local.TripDao
 import cat.company.wandervault.data.local.TripEntity
 import cat.company.wandervault.domain.model.Trip
@@ -18,16 +18,19 @@ class TripRepositoryImpl(
     override fun getTrips(): Flow<List<Trip>> = combine(
         tripDao.getAll(),
         destinationDao.getAll(),
-    ) { tripEntities, destinationEntities ->
-        tripEntities.map { tripEntity ->
-            val destinations = destinationEntities.filter { it.tripId == tripEntity.id }
-            tripEntity.toDomain(destinations)
-        }
+    ) { tripEntities, destinationProjections ->
+        val destinationsByTripId = destinationProjections.groupBy { it.tripId }
+        tripEntities
+            .map { tripEntity ->
+                val destinations = destinationsByTripId[tripEntity.id].orEmpty()
+                tripEntity.toDomain(destinations)
+            }
+            .sortedWith(compareBy(nullsLast()) { it.startDate }.thenBy { it.id })
     }
 
     override fun getTripById(id: Int): Flow<Trip?> = combine(
         tripDao.getById(id),
-        destinationDao.getByTripId(id),
+        destinationDao.getDateProjectionsForTrip(id),
     ) { tripEntity, destinations ->
         tripEntity?.toDomain(destinations)
     }
@@ -41,8 +44,8 @@ class TripRepositoryImpl(
     }
 }
 
-/** Derives [Trip.startDate] and [Trip.endDate] from the given destination rows. */
-private fun TripEntity.toDomain(destinations: List<DestinationEntity>): Trip {
+/** Derives [Trip.startDate] and [Trip.endDate] from the given destination date projections. */
+private fun TripEntity.toDomain(destinations: List<DestinationDateProjection>): Trip {
     val allDates: List<LocalDate> = destinations.flatMap { dest ->
         listOfNotNull(
             dest.arrivalDateTime?.toLocalDate(),
