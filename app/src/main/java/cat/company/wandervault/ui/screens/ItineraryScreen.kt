@@ -8,8 +8,6 @@ import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.calculateBottomPadding
-import androidx.compose.foundation.layout.calculateTopPadding
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -72,7 +70,6 @@ private const val MILLIS_PER_DAY = 86_400_000L
  * Retrieves [ItineraryViewModel] via Koin and delegates rendering to [ItineraryContent].
  *
  * @param tripId The ID of the trip whose itinerary is shown.
- * @param innerPadding Padding provided by the parent [Scaffold].
  */
 @Composable
 internal fun ItineraryTabContent(
@@ -293,7 +290,7 @@ private fun DateTimeRow(
             initialSelectedDateMillis = dateTime?.toLocalDate()?.toEpochDay()?.times(MILLIS_PER_DAY),
         )
         DatePickerDialog(
-            onDismissRequest = { showDatePicker = false },
+            onDismissRequest = { },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -302,12 +299,11 @@ private fun DateTimeRow(
                             val existingTime = dateTime?.toLocalTime() ?: LocalTime.MIDNIGHT
                             onDateTimeChange(LocalDateTime.of(pickedDate, existingTime))
                         }
-                        showDatePicker = false
                     },
                 ) { Text(stringResource(R.string.dialog_ok)) }
             },
             dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) {
+                TextButton(onClick = { }) {
                     Text(stringResource(R.string.dialog_cancel))
                 }
             },
@@ -320,7 +316,7 @@ private fun DateTimeRow(
             initialMinute = dateTime?.minute ?: 0,
         )
         AlertDialog(
-            onDismissRequest = { showTimePicker = false },
+            onDismissRequest = { },
             title = { Text(stringResource(R.string.itinerary_pick_time)) },
             text = { TimePicker(state = timeState) },
             confirmButton = {
@@ -330,12 +326,11 @@ private fun DateTimeRow(
                         // dateTime == null, so this branch is purely defensive.
                         val date = dateTime?.toLocalDate() ?: LocalDate.now()
                         onDateTimeChange(LocalDateTime.of(date, LocalTime.of(timeState.hour, timeState.minute)))
-                        showTimePicker = false
                     },
                 ) { Text(stringResource(R.string.dialog_ok)) }
             },
             dismissButton = {
-                TextButton(onClick = { showTimePicker = false }) {
+                TextButton(onClick = { }) {
                     Text(stringResource(R.string.dialog_cancel))
                 }
             },
@@ -353,7 +348,7 @@ private fun DateTimeRow(
             modifier = Modifier.width(72.dp),
         )
         OutlinedButton(
-            onClick = { showDatePicker = true },
+            onClick = { },
             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
             modifier = Modifier.height(32.dp),
         ) {
@@ -365,7 +360,7 @@ private fun DateTimeRow(
         }
         Spacer(modifier = Modifier.width(4.dp))
         OutlinedButton(
-            onClick = { showTimePicker = true },
+            onClick = { },
             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
             modifier = Modifier.height(32.dp),
             enabled = dateTime != null,
