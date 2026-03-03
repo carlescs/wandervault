@@ -32,6 +32,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
@@ -63,6 +64,10 @@ import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
 private const val MILLIS_PER_DAY = 86_400_000L
+
+/** Converts a [LocalDateTime] to epoch-day milliseconds used by the [DatePicker] API. */
+private fun LocalDateTime?.toDateEpochMillis(): Long? =
+    this?.toLocalDate()?.toEpochDay()?.times(MILLIS_PER_DAY)
 
 /**
  * Stateful entry point for the Itinerary tab.
@@ -134,6 +139,8 @@ internal fun ItineraryContent(
                         destination = destination,
                         isFirst = index == 0,
                         isLast = index == uiState.destinations.lastIndex,
+                        previousDestination = uiState.destinations.getOrNull(index - 1),
+                        nextDestination = uiState.destinations.getOrNull(index + 1),
                         onUpdateArrivalDateTime = { dt -> onUpdateArrivalDateTime(destination, dt) },
                         onUpdateDepartureDateTime = { dt -> onUpdateDepartureDateTime(destination, dt) },
                         onDeleteDestination = { onDeleteDestination(destination) },
@@ -180,6 +187,8 @@ private fun DestinationTimelineItem(
     destination: Destination,
     isFirst: Boolean,
     isLast: Boolean,
+    previousDestination: Destination?,
+    nextDestination: Destination?,
     onUpdateArrivalDateTime: (LocalDateTime?) -> Unit,
     onUpdateDepartureDateTime: (LocalDateTime?) -> Unit,
     onDeleteDestination: () -> Unit,
@@ -243,12 +252,18 @@ private fun DestinationTimelineItem(
             }
 
             val isSingle = isFirst && isLast
+            val prevDepartureMillis = previousDestination?.departureDateTime.toDateEpochMillis()
+            val nextArrivalMillis = nextDestination?.arrivalDateTime.toDateEpochMillis()
+            val ownArrivalMillis = destination.arrivalDateTime.toDateEpochMillis()
+            val ownDepartureMillis = destination.departureDateTime.toDateEpochMillis()
             // Show arrival for: all non-first destinations, AND the single-destination case
             if (!isFirst || isSingle) {
                 DateTimeRow(
                     label = stringResource(R.string.itinerary_arrival_label),
                     dateTime = destination.arrivalDateTime,
                     onDateTimeChange = onUpdateArrivalDateTime,
+                    minDateMillis = prevDepartureMillis,
+                    maxDateMillis = ownDepartureMillis,
                 )
                 Spacer(modifier = Modifier.height(4.dp))
             }
@@ -258,6 +273,8 @@ private fun DestinationTimelineItem(
                     label = stringResource(R.string.itinerary_departure_label),
                     dateTime = destination.departureDateTime,
                     onDateTimeChange = onUpdateDepartureDateTime,
+                    minDateMillis = listOfNotNull(ownArrivalMillis, prevDepartureMillis).maxOrNull(),
+                    maxDateMillis = nextArrivalMillis,
                 )
             }
         }
@@ -277,6 +294,8 @@ private fun DateTimeRow(
     label: String,
     dateTime: LocalDateTime?,
     onDateTimeChange: (LocalDateTime?) -> Unit,
+    minDateMillis: Long? = null,
+    maxDateMillis: Long? = null,
     modifier: Modifier = Modifier,
 ) {
     var showDatePicker by rememberSaveable { mutableStateOf(false) }
@@ -286,8 +305,27 @@ private fun DateTimeRow(
     val timeFormatter = remember { DateTimeFormatter.ofPattern("HH:mm") }
 
     if (showDatePicker) {
+        val selectableDates = remember(minDateMillis, maxDateMillis) {
+            // Normalize bounds so an inverted range (e.g. from out-of-order existing data)
+            // doesn't disable all dates and lock the user out of correcting them.
+            val (normalizedMin, normalizedMax) =
+                if (minDateMillis != null && maxDateMillis != null && minDateMillis > maxDateMillis) {
+                    maxDateMillis to minDateMillis
+                } else {
+                    minDateMillis to maxDateMillis
+                }
+            object : SelectableDates {
+                override fun isSelectableDate(utcTimeMillis: Long): Boolean {
+                    val afterMin = normalizedMin == null || utcTimeMillis >= normalizedMin
+                    val beforeMax = normalizedMax == null || utcTimeMillis <= normalizedMax
+                    return afterMin && beforeMax
+                }
+                override fun isSelectableYear(year: Int): Boolean = true
+            }
+        }
         val state = rememberDatePickerState(
-            initialSelectedDateMillis = dateTime?.toLocalDate()?.toEpochDay()?.times(MILLIS_PER_DAY),
+            initialSelectedDateMillis = dateTime.toDateEpochMillis(),
+            selectableDates = selectableDates,
         )
         DatePickerDialog(
             onDismissRequest = { },
