@@ -65,4 +65,9 @@
     <string name="itinerary_empty_title">No destinations yet</string>
     <string name="itinerary_empty_subtitle">Add destinations to plan your itinerary</string>
     <string name="itinerary_delete_destination">Delete destination</string>
+    <string name="itinerary_timezone_label">Timezone</string>
+    <string name="itinerary_timezone_not_set">Set timezone</string>
+    <string name="itinerary_timezone_dialog_title">Select Timezone</string>
+    <string name="itinerary_timezone_search_hint">Search timezones…</string>
+    <string name="itinerary_timezone_clear">Clear timezone</string>
 </resources>

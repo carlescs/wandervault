@@ -6,6 +6,7 @@ import cat.company.wandervault.domain.model.Destination
 import cat.company.wandervault.domain.repository.DestinationRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import java.time.ZoneId
 
 class DestinationRepositoryImpl(private val dao: DestinationDao) : DestinationRepository {
 
@@ -32,6 +33,7 @@ private fun DestinationEntity.toDomain() = Destination(
     position = position,
     arrivalDateTime = arrivalDateTime,
     departureDateTime = departureDateTime,
+    timezone = timezone?.let { ZoneId.of(it) },
 )
 
 private fun Destination.toEntity() = DestinationEntity(
@@ -41,4 +43,5 @@ private fun Destination.toEntity() = DestinationEntity(
     position = position,
     arrivalDateTime = arrivalDateTime,
     departureDateTime = departureDateTime,
+    timezone = timezone?.id,
 )

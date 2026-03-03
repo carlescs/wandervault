@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -61,10 +62,14 @@ import org.koin.core.parameter.parametersOf
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
 private const val MILLIS_PER_DAY = 86_400_000L
+
+/** All available IANA timezone IDs, sorted alphabetically. Pre-computed once per process. */
+private val ALL_ZONE_IDS: List<String> by lazy { ZoneId.getAvailableZoneIds().sorted() }
 
 /**
  * Stateful entry point for the Itinerary tab.
@@ -91,6 +96,7 @@ internal fun ItineraryTabContent(
         onUpdateArrivalDateTime = viewModel::onUpdateArrivalDateTime,
         onUpdateDepartureDateTime = viewModel::onUpdateDepartureDateTime,
         onDeleteDestination = viewModel::onDeleteDestination,
+        onUpdateTimezone = viewModel::onUpdateTimezone,
     )
 }
 
@@ -111,6 +117,7 @@ internal fun ItineraryContent(
     onUpdateArrivalDateTime: (Destination, LocalDateTime?) -> Unit,
     onUpdateDepartureDateTime: (Destination, LocalDateTime?) -> Unit,
     onDeleteDestination: (Destination) -> Unit,
+    onUpdateTimezone: (Destination, ZoneId?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Box(modifier = modifier.fillMaxSize()) {
@@ -140,6 +147,7 @@ internal fun ItineraryContent(
                         onUpdateArrivalDateTime = { dt -> onUpdateArrivalDateTime(destination, dt) },
                         onUpdateDepartureDateTime = { dt -> onUpdateDepartureDateTime(destination, dt) },
                         onDeleteDestination = { onDeleteDestination(destination) },
+                        onUpdateTimezone = { tz -> onUpdateTimezone(destination, tz) },
                     )
                 }
             }
@@ -186,6 +194,7 @@ private fun DestinationTimelineItem(
     onUpdateArrivalDateTime: (LocalDateTime?) -> Unit,
     onUpdateDepartureDateTime: (LocalDateTime?) -> Unit,
     onDeleteDestination: () -> Unit,
+    onUpdateTimezone: (ZoneId?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -263,6 +272,11 @@ private fun DestinationTimelineItem(
                     onDateTimeChange = onUpdateDepartureDateTime,
                 )
             }
+            Spacer(modifier = Modifier.height(4.dp))
+            TimezoneRow(
+                timezone = destination.timezone,
+                onTimezoneChange = onUpdateTimezone,
+            )
         }
     }
 }
@@ -378,6 +392,110 @@ private fun DateTimeRow(
     }
 }
 
+/**
+ * A labelled row showing the current timezone for a destination with a button to change it.
+ *
+ * Tapping the button opens an [AlertDialog] with a searchable list of all available
+ * IANA timezone IDs. An option to clear the timezone is also provided.
+ */
+@Composable
+private fun TimezoneRow(
+    timezone: ZoneId?,
+    onTimezoneChange: (ZoneId?) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var showDialog by rememberSaveable { mutableStateOf(false) }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+
+    if (showDialog) {
+        val filteredZones = remember(searchQuery) {
+            if (searchQuery.isBlank()) ALL_ZONE_IDS
+            else ALL_ZONE_IDS.filter { it.contains(searchQuery, ignoreCase = true) }
+        }
+        AlertDialog(
+            onDismissRequest = {
+                showDialog = false
+                searchQuery = ""
+            },
+            title = { Text(stringResource(R.string.itinerary_timezone_dialog_title)) },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        placeholder = { Text(stringResource(R.string.itinerary_timezone_search_hint)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    LazyColumn(modifier = Modifier.fillMaxWidth()) {
+                        item {
+                            TextButton(
+                                onClick = {
+                                    onTimezoneChange(null)
+                                    showDialog = false
+                                    searchQuery = ""
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.itinerary_timezone_clear),
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                            }
+                        }
+                        items(filteredZones) { zoneId ->
+                            TextButton(
+                                onClick = {
+                                    onTimezoneChange(ZoneId.of(zoneId))
+                                    showDialog = false
+                                    searchQuery = ""
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Text(
+                                    text = zoneId,
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDialog = false
+                        searchQuery = ""
+                    },
+                ) { Text(stringResource(R.string.dialog_cancel)) }
+            },
+        )
+    }
+
+    Row(
+        modifier = modifier,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = stringResource(R.string.itinerary_timezone_label),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.width(72.dp),
+        )
+        OutlinedButton(
+            onClick = { showDialog = true },
+            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+            modifier = Modifier.height(32.dp),
+        ) {
+            Text(
+                text = timezone?.id ?: stringResource(R.string.itinerary_timezone_not_set),
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+    }
+}
+
 /** Empty-state message shown when a trip has no destinations yet. */
 @Composable
 private fun ItineraryEmptyState(modifier: Modifier = Modifier) {
@@ -450,6 +568,7 @@ private fun ItineraryEmptyPreview() {
             onUpdateArrivalDateTime = { _, _ -> },
             onUpdateDepartureDateTime = { _, _ -> },
             onDeleteDestination = {},
+            onUpdateTimezone = { _, _ -> },
         )
     }
 }
@@ -466,6 +585,7 @@ private fun ItineraryWithDestinationsPreview() {
             1,
             arrivalDateTime = LocalDateTime.of(2024, 6, 1, 12, 30),
             departureDateTime = LocalDateTime.of(2024, 6, 3, 10, 0),
+            timezone = ZoneId.of("Europe/Paris"),
         ),
         Destination(3, 1, "Rome", 2, arrivalDateTime = LocalDateTime.of(2024, 6, 3, 14, 0)),
     )
@@ -480,6 +600,7 @@ private fun ItineraryWithDestinationsPreview() {
             onUpdateArrivalDateTime = { _, _ -> },
             onUpdateDepartureDateTime = { _, _ -> },
             onDeleteDestination = {},
+            onUpdateTimezone = { _, _ -> },
         )
     }
 }
@@ -501,6 +622,7 @@ private fun ItinerarySingleDestinationPreview() {
             onUpdateArrivalDateTime = { _, _ -> },
             onUpdateDepartureDateTime = { _, _ -> },
             onDeleteDestination = {},
+            onUpdateTimezone = { _, _ -> },
         )
     }
 }

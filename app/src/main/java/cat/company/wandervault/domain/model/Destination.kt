@@ -1,6 +1,7 @@
 package cat.company.wandervault.domain.model
 
 import java.time.LocalDateTime
+import java.time.ZoneId
 
 /**
  * Represents a single stop in a trip itinerary.
@@ -13,6 +14,8 @@ import java.time.LocalDateTime
  *   `null` for the first (start) destination, which has no arrival.
  * @param departureDateTime When the traveller departs from this destination.
  *   `null` for the last (end) destination, which has no departure.
+ * @param timezone The local timezone of this destination (e.g. `ZoneId.of("Europe/Paris")`).
+ *   `null` means no timezone has been specified; callers should fall back to the device timezone.
  */
 data class Destination(
     val id: Int = 0,
@@ -21,4 +24,5 @@ data class Destination(
     val position: Int,
     val arrivalDateTime: LocalDateTime? = null,
     val departureDateTime: LocalDateTime? = null,
+    val timezone: ZoneId? = null,
 )
