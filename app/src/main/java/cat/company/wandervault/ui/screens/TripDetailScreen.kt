@@ -45,9 +45,6 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
-import java.time.LocalDate
-import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
 
 /** Tabs shown in the Trip Detail bottom navigation bar. */
 private enum class TripDetailTab(@StringRes val labelRes: Int, val icon: ImageVector) {
@@ -186,7 +183,6 @@ private fun TripDetailsTabContent(
 
         is TripDetailUiState.Success -> {
             val trip = uiState.trip
-            val formatter = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = innerPadding,
@@ -214,11 +210,6 @@ private fun TripDetailsTabContent(
                         Text(
                             text = trip.title,
                             style = MaterialTheme.typography.headlineMedium,
-                        )
-                        Text(
-                            text = "${trip.startDate.format(formatter)} – ${trip.endDate.format(formatter)}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
@@ -249,8 +240,6 @@ private fun TripDetailSuccessPreview() {
     val trip = Trip(
         id = 1,
         title = "Paris Getaway",
-        startDate = LocalDate.of(2024, 6, 1),
-        endDate = LocalDate.of(2024, 6, 10),
     )
     WanderVaultTheme {
         TripDetailContent(uiState = TripDetailUiState.Success(trip), tripId = 1, onNavigateUp = {})

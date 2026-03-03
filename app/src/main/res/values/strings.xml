@@ -27,9 +27,6 @@
     <string name="add_trip_content_desc">Add trip</string>
     <string name="add_trip_title">New Trip</string>
     <string name="add_trip_name_label">Trip name</string>
-    <string name="add_trip_start_date_label">Start date</string>
-    <string name="add_trip_end_date_label">End date</string>
-    <string name="add_trip_pick_date">Pick dates</string>
     <string name="add_trip_save">Save</string>
 
     <!-- Edit Trip dialog -->

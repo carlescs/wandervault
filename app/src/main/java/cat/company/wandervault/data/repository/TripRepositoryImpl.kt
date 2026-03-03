@@ -27,15 +27,11 @@ class TripRepositoryImpl(private val dao: TripDao) : TripRepository {
 private fun TripEntity.toDomain() = Trip(
     id = id,
     title = title,
-    startDate = startDate,
-    endDate = endDate,
     imageUri = imageUri,
 )
 
 private fun Trip.toEntity() = TripEntity(
     id = id,
     title = title,
-    startDate = startDate,
-    endDate = endDate,
     imageUri = imageUri,
 )

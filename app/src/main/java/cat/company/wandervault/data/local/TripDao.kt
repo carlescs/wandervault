@@ -14,7 +14,7 @@ interface TripDao {
     @Update
     suspend fun update(trip: TripEntity)
 
-    @Query("SELECT * FROM trips ORDER BY startDate ASC")
+    @Query("SELECT * FROM trips ORDER BY id ASC")
     fun getAll(): Flow<List<TripEntity>>
 
     @Query("SELECT * FROM trips WHERE id = :id")

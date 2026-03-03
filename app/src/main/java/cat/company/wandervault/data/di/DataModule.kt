@@ -15,7 +15,7 @@ val dataModule = module {
             androidContext(),
             WanderVaultDatabase::class.java,
             WanderVaultDatabase.DATABASE_NAME,
-        ).addMigrations(WanderVaultDatabase.MIGRATION_1_2, WanderVaultDatabase.MIGRATION_2_3).build()
+        ).addMigrations(WanderVaultDatabase.MIGRATION_1_2, WanderVaultDatabase.MIGRATION_2_3, WanderVaultDatabase.MIGRATION_3_4).build()
     }
     single { get<WanderVaultDatabase>().tripDao() }
     single { get<WanderVaultDatabase>().destinationDao() }

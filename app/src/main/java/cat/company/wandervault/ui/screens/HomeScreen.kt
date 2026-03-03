@@ -21,9 +21,6 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
-import androidx.compose.material3.DatePickerDialog
-import androidx.compose.material3.DateRangePicker
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -32,12 +29,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberDateRangePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
@@ -53,11 +46,6 @@ import cat.company.wandervault.ui.theme.WanderVaultTheme
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import org.koin.androidx.compose.koinViewModel
-import java.time.LocalDate
-import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
-
-private const val MILLIS_PER_DAY = 86_400_000L
 
 /**
  * Home screen – displays the user's list of trips.
@@ -74,15 +62,11 @@ fun HomeScreen(modifier: Modifier = Modifier, viewModel: HomeViewModel = koinVie
         onAddTripClick = viewModel::onAddTripClick,
         onDismissDialog = viewModel::onDismissAddTripDialog,
         onTitleChange = viewModel::onAddTripTitleChange,
-        onStartDateChange = viewModel::onAddTripStartDateChange,
-        onEndDateChange = viewModel::onAddTripEndDateChange,
         onImageUriChange = viewModel::onAddTripImageUriChange,
         onSaveTrip = viewModel::onSaveTrip,
         onEditTripClick = viewModel::onEditTripClick,
         onDismissEditDialog = viewModel::onDismissEditTripDialog,
         onEditTitleChange = viewModel::onEditTripTitleChange,
-        onEditStartDateChange = viewModel::onEditTripStartDateChange,
-        onEditEndDateChange = viewModel::onEditTripEndDateChange,
         onEditImageUriChange = viewModel::onEditTripImageUriChange,
         onUpdateTrip = viewModel::onUpdateTrip,
         onTripClick = onTripClick,
@@ -102,15 +86,11 @@ internal fun HomeScreenContent(
     onAddTripClick: () -> Unit,
     onDismissDialog: () -> Unit,
     onTitleChange: (String) -> Unit,
-    onStartDateChange: (LocalDate) -> Unit,
-    onEndDateChange: (LocalDate) -> Unit,
     onImageUriChange: (String?) -> Unit,
     onSaveTrip: () -> Unit,
     onEditTripClick: (Trip) -> Unit,
     onDismissEditDialog: () -> Unit,
     onEditTitleChange: (String) -> Unit,
-    onEditStartDateChange: (LocalDate) -> Unit,
-    onEditEndDateChange: (LocalDate) -> Unit,
     onEditImageUriChange: (String?) -> Unit,
     onUpdateTrip: () -> Unit,
     onTripClick: (Int) -> Unit = {},
@@ -145,10 +125,6 @@ internal fun HomeScreenContent(
         AddTripDialog(
             title = uiState.addTripTitle,
             onTitleChange = onTitleChange,
-            startDate = uiState.addTripStartDate,
-            onStartDateChange = onStartDateChange,
-            endDate = uiState.addTripEndDate,
-            onEndDateChange = onEndDateChange,
             imageUri = uiState.addTripImageUri,
             onImageUriChange = onImageUriChange,
             isFormValid = uiState.isAddTripFormValid,
@@ -161,10 +137,6 @@ internal fun HomeScreenContent(
         EditTripDialog(
             title = uiState.editTripTitle,
             onTitleChange = onEditTitleChange,
-            startDate = uiState.editTripStartDate,
-            onStartDateChange = onEditStartDateChange,
-            endDate = uiState.editTripEndDate,
-            onEndDateChange = onEditEndDateChange,
             imageUri = uiState.editTripImageUri,
             onImageUriChange = onEditImageUriChange,
             isFormValid = uiState.isEditTripFormValid,
@@ -176,7 +148,6 @@ internal fun HomeScreenContent(
 
 @Composable
 private fun TripCard(trip: Trip, onEditClick: () -> Unit, onCardClick: () -> Unit = {}, modifier: Modifier = Modifier) {
-    val formatter = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
     Card(modifier = modifier.fillMaxWidth(), onClick = onCardClick) {
         if (trip.imageUri != null) {
             AsyncImage(
@@ -200,12 +171,6 @@ private fun TripCard(trip: Trip, onEditClick: () -> Unit, onCardClick: () -> Uni
                     text = trip.title,
                     style = MaterialTheme.typography.titleMedium,
                 )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "${trip.startDate.format(formatter)} – ${trip.endDate.format(formatter)}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
             }
             IconButton(onClick = onEditClick) {
                 Icon(
@@ -226,70 +191,28 @@ private fun TripCard(trip: Trip, onEditClick: () -> Unit, onCardClick: () -> Uni
  * @param dialogTitle The title shown at the top of the dialog.
  * @param title The current trip name input value.
  * @param onTitleChange Called when the user changes the trip name.
- * @param startDate The currently selected start date, or null if none chosen yet.
- * @param onStartDateChange Called when the user picks a new start date.
- * @param endDate The currently selected end date, or null if none chosen yet.
- * @param onEndDateChange Called when the user picks a new end date.
  * @param imageUri The currently selected background image URI, or null if none chosen.
  * @param onImageUriChange Called when the user picks or removes a background image.
  * @param isFormValid Whether the form inputs are valid, enabling the save button.
  * @param onSave Called when the user confirms the dialog.
  * @param onDismiss Called when the user cancels or dismisses the dialog.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun TripFormDialog(
     dialogTitle: String,
     title: String,
     onTitleChange: (String) -> Unit,
-    startDate: LocalDate?,
-    onStartDateChange: (LocalDate) -> Unit,
-    endDate: LocalDate?,
-    onEndDateChange: (LocalDate) -> Unit,
     imageUri: String?,
     onImageUriChange: (String?) -> Unit,
     isFormValid: Boolean,
     onSave: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var showDateRangePicker by remember { mutableStateOf(false) }
-
     val imagePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia(),
     ) { uri: Uri? ->
         onImageUriChange(uri?.toString())
     }
-
-    if (showDateRangePicker) {
-        val state = rememberDateRangePickerState(
-            initialSelectedStartDateMillis = startDate?.toEpochDay()?.times(MILLIS_PER_DAY),
-            initialSelectedEndDateMillis = endDate?.toEpochDay()?.times(MILLIS_PER_DAY),
-        )
-        DatePickerDialog(
-            onDismissRequest = { showDateRangePicker = false },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        state.selectedStartDateMillis?.let { millis ->
-                            onStartDateChange(LocalDate.ofEpochDay(millis / MILLIS_PER_DAY))
-                        }
-                        state.selectedEndDateMillis?.let { millis ->
-                            onEndDateChange(LocalDate.ofEpochDay(millis / MILLIS_PER_DAY))
-                        }
-                        showDateRangePicker = false
-                    },
-                    enabled = state.selectedStartDateMillis != null && state.selectedEndDateMillis != null,
-                ) { Text(stringResource(R.string.dialog_ok)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDateRangePicker = false }) {
-                    Text(stringResource(R.string.dialog_cancel))
-                }
-            },
-        ) { DateRangePicker(state = state) }
-    }
-
-    val formatter = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -302,32 +225,6 @@ private fun TripFormDialog(
                     label = { Text(stringResource(R.string.add_trip_name_label)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = startDate?.format(formatter) ?: "",
-                    onValueChange = {},
-                    label = { Text(stringResource(R.string.add_trip_start_date_label)) },
-                    readOnly = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    trailingIcon = {
-                        TextButton(onClick = { showDateRangePicker = true }) {
-                            Text(stringResource(R.string.add_trip_pick_date))
-                        }
-                    },
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = endDate?.format(formatter) ?: "",
-                    onValueChange = {},
-                    label = { Text(stringResource(R.string.add_trip_end_date_label)) },
-                    readOnly = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    trailingIcon = {
-                        TextButton(onClick = { showDateRangePicker = true }) {
-                            Text(stringResource(R.string.add_trip_pick_date))
-                        }
-                    },
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 if (imageUri != null) {
@@ -376,10 +273,6 @@ private fun TripFormDialog(
 private fun AddTripDialog(
     title: String,
     onTitleChange: (String) -> Unit,
-    startDate: LocalDate?,
-    onStartDateChange: (LocalDate) -> Unit,
-    endDate: LocalDate?,
-    onEndDateChange: (LocalDate) -> Unit,
     imageUri: String?,
     onImageUriChange: (String?) -> Unit,
     isFormValid: Boolean,
@@ -390,10 +283,6 @@ private fun AddTripDialog(
         dialogTitle = stringResource(R.string.add_trip_title),
         title = title,
         onTitleChange = onTitleChange,
-        startDate = startDate,
-        onStartDateChange = onStartDateChange,
-        endDate = endDate,
-        onEndDateChange = onEndDateChange,
         imageUri = imageUri,
         onImageUriChange = onImageUriChange,
         isFormValid = isFormValid,
@@ -406,10 +295,6 @@ private fun AddTripDialog(
 private fun EditTripDialog(
     title: String,
     onTitleChange: (String) -> Unit,
-    startDate: LocalDate?,
-    onStartDateChange: (LocalDate) -> Unit,
-    endDate: LocalDate?,
-    onEndDateChange: (LocalDate) -> Unit,
     imageUri: String?,
     onImageUriChange: (String?) -> Unit,
     isFormValid: Boolean,
@@ -420,10 +305,6 @@ private fun EditTripDialog(
         dialogTitle = stringResource(R.string.edit_trip_title),
         title = title,
         onTitleChange = onTitleChange,
-        startDate = startDate,
-        onStartDateChange = onStartDateChange,
-        endDate = endDate,
-        onEndDateChange = onEndDateChange,
         imageUri = imageUri,
         onImageUriChange = onImageUriChange,
         isFormValid = isFormValid,
@@ -466,15 +347,11 @@ private fun HomeScreenEmptyPreview() {
             onAddTripClick = {},
             onDismissDialog = {},
             onTitleChange = {},
-            onStartDateChange = {},
-            onEndDateChange = {},
             onImageUriChange = {},
             onSaveTrip = {},
             onEditTripClick = {},
             onDismissEditDialog = {},
             onEditTitleChange = {},
-            onEditStartDateChange = {},
-            onEditEndDateChange = {},
             onEditImageUriChange = {},
             onUpdateTrip = {},
         )
@@ -485,8 +362,8 @@ private fun HomeScreenEmptyPreview() {
 @Composable
 private fun HomeScreenWithTripsPreview() {
     val sampleTrips = listOf(
-        Trip(1, "Paris Getaway", LocalDate.of(2024, 6, 1), LocalDate.of(2024, 6, 10)),
-        Trip(2, "Tokyo Adventure", LocalDate.of(2024, 9, 15), LocalDate.of(2024, 9, 25)),
+        Trip(1, "Paris Getaway"),
+        Trip(2, "Tokyo Adventure"),
     )
     WanderVaultTheme {
         HomeScreenContent(
@@ -494,15 +371,11 @@ private fun HomeScreenWithTripsPreview() {
             onAddTripClick = {},
             onDismissDialog = {},
             onTitleChange = {},
-            onStartDateChange = {},
-            onEndDateChange = {},
             onImageUriChange = {},
             onSaveTrip = {},
             onEditTripClick = {},
             onDismissEditDialog = {},
             onEditTitleChange = {},
-            onEditStartDateChange = {},
-            onEditEndDateChange = {},
             onEditImageUriChange = {},
             onUpdateTrip = {},
         )
