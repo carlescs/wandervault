@@ -20,4 +20,10 @@ interface DestinationDao {
 
     @Query("SELECT * FROM destinations WHERE tripId = :tripId ORDER BY position ASC")
     fun getByTripId(tripId: Int): Flow<List<DestinationEntity>>
+
+    @Query("SELECT tripId, arrivalDateTime, departureDateTime FROM destinations WHERE tripId = :tripId")
+    fun getDateProjectionsForTrip(tripId: Int): Flow<List<DestinationDateProjection>>
+
+    @Query("SELECT tripId, arrivalDateTime, departureDateTime FROM destinations")
+    fun getAll(): Flow<List<DestinationDateProjection>>
 }

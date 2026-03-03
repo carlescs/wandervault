@@ -11,7 +11,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.time.LocalDate
 
 class HomeViewModel(
     private val getTrips: GetTripsUseCase,
@@ -39,8 +38,6 @@ class HomeViewModel(
             it.copy(
                 showAddTripDialog = false,
                 addTripTitle = "",
-                addTripStartDate = null,
-                addTripEndDate = null,
                 addTripImageUri = null,
             )
         }
@@ -50,19 +47,6 @@ class HomeViewModel(
         _uiState.update { it.copy(addTripTitle = title) }
     }
 
-    fun onAddTripStartDateChange(date: LocalDate) {
-        _uiState.update { state ->
-            state.copy(
-                addTripStartDate = date,
-                addTripEndDate = if (state.addTripEndDate?.isBefore(date) == true) null else state.addTripEndDate,
-            )
-        }
-    }
-
-    fun onAddTripEndDateChange(date: LocalDate) {
-        _uiState.update { it.copy(addTripEndDate = date) }
-    }
-
     fun onAddTripImageUriChange(uri: String?) {
         _uiState.update { it.copy(addTripImageUri = uri) }
     }
@@ -70,16 +54,12 @@ class HomeViewModel(
     fun onSaveTrip() {
         val state = _uiState.value
         if (!state.isAddTripFormValid) return
-        val startDate = state.addTripStartDate ?: return
-        val endDate = state.addTripEndDate ?: return
 
         viewModelScope.launch {
             saveTrip(
                 Trip(
                     id = 0,
                     title = state.addTripTitle,
-                    startDate = startDate,
-                    endDate = endDate,
                     imageUri = state.addTripImageUri,
                 ),
             )
@@ -93,8 +73,6 @@ class HomeViewModel(
                 showEditTripDialog = true,
                 editTripId = trip.id,
                 editTripTitle = trip.title,
-                editTripStartDate = trip.startDate,
-                editTripEndDate = trip.endDate,
                 editTripImageUri = trip.imageUri,
             )
         }
@@ -106,8 +84,6 @@ class HomeViewModel(
                 showEditTripDialog = false,
                 editTripId = null,
                 editTripTitle = "",
-                editTripStartDate = null,
-                editTripEndDate = null,
                 editTripImageUri = null,
             )
         }
@@ -115,14 +91,6 @@ class HomeViewModel(
 
     fun onEditTripTitleChange(title: String) {
         _uiState.update { it.copy(editTripTitle = title) }
-    }
-
-    fun onEditTripStartDateChange(date: LocalDate) {
-        _uiState.update { it.copy(editTripStartDate = date) }
-    }
-
-    fun onEditTripEndDateChange(date: LocalDate) {
-        _uiState.update { it.copy(editTripEndDate = date) }
     }
 
     fun onEditTripImageUriChange(uri: String?) {
@@ -133,16 +101,12 @@ class HomeViewModel(
         val state = _uiState.value
         if (!state.isEditTripFormValid) return
         val id = state.editTripId ?: return
-        val startDate = state.editTripStartDate ?: return
-        val endDate = state.editTripEndDate ?: return
 
         viewModelScope.launch {
             updateTrip(
                 Trip(
                     id = id,
                     title = state.editTripTitle,
-                    startDate = startDate,
-                    endDate = endDate,
                     imageUri = state.editTripImageUri,
                 ),
             )

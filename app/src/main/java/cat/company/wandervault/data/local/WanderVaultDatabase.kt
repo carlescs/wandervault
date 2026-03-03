@@ -6,7 +6,7 @@ import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [TripEntity::class, DestinationEntity::class], version = 3)
+@Database(entities = [TripEntity::class, DestinationEntity::class], version = 4)
 @TypeConverters(DateConverters::class)
 abstract class WanderVaultDatabase : RoomDatabase() {
     abstract fun tripDao(): TripDao
@@ -38,6 +38,18 @@ abstract class WanderVaultDatabase : RoomDatabase() {
                 db.execSQL(
                     "CREATE INDEX IF NOT EXISTS index_destinations_tripId_position ON destinations(tripId, position)",
                 )
+            }
+        }
+
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP TABLE IF EXISTS trips_new")
+                db.execSQL(
+                    "CREATE TABLE trips_new (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `title` TEXT NOT NULL, `imageUri` TEXT)",
+                )
+                db.execSQL("INSERT INTO trips_new (id, title, imageUri) SELECT id, title, imageUri FROM trips")
+                db.execSQL("DROP TABLE trips")
+                db.execSQL("ALTER TABLE trips_new RENAME TO trips")
             }
         }
     }

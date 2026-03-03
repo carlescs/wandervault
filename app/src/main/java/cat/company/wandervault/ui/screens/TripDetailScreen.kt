@@ -215,11 +215,13 @@ private fun TripDetailsTabContent(
                             text = trip.title,
                             style = MaterialTheme.typography.headlineMedium,
                         )
-                        Text(
-                            text = "${trip.startDate.format(formatter)} – ${trip.endDate.format(formatter)}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        if (trip.startDate != null && trip.endDate != null) {
+                            Text(
+                                text = "${trip.startDate.format(formatter)} – ${trip.endDate.format(formatter)}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 }
             }
