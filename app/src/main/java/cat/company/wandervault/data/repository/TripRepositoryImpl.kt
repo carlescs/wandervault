@@ -25,7 +25,7 @@ class TripRepositoryImpl(
                 val destinations = destinationsByTripId[tripEntity.id].orEmpty()
                 tripEntity.toDomain(destinations)
             }
-            .sortedWith(compareBy(nullsLast<LocalDate>()) { it.startDate }.thenBy { it.id })
+            .sortedWith(compareBy(nullsLast<LocalDate>()) { trip: Trip -> trip.startDate }.thenBy { it.id })
     }
 
     override fun getTripById(id: Int): Flow<Trip?> = combine(
