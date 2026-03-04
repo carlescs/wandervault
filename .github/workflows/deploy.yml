@@ -1,10 +1,16 @@
 name: Deploy to Play Store
 
 on:
-  workflow_run:
-    workflows: [ "Android CI" ]
-    types: [ completed ]
-    branches: [ "main" ]
+  workflow_dispatch:
+    inputs:
+      version_bump:
+        description: 'Version bump type'
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
 
 permissions:
   contents: read
@@ -14,7 +20,6 @@ jobs:
   deploy:
     name: Deploy to Play Store Internal Track
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -28,6 +33,93 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install Google API client
+        run: pip install google-api-python-client google-auth
+
+      - name: Get max version code from Google Play
+        id: play_version
+        env:
+          SERVICE_ACCOUNT_JSON: ${{ secrets.SERVICE_ACCOUNT_JSON }}
+        run: |
+          python3 - <<'EOF'
+          import os
+          import json
+          from googleapiclient.discovery import build
+          from google.oauth2 import service_account
+
+          service_account_info = json.loads(os.environ['SERVICE_ACCOUNT_JSON'])
+          credentials = service_account.Credentials.from_service_account_info(
+              service_account_info,
+              scopes=['https://www.googleapis.com/auth/androidpublisher']
+          )
+          service = build('androidpublisher', 'v3', credentials=credentials)
+
+          package_name = 'cat.company.wandervault'
+
+          edit = service.edits().insert(body={}, packageName=package_name).execute()
+          edit_id = edit['id']
+
+          tracks_result = service.edits().tracks().list(
+              packageName=package_name,
+              editId=edit_id
+          ).execute()
+
+          max_version_code = 0
+          for track in tracks_result.get('tracks', []):
+              for release in track.get('releases', []):
+                  for version_code in release.get('versionCodes', []):
+                      max_version_code = max(max_version_code, int(version_code))
+
+          service.edits().delete(packageName=package_name, editId=edit_id).execute()
+
+          next_version_code = max_version_code + 1
+          print(f"Max version code on Play Store: {max_version_code}")
+          print(f"Next version code: {next_version_code}")
+
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write(f"next_version_code={next_version_code}\n")
+          EOF
+
+      - name: Bump version name
+        id: bump_version
+        run: |
+          current_version=$(grep 'versionName = ' app/build.gradle.kts | sed 's/.*versionName = "\(.*\)".*/\1/')
+          echo "Current version: $current_version"
+
+          if [ -z "$current_version" ]; then
+            echo "Error: could not parse versionName from app/build.gradle.kts" >&2
+            exit 1
+          fi
+
+          IFS='.' read -ra parts <<< "$current_version"
+          major=${parts[0]:-0}
+          minor=${parts[1]:-0}
+          patch=${parts[2]:-0}
+
+          case "${{ github.event.inputs.version_bump }}" in
+            major)
+              major=$((major + 1))
+              minor=0
+              patch=0
+              ;;
+            minor)
+              minor=$((minor + 1))
+              patch=0
+              ;;
+            patch)
+              patch=$((patch + 1))
+              ;;
+          esac
+
+          new_version="$major.$minor.$patch"
+          echo "New version: $new_version"
+          echo "new_version=$new_version" >> "$GITHUB_OUTPUT"
+
       - name: Decode keystore
         run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > ${{ runner.temp }}/release.keystore
 
@@ -37,7 +129,10 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
-        run: ./gradlew bundleRelease
+        run: |
+          ./gradlew bundleRelease \
+            -PversionCode=${{ steps.play_version.outputs.next_version_code }} \
+            -PversionName=${{ steps.bump_version.outputs.new_version }}
 
       - name: Upload to Play Store Internal Track
         uses: r0adkll/upload-google-play@v1.1.3
