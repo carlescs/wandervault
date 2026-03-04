@@ -275,13 +275,12 @@ private fun DestinationTimelineItem(
                 }
             }
 
-            val isSingle = isFirst && isLast
             val prevDepartureMillis = previousDestination?.departureDateTime.toDateEpochMillis()
             val nextArrivalMillis = nextDestination?.arrivalDateTime.toDateEpochMillis()
             val ownArrivalMillis = destination.arrivalDateTime.toDateEpochMillis()
             val ownDepartureMillis = destination.departureDateTime.toDateEpochMillis()
-            // Show arrival for: all non-first destinations, AND the single-destination case
-            if (!isFirst || isSingle) {
+            // Show arrival only for non-first destinations (hidden when there is only one place)
+            if (!isFirst) {
                 DateTimeRow(
                     label = stringResource(R.string.itinerary_arrival_label),
                     dateTime = destination.arrivalDateTime,
@@ -291,8 +290,8 @@ private fun DestinationTimelineItem(
                 )
                 Spacer(modifier = Modifier.height(4.dp))
             }
-            // Show departure for: all non-last destinations, AND the single-destination case
-            if (!isLast || isSingle) {
+            // Show departure only for non-last destinations (hidden when there is only one place)
+            if (!isLast) {
                 DateTimeRow(
                     label = stringResource(R.string.itinerary_departure_label),
                     dateTime = destination.departureDateTime,
