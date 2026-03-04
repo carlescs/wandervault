@@ -65,4 +65,17 @@
     <string name="itinerary_move_up">Move destination up</string>
     <string name="itinerary_move_down">Move destination down</string>
     <string name="itinerary_add_destination_here">Add destination here</string>
+
+    <!-- Transport type picker -->
+    <string name="itinerary_transport_picker_title">Select transport</string>
+    <string name="itinerary_add_transport">Set transport</string>
+    <string name="itinerary_change_transport">Change transport</string>
+    <string name="transport_walking">Walking</string>
+    <string name="transport_cycling">Cycling</string>
+    <string name="transport_driving">Driving</string>
+    <string name="transport_bus">Bus</string>
+    <string name="transport_train">Train</string>
+    <string name="transport_ferry">Ferry</string>
+    <string name="transport_flight">Flight</string>
+    <string name="transport_none">None</string>
 </resources>

@@ -3,6 +3,7 @@ package cat.company.wandervault.data.repository
 import cat.company.wandervault.data.local.DestinationDao
 import cat.company.wandervault.data.local.DestinationEntity
 import cat.company.wandervault.domain.model.Destination
+import cat.company.wandervault.domain.model.TransportType
 import cat.company.wandervault.domain.repository.DestinationRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -32,6 +33,7 @@ private fun DestinationEntity.toDomain() = Destination(
     position = position,
     arrivalDateTime = arrivalDateTime,
     departureDateTime = departureDateTime,
+    transport = transport?.let { runCatching { TransportType.valueOf(it) }.getOrNull() },
 )
 
 private fun Destination.toEntity() = DestinationEntity(
@@ -41,4 +43,5 @@ private fun Destination.toEntity() = DestinationEntity(
     position = position,
     arrivalDateTime = arrivalDateTime,
     departureDateTime = departureDateTime,
+    transport = transport?.name,
 )
