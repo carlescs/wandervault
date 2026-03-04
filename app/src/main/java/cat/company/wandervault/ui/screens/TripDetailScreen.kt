@@ -241,7 +241,7 @@ private fun TripDetailLoadingPreview() {
 @Composable
 private fun TripDetailErrorPreview() {
     WanderVaultTheme {
-        TripDetailContent(uiState = TripDetailUiState.Error("Could not load trip details."), tripId = 0, onNavigateUp = {})
+        TripDetailContent(uiState = TripDetailUiState.Error, tripId = 0, onNavigateUp = {})
     }
 }
 

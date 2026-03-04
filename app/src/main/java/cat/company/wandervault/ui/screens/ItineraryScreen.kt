@@ -343,7 +343,7 @@ private fun DateTimeRow(
     var showTimePicker by rememberSaveable { mutableStateOf(false) }
 
     val dateFormatter = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
-    val timeFormatter = remember { DateTimeFormatter.ofPattern("HH:mm") }
+    val timeFormatter = remember { DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT) }
 
     if (showDatePicker) {
         val selectableDates = remember(minDateMillis, maxDateMillis) {

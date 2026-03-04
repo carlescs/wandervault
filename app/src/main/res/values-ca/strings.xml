@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">WanderVault</string>
+
+    <!-- Bottom navigation labels -->
+    <string name="nav_home">Inici</string>
+    <string name="nav_favorites">Preferits</string>
+    <string name="nav_profile">Perfil</string>
+
+    <!-- Home screen – trips list -->
+    <string name="trips_empty_title">Encara no hi ha viatges</string>
+    <string name="trips_empty_subtitle">Els teus viatges desats apareixeran aquí</string>
+
+    <!-- Favorites screen -->
+    <string name="favorites_title">Llocs desats</string>
+    <string name="favorites_empty">Encara no hi ha llocs desats</string>
+
+    <!-- Profile screen -->
+    <string name="profile_title">El meu perfil</string>
+    <string name="profile_subtitle">Gestiona el teu compte i les preferències</string>
+
+    <!-- Navigation content descriptions (accessibility) -->
+    <string name="nav_home_desc">Inici</string>
+    <string name="nav_favorites_desc">Preferits</string>
+    <string name="nav_profile_desc">Perfil</string>
+
+    <!-- Add Trip dialog -->
+    <string name="add_trip_content_desc">Afegeix viatge</string>
+    <string name="add_trip_title">Nou viatge</string>
+    <string name="add_trip_name_label">Nom del viatge</string>
+    <string name="add_trip_save">Desa</string>
+
+    <!-- Edit Trip dialog -->
+    <string name="edit_trip_title">Edita el viatge</string>
+    <string name="edit_trip_content_desc">Edita el viatge</string>
+
+    <!-- Generic dialog actions -->
+    <string name="dialog_ok">D\'acord</string>
+    <string name="dialog_cancel">Cancel·la</string>
+
+    <!-- Trip image picker -->
+    <string name="trip_image_pick">Tria la imatge de fons</string>
+    <string name="trip_image_remove">Elimina la imatge</string>
+    <string name="trip_image_content_desc">Imatge de fons del viatge</string>
+
+    <!-- Trip Detail screen -->
+    <string name="trip_detail_navigate_up">Navega amunt</string>
+    <string name="trip_detail_title">Detalls del viatge</string>
+    <string name="trip_detail_tab_details">Detalls</string>
+    <string name="trip_detail_tab_itinerary">Itinerari</string>
+    <string name="trip_detail_loading">Carregant el viatge…</string>
+    <string name="trip_detail_error">No s\'han pogut carregar els detalls del viatge.</string>
+    <string name="trip_detail_cover_image_desc">Imatge de portada de %1$s</string>
+
+    <!-- Itinerary planner -->
+    <string name="itinerary_add_destination">Afegeix destí</string>
+    <string name="itinerary_add_destination_title">Nou destí</string>
+    <string name="itinerary_destination_name_label">Nom del destí</string>
+    <string name="itinerary_arrival_label">Arribada</string>
+    <string name="itinerary_departure_label">Sortida</string>
+    <string name="itinerary_pick_date">Tria la data</string>
+    <string name="itinerary_pick_time">Tria l\'hora</string>
+    <string name="itinerary_empty_title">Encara no hi ha destins</string>
+    <string name="itinerary_empty_subtitle">Afegeix destins per planificar l\'itinerari</string>
+    <string name="itinerary_delete_destination">Elimina el destí</string>
+    <string name="itinerary_move_up">Mou el destí amunt</string>
+    <string name="itinerary_move_down">Mou el destí avall</string>
+    <string name="itinerary_add_destination_here">Afegeix destí aquí</string>
+</resources>
