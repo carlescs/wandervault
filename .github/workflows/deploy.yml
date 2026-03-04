@@ -154,6 +154,69 @@ jobs:
           track: internal
           status: draft
 
+      - name: Publish draft release on Play Store
+        env:
+          SERVICE_ACCOUNT_JSON: ${{ secrets.SERVICE_ACCOUNT_JSON }}
+          VERSION_CODE: ${{ steps.play_version.outputs.next_version_code }}
+        run: |
+          python3 - <<'EOF'
+          import os
+          import json
+          from googleapiclient.discovery import build
+          from google.oauth2 import service_account
+
+          service_account_info = json.loads(os.environ['SERVICE_ACCOUNT_JSON'])
+          credentials = service_account.Credentials.from_service_account_info(
+              service_account_info,
+              scopes=['https://www.googleapis.com/auth/androidpublisher']
+          )
+          service = build('androidpublisher', 'v3', credentials=credentials)
+
+          package_name = 'cat.company.wandervault'
+          version_code = int(os.environ['VERSION_CODE'])
+
+          edit = service.edits().insert(body={}, packageName=package_name).execute()
+          edit_id = edit['id']
+
+          try:
+              track = service.edits().tracks().get(
+                  packageName=package_name,
+                  editId=edit_id,
+                  track='internal'
+              ).execute()
+
+              releases = track.get('releases', [])
+              found = False
+              for release in releases:
+                  if version_code in [int(vc) for vc in release.get('versionCodes', [])]:
+                      release['status'] = 'completed'
+                      found = True
+                      break
+
+              if not found:
+                  raise RuntimeError(f"Version code {version_code} not found in internal track draft releases")
+
+              service.edits().tracks().update(
+                  packageName=package_name,
+                  editId=edit_id,
+                  track='internal',
+                  body=track
+              ).execute()
+
+              service.edits().commit(
+                  packageName=package_name,
+                  editId=edit_id
+              ).execute()
+
+              print(f"Successfully published version {version_code} on internal track")
+          except Exception:
+              try:
+                  service.edits().delete(packageName=package_name, editId=edit_id).execute()
+              except Exception as cleanup_error:
+                  print(f"Warning: failed to delete edit {edit_id} during rollback: {cleanup_error}")
+              raise
+          EOF
+
       - name: Tag the release
         if: success()
         run: |
