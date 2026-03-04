@@ -51,6 +51,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -245,6 +246,8 @@ private fun DestinationTimelineItem(
                 Text(
                     text = destination.name,
                     style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
                 IconButton(onClick = onMoveUp, enabled = !isFirst) {
@@ -426,6 +429,8 @@ private fun DateTimeRow(
             text = label,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
             modifier = Modifier.width(72.dp),
         )
         OutlinedButton(
@@ -437,6 +442,8 @@ private fun DateTimeRow(
                 text = dateTime?.toLocalDate()?.format(dateFormatter)
                     ?: stringResource(R.string.itinerary_pick_date),
                 style = MaterialTheme.typography.bodySmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
         Spacer(modifier = Modifier.width(4.dp))
@@ -449,6 +456,8 @@ private fun DateTimeRow(
             Text(
                 text = dateTime?.format(timeFormatter) ?: "--:--",
                 style = MaterialTheme.typography.bodySmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
     }
