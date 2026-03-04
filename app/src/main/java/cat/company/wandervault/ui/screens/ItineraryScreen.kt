@@ -512,17 +512,30 @@ private fun DateTimeRow(
                 } else {
                     minDateMillis to maxDateMillis
                 }
+            val minYear = normalizedMin?.let { LocalDate.ofEpochDay(it / MILLIS_PER_DAY).year }
+            val maxYear = normalizedMax?.let { LocalDate.ofEpochDay(it / MILLIS_PER_DAY).year }
             object : SelectableDates {
                 override fun isSelectableDate(utcTimeMillis: Long): Boolean {
                     val afterMin = normalizedMin == null || utcTimeMillis >= normalizedMin
                     val beforeMax = normalizedMax == null || utcTimeMillis <= normalizedMax
                     return afterMin && beforeMax
                 }
-                override fun isSelectableYear(year: Int): Boolean = true
+                override fun isSelectableYear(year: Int): Boolean {
+                    val afterMin = minYear == null || year >= minYear
+                    val beforeMax = maxYear == null || year <= maxYear
+                    return afterMin && beforeMax
+                }
             }
         }
+        // When no date is selected yet, open the picker at the month of the nearest contextual
+        // bound so the user sees a relevant month instead of today, which may be far from the
+        // trip dates. minDateMillis is preferred because it represents the chronological
+        // predecessor in the itinerary (e.g. the previous destination's departure), giving the
+        // user a natural starting point for sequential date entry.
+        val initialDisplayedMonthMillis = dateTime.toDateEpochMillis() ?: minDateMillis ?: maxDateMillis
         val state = rememberDatePickerState(
             initialSelectedDateMillis = dateTime.toDateEpochMillis(),
+            initialDisplayedMonthMillis = initialDisplayedMonthMillis,
             selectableDates = selectableDates,
         )
         DatePickerDialog(
