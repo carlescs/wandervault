@@ -421,7 +421,7 @@ private fun DateTimeRow(
     }
 
     Row(
-        modifier = modifier,
+        modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
@@ -432,6 +432,7 @@ private fun DateTimeRow(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.width(72.dp),
         )
+        Spacer(modifier = Modifier.weight(1f))
         OutlinedButton(
             onClick = { showDatePicker = true },
             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
