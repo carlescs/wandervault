@@ -427,6 +427,8 @@ private fun DateTimeRow(
             text = label,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
             modifier = Modifier.width(72.dp),
         )
         OutlinedButton(
@@ -438,6 +440,8 @@ private fun DateTimeRow(
                 text = dateTime?.toLocalDate()?.format(dateFormatter)
                     ?: stringResource(R.string.itinerary_pick_date),
                 style = MaterialTheme.typography.bodySmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
         Spacer(modifier = Modifier.width(4.dp))
@@ -450,6 +454,8 @@ private fun DateTimeRow(
             Text(
                 text = dateTime?.format(timeFormatter) ?: "--:--",
                 style = MaterialTheme.typography.bodySmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
     }
