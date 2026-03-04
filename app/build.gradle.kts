@@ -4,6 +4,22 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
+private val versionTagRegex = Regex("v[0-9]+\\.[0-9]+\\.[0-9]+")
+
+fun getVersionNameFromTag(): String {
+    return try {
+        val process = ProcessBuilder("git", "tag", "--sort=-v:refname")
+            .directory(rootProject.projectDir)
+            .start()
+        val tag = process.inputStream.bufferedReader()
+            .useLines { lines -> lines.firstOrNull { it.matches(versionTagRegex) } }
+        val exitCode = process.waitFor()
+        if (exitCode == 0) tag?.removePrefix("v") ?: "0.0.0" else "0.0.0"
+    } catch (e: Exception) {
+        "0.0.0"
+    }
+}
+
 android {
     namespace = "cat.company.wandervault"
     compileSdk {
@@ -17,7 +33,7 @@ android {
         minSdk = 26
         targetSdk = 36
         versionCode = (project.findProperty("versionCode") as String?)?.toInt() ?: 5
-        versionName = (project.findProperty("versionName") as String?) ?: "0.5"
+        versionName = (project.findProperty("versionName") as String?) ?: getVersionNameFromTag()
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
