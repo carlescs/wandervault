@@ -130,6 +130,12 @@ jobs:
           echo "New version: $new_version"
           echo "new_version=$new_version" >> "$GITHUB_OUTPUT"
 
+      - name: Create local release tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "v${{ steps.bump_version.outputs.new_version }}"
+
       - name: Decode keystore
         run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > ${{ runner.temp }}/release.keystore
 
@@ -153,22 +159,14 @@ jobs:
           track: internal
           status: draft
 
-      - name: Tag the release
+      - name: Push release tag
         if: success()
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
           TAG_NAME="v${{ steps.bump_version.outputs.new_version }}"
 
-          if git rev-parse -q --verify "refs/tags/$TAG_NAME" >/dev/null; then
-            echo "Tag $TAG_NAME already exists locally; skipping tag creation and push."
-            exit 0
-          fi
-
           if git ls-remote --tags origin "$TAG_NAME" | grep -q "refs/tags/$TAG_NAME"; then
-            echo "Tag $TAG_NAME already exists on origin; skipping tag creation and push."
+            echo "Tag $TAG_NAME already exists on origin; skipping tag push."
             exit 0
           fi
 
-          git tag "$TAG_NAME"
           git push origin "$TAG_NAME"
