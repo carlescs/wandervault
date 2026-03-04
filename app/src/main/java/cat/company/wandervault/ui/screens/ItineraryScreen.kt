@@ -108,6 +108,8 @@ internal fun ItineraryTabContent(
         onUpdateArrivalDateTime = viewModel::onUpdateArrivalDateTime,
         onUpdateDepartureDateTime = viewModel::onUpdateDepartureDateTime,
         onDeleteDestination = viewModel::onDeleteDestination,
+        onDismissDeleteDestinationDialog = viewModel::onDismissDeleteDestinationDialog,
+        onConfirmDeleteDestination = viewModel::onConfirmDeleteDestination,
         onMoveDestinationUp = viewModel::onMoveDestinationUp,
         onMoveDestinationDown = viewModel::onMoveDestinationDown,
         onAddDestinationAfter = { pos -> viewModel.onAddDestinationClick(pos) },
@@ -132,6 +134,8 @@ internal fun ItineraryContent(
     onUpdateArrivalDateTime: (Destination, LocalDateTime?) -> Unit,
     onUpdateDepartureDateTime: (Destination, LocalDateTime?) -> Unit,
     onDeleteDestination: (Destination) -> Unit,
+    onDismissDeleteDestinationDialog: () -> Unit,
+    onConfirmDeleteDestination: () -> Unit,
     onMoveDestinationUp: (Destination) -> Unit,
     onMoveDestinationDown: (Destination) -> Unit,
     onAddDestinationAfter: (Int) -> Unit,
@@ -196,6 +200,14 @@ internal fun ItineraryContent(
             isFormValid = uiState.isAddDestinationFormValid,
             onSave = onSaveDestination,
             onDismiss = onDismissAddDestinationDialog,
+        )
+    }
+
+    if (uiState.destinationPendingDelete != null) {
+        DeleteDestinationConfirmationDialog(
+            destinationName = uiState.destinationPendingDelete.name,
+            onConfirm = onConfirmDeleteDestination,
+            onDismiss = onDismissDeleteDestinationDialog,
         )
     }
 }
@@ -674,6 +686,28 @@ private fun AddDestinationDialog(
     )
 }
 
+/** Confirmation dialog shown before permanently removing a destination from the itinerary. */
+@Composable
+private fun DeleteDestinationConfirmationDialog(
+    destinationName: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.itinerary_delete_destination_dialog_title)) },
+        text = { Text(stringResource(R.string.itinerary_delete_destination_dialog_message, destinationName)) },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(stringResource(R.string.itinerary_delete_destination_dialog_confirm))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.dialog_cancel)) }
+        },
+    )
+}
+
 // ── Previews ─────────────────────────────────────────────────────────────────
 
 @Preview(showBackground = true)
@@ -690,6 +724,8 @@ private fun ItineraryEmptyPreview() {
             onUpdateArrivalDateTime = { _, _ -> },
             onUpdateDepartureDateTime = { _, _ -> },
             onDeleteDestination = {},
+            onDismissDeleteDestinationDialog = {},
+            onConfirmDeleteDestination = {},
             onMoveDestinationUp = {},
             onMoveDestinationDown = {},
             onAddDestinationAfter = {},
@@ -725,6 +761,8 @@ private fun ItineraryWithDestinationsPreview() {
             onUpdateArrivalDateTime = { _, _ -> },
             onUpdateDepartureDateTime = { _, _ -> },
             onDeleteDestination = {},
+            onDismissDeleteDestinationDialog = {},
+            onConfirmDeleteDestination = {},
             onMoveDestinationUp = {},
             onMoveDestinationDown = {},
             onAddDestinationAfter = {},
@@ -750,6 +788,8 @@ private fun ItinerarySingleDestinationPreview() {
             onUpdateArrivalDateTime = { _, _ -> },
             onUpdateDepartureDateTime = { _, _ -> },
             onDeleteDestination = {},
+            onDismissDeleteDestinationDialog = {},
+            onConfirmDeleteDestination = {},
             onMoveDestinationUp = {},
             onMoveDestinationDown = {},
             onAddDestinationAfter = {},

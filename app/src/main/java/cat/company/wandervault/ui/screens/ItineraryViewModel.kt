@@ -166,6 +166,16 @@ class ItineraryViewModel(
     }
 
     fun onDeleteDestination(destination: Destination) {
+        _uiState.update { it.copy(destinationPendingDelete = destination) }
+    }
+
+    fun onDismissDeleteDestinationDialog() {
+        _uiState.update { it.copy(destinationPendingDelete = null) }
+    }
+
+    fun onConfirmDeleteDestination() {
+        val destination = _uiState.value.destinationPendingDelete ?: return
+        _uiState.update { it.copy(destinationPendingDelete = null) }
         viewModelScope.launch {
             // Capture remaining list inside the coroutine (before the delete) to ensure
             // we're working with the latest state.
