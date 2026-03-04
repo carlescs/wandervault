@@ -88,7 +88,7 @@ jobs:
       - name: Bump version name
         id: bump_version
         run: |
-          current_version=$(grep 'versionName = ' app/build.gradle.kts | sed 's/.*versionName = "\(.*\)".*/\1/')
+          current_version=$(grep 'versionName = ' app/build.gradle.kts | grep -oE '"[0-9]+\.[0-9]+(\.[0-9]+)?"' | tail -1 | tr -d '"')
           echo "Current version: $current_version"
 
           if [ -z "$current_version" ]; then
