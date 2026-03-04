@@ -33,4 +33,17 @@ class ImageRepositoryImpl(private val context: Context) : ImageRepository {
             null
         }
     }
+
+    override suspend fun deleteFromInternalStorage(fileUri: String) = withContext(Dispatchers.IO) {
+        try {
+            val path = Uri.parse(fileUri).path ?: return@withContext
+            val file = File(path)
+            val internalImagesDir = File(context.filesDir, "images").canonicalPath
+            if (file.canonicalPath.startsWith(internalImagesDir)) {
+                file.delete()
+            }
+        } catch (e: IOException) {
+            // Ignore deletion failures
+        }
+    }
 }
