@@ -47,12 +47,12 @@ class ItineraryViewModel(
         }
     }
 
-    fun onAddDestinationClick() {
-        _uiState.update { it.copy(showAddDestinationDialog = true) }
+    fun onAddDestinationClick(insertAfterPosition: Int? = null) {
+        _uiState.update { it.copy(showAddDestinationDialog = true, insertAfterPosition = insertAfterPosition) }
     }
 
     fun onDismissAddDestinationDialog() {
-        _uiState.update { it.copy(showAddDestinationDialog = false, newDestinationName = "") }
+        _uiState.update { it.copy(showAddDestinationDialog = false, newDestinationName = "", insertAfterPosition = null) }
     }
 
     fun onNewDestinationNameChange(name: String) {
@@ -62,13 +62,22 @@ class ItineraryViewModel(
     fun onSaveDestination() {
         val state = _uiState.value
         if (!state.isAddDestinationFormValid) return
-        val nextPosition = state.destinations.maxOfOrNull { it.position }?.plus(1) ?: 0
         viewModelScope.launch {
+            val insertPos = if (state.insertAfterPosition == null) {
+                state.destinations.maxOfOrNull { it.position }?.plus(1) ?: 0
+            } else {
+                state.insertAfterPosition + 1
+            }
+            // Shift existing destinations at or after the insertion point to make room.
+            state.destinations
+                .filter { it.position >= insertPos }
+                .map { dest -> async { updateDestination(dest.copy(position = dest.position + 1)) } }
+                .awaitAll()
             saveDestination(
                 Destination(
                     tripId = tripId,
                     name = state.newDestinationName.trim(),
-                    position = nextPosition,
+                    position = insertPos,
                 ),
             )
             onDismissAddDestinationDialog()
@@ -84,6 +93,66 @@ class ItineraryViewModel(
     fun onUpdateDepartureDateTime(destination: Destination, departureDateTime: LocalDateTime?) {
         viewModelScope.launch {
             updateDestination(destination.copy(departureDateTime = departureDateTime))
+        }
+    }
+
+    fun onMoveDestinationUp(destination: Destination) {
+        viewModelScope.launch {
+            val destinations = _uiState.value.destinations
+            val index = destinations.indexOfFirst { it.id == destination.id }
+            if (index <= 0) return@launch
+            val swapWith = destinations[index - 1]
+            // After the swap: destination is at index-1, swapWith is at index.
+            val isDestinationNowFirst = index - 1 == 0
+            val isSwapWithNowLast = index == destinations.lastIndex
+            awaitAll(
+                async {
+                    updateDestination(
+                        destination.copy(
+                            position = swapWith.position,
+                            arrivalDateTime = if (isDestinationNowFirst) null else destination.arrivalDateTime,
+                        ),
+                    )
+                },
+                async {
+                    updateDestination(
+                        swapWith.copy(
+                            position = destination.position,
+                            departureDateTime = if (isSwapWithNowLast) null else swapWith.departureDateTime,
+                        ),
+                    )
+                },
+            )
+        }
+    }
+
+    fun onMoveDestinationDown(destination: Destination) {
+        viewModelScope.launch {
+            val destinations = _uiState.value.destinations
+            val index = destinations.indexOfFirst { it.id == destination.id }
+            if (index >= destinations.lastIndex) return@launch
+            val swapWith = destinations[index + 1]
+            // After the swap: destination is at index+1, swapWith is at index.
+            val isDestinationNowLast = index + 1 == destinations.lastIndex
+            val isSwapWithNowFirst = index == 0
+            awaitAll(
+                async {
+                    updateDestination(
+                        destination.copy(
+                            position = swapWith.position,
+                            departureDateTime = if (isDestinationNowLast) null else destination.departureDateTime,
+                        ),
+                    )
+                },
+                async {
+                    updateDestination(
+                        swapWith.copy(
+                            position = destination.position,
+                            arrivalDateTime = if (isSwapWithNowFirst) null else swapWith.arrivalDateTime,
+                        ),
+                    )
+                },
+            )
         }
     }
 
