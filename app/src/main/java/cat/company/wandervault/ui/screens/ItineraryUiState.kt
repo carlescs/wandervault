@@ -10,6 +10,8 @@ data class ItineraryUiState(
     val isLoading: Boolean = true,
     val showAddDestinationDialog: Boolean = false,
     val newDestinationName: String = "",
+    /** Position after which a new destination will be inserted; `null` means append at the end. */
+    val insertAfterPosition: Int? = null,
 ) {
     val isAddDestinationFormValid: Boolean
         get() = newDestinationName.isNotBlank()

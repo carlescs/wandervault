@@ -62,4 +62,7 @@
     <string name="itinerary_empty_title">No destinations yet</string>
     <string name="itinerary_empty_subtitle">Add destinations to plan your itinerary</string>
     <string name="itinerary_delete_destination">Delete destination</string>
+    <string name="itinerary_move_up">Move destination up</string>
+    <string name="itinerary_move_down">Move destination down</string>
+    <string name="itinerary_add_destination_here">Add destination here</string>
 </resources>

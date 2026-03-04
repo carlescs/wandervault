@@ -21,6 +21,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
@@ -86,13 +88,16 @@ internal fun ItineraryTabContent(
     ItineraryContent(
         uiState = uiState,
         innerPadding = innerPadding,
-        onAddDestinationClick = viewModel::onAddDestinationClick,
+        onAddDestinationClick = { viewModel.onAddDestinationClick() },
         onDismissAddDestinationDialog = viewModel::onDismissAddDestinationDialog,
         onNewDestinationNameChange = viewModel::onNewDestinationNameChange,
         onSaveDestination = viewModel::onSaveDestination,
         onUpdateArrivalDateTime = viewModel::onUpdateArrivalDateTime,
         onUpdateDepartureDateTime = viewModel::onUpdateDepartureDateTime,
         onDeleteDestination = viewModel::onDeleteDestination,
+        onMoveDestinationUp = viewModel::onMoveDestinationUp,
+        onMoveDestinationDown = viewModel::onMoveDestinationDown,
+        onAddDestinationAfter = { pos -> viewModel.onAddDestinationClick(pos) },
     )
 }
 
@@ -113,6 +118,9 @@ internal fun ItineraryContent(
     onUpdateArrivalDateTime: (Destination, LocalDateTime?) -> Unit,
     onUpdateDepartureDateTime: (Destination, LocalDateTime?) -> Unit,
     onDeleteDestination: (Destination) -> Unit,
+    onMoveDestinationUp: (Destination) -> Unit,
+    onMoveDestinationDown: (Destination) -> Unit,
+    onAddDestinationAfter: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Box(modifier = modifier.fillMaxSize()) {
@@ -144,6 +152,9 @@ internal fun ItineraryContent(
                         onUpdateArrivalDateTime = { dt -> onUpdateArrivalDateTime(destination, dt) },
                         onUpdateDepartureDateTime = { dt -> onUpdateDepartureDateTime(destination, dt) },
                         onDeleteDestination = { onDeleteDestination(destination) },
+                        onMoveUp = { onMoveDestinationUp(destination) },
+                        onMoveDown = { onMoveDestinationDown(destination) },
+                        onAddAfter = { onAddDestinationAfter(destination.position) },
                     )
                 }
             }
@@ -173,15 +184,6 @@ internal fun ItineraryContent(
     }
 }
 
-/**
- * A single destination entry in the vertical timeline.
- *
- * Renders a circle indicator with connecting lines above/below, the destination name,
- * and relevant date/time fields:
- * - First destination: only departure.
- * - Last destination: only arrival.
- * - Intermediate destinations: both arrival and departure.
- */
 @Composable
 private fun DestinationTimelineItem(
     destination: Destination,
@@ -192,6 +194,9 @@ private fun DestinationTimelineItem(
     onUpdateArrivalDateTime: (LocalDateTime?) -> Unit,
     onUpdateDepartureDateTime: (LocalDateTime?) -> Unit,
     onDeleteDestination: () -> Unit,
+    onMoveUp: () -> Unit,
+    onMoveDown: () -> Unit,
+    onAddAfter: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -231,7 +236,7 @@ private fun DestinationTimelineItem(
         Column(
             modifier = Modifier
                 .weight(1f)
-                .padding(start = 12.dp, bottom = if (isLast) 8.dp else 24.dp),
+                .padding(start = 12.dp, bottom = if (isLast) 8.dp else 4.dp),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -242,6 +247,22 @@ private fun DestinationTimelineItem(
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.weight(1f),
                 )
+                IconButton(onClick = onMoveUp, enabled = !isFirst) {
+                    Icon(
+                        imageVector = Icons.Default.KeyboardArrowUp,
+                        contentDescription = stringResource(R.string.itinerary_move_up),
+                        tint = if (isFirst) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                IconButton(onClick = onMoveDown, enabled = !isLast) {
+                    Icon(
+                        imageVector = Icons.Default.KeyboardArrowDown,
+                        contentDescription = stringResource(R.string.itinerary_move_down),
+                        tint = if (isLast) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 IconButton(onClick = onDeleteDestination) {
                     Icon(
                         imageVector = Icons.Default.Delete,
@@ -276,6 +297,26 @@ private fun DestinationTimelineItem(
                     minDateMillis = listOfNotNull(ownArrivalMillis, prevDepartureMillis).maxOrNull(),
                     maxDateMillis = nextArrivalMillis,
                 )
+            }
+
+            if (!isLast) {
+                // "Add destination here" button shown between this item and the next
+                TextButton(
+                    onClick = onAddAfter,
+                    modifier = Modifier.padding(top = 4.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = stringResource(R.string.itinerary_add_destination_here),
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
             }
         }
     }
@@ -483,6 +524,9 @@ private fun ItineraryEmptyPreview() {
             onUpdateArrivalDateTime = { _, _ -> },
             onUpdateDepartureDateTime = { _, _ -> },
             onDeleteDestination = {},
+            onMoveDestinationUp = {},
+            onMoveDestinationDown = {},
+            onAddDestinationAfter = {},
         )
     }
 }
@@ -513,6 +557,9 @@ private fun ItineraryWithDestinationsPreview() {
             onUpdateArrivalDateTime = { _, _ -> },
             onUpdateDepartureDateTime = { _, _ -> },
             onDeleteDestination = {},
+            onMoveDestinationUp = {},
+            onMoveDestinationDown = {},
+            onAddDestinationAfter = {},
         )
     }
 }
@@ -534,6 +581,9 @@ private fun ItinerarySingleDestinationPreview() {
             onUpdateArrivalDateTime = { _, _ -> },
             onUpdateDepartureDateTime = { _, _ -> },
             onDeleteDestination = {},
+            onMoveDestinationUp = {},
+            onMoveDestinationDown = {},
+            onAddDestinationAfter = {},
         )
     }
 }
