@@ -3,6 +3,8 @@ package cat.company.wandervault.ui.screens
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import cat.company.wandervault.domain.model.Trip
+import cat.company.wandervault.domain.usecase.CopyImageToInternalStorageUseCase
+import cat.company.wandervault.domain.usecase.DeleteImageUseCase
 import cat.company.wandervault.domain.usecase.GetTripsUseCase
 import cat.company.wandervault.domain.usecase.SaveTripUseCase
 import cat.company.wandervault.domain.usecase.UpdateTripUseCase
@@ -16,6 +18,8 @@ class HomeViewModel(
     private val getTrips: GetTripsUseCase,
     private val saveTrip: SaveTripUseCase,
     private val updateTrip: UpdateTripUseCase,
+    private val copyImage: CopyImageToInternalStorageUseCase,
+    private val deleteImage: DeleteImageUseCase,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -60,7 +64,7 @@ class HomeViewModel(
                 Trip(
                     id = 0,
                     title = state.addTripTitle,
-                    imageUri = state.addTripImageUri,
+                    imageUri = persistImageUri(state.addTripImageUri),
                 ),
             )
             onDismissAddTripDialog()
@@ -74,6 +78,7 @@ class HomeViewModel(
                 editTripId = trip.id,
                 editTripTitle = trip.title,
                 editTripImageUri = trip.imageUri,
+                editTripOriginalImageUri = trip.imageUri,
             )
         }
     }
@@ -85,6 +90,7 @@ class HomeViewModel(
                 editTripId = null,
                 editTripTitle = "",
                 editTripImageUri = null,
+                editTripOriginalImageUri = null,
             )
         }
     }
@@ -103,14 +109,22 @@ class HomeViewModel(
         val id = state.editTripId ?: return
 
         viewModelScope.launch {
+            val newImageUri = persistImageUri(state.editTripImageUri)
+            val oldImageUri = state.editTripOriginalImageUri
+            if (oldImageUri != null && oldImageUri.startsWith("file://") && oldImageUri != newImageUri) {
+                deleteImage(oldImageUri)
+            }
             updateTrip(
                 Trip(
                     id = id,
                     title = state.editTripTitle,
-                    imageUri = state.editTripImageUri,
+                    imageUri = newImageUri,
                 ),
             )
             onDismissEditTripDialog()
         }
     }
+
+    private suspend fun persistImageUri(uri: String?): String? =
+        if (uri != null && uri.startsWith("content://")) copyImage(uri) else uri
 }
