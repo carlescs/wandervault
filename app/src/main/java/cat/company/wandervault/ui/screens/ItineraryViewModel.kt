@@ -3,6 +3,7 @@ package cat.company.wandervault.ui.screens
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import cat.company.wandervault.domain.model.Destination
+import cat.company.wandervault.domain.model.TransportType
 import cat.company.wandervault.domain.usecase.DeleteDestinationUseCase
 import cat.company.wandervault.domain.usecase.GetDestinationsForTripUseCase
 import cat.company.wandervault.domain.usecase.SaveDestinationUseCase
@@ -96,6 +97,12 @@ class ItineraryViewModel(
         }
     }
 
+    fun onUpdateTransport(destination: Destination, transport: TransportType?) {
+        viewModelScope.launch {
+            updateDestination(destination.copy(transport = transport))
+        }
+    }
+
     fun onMoveDestinationUp(destination: Destination) {
         viewModelScope.launch {
             val destinations = _uiState.value.destinations
@@ -119,6 +126,7 @@ class ItineraryViewModel(
                         swapWith.copy(
                             position = destination.position,
                             departureDateTime = if (isSwapWithNowLast) null else swapWith.departureDateTime,
+                            transport = if (isSwapWithNowLast) null else swapWith.transport,
                         ),
                     )
                 },
@@ -141,6 +149,7 @@ class ItineraryViewModel(
                         destination.copy(
                             position = swapWith.position,
                             departureDateTime = if (isDestinationNowLast) null else destination.departureDateTime,
+                            transport = if (isDestinationNowLast) null else destination.transport,
                         ),
                     )
                 },
@@ -173,11 +182,13 @@ class ItineraryViewModel(
                 val needsReindex = dest.position != index
                 val needsArrivalClear = isNowFirst && dest.arrivalDateTime != null
                 val needsDepartureClear = isNowLast && dest.departureDateTime != null
-                if (needsReindex || needsArrivalClear || needsDepartureClear) {
+                val needsTransportClear = isNowLast && dest.transport != null
+                if (needsReindex || needsArrivalClear || needsDepartureClear || needsTransportClear) {
                     dest.copy(
                         position = index,
                         arrivalDateTime = if (isNowFirst) null else dest.arrivalDateTime,
                         departureDateTime = if (isNowLast) null else dest.departureDateTime,
+                        transport = if (isNowLast) null else dest.transport,
                     )
                 } else null
             }.map { updated -> async { updateDestination(updated) } }.awaitAll()

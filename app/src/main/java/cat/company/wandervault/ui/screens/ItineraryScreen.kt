@@ -17,12 +17,21 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DirectionsBike
+import androidx.compose.material.icons.filled.DirectionsBoat
+import androidx.compose.material.icons.filled.DirectionsBus
+import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.filled.DirectionsWalk
+import androidx.compose.material.icons.filled.Flight
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Train
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
@@ -49,7 +58,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -57,6 +68,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cat.company.wandervault.R
 import cat.company.wandervault.domain.model.Destination
+import cat.company.wandervault.domain.model.TransportType
 import cat.company.wandervault.ui.theme.WanderVaultTheme
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
@@ -99,6 +111,7 @@ internal fun ItineraryTabContent(
         onMoveDestinationUp = viewModel::onMoveDestinationUp,
         onMoveDestinationDown = viewModel::onMoveDestinationDown,
         onAddDestinationAfter = { pos -> viewModel.onAddDestinationClick(pos) },
+        onUpdateTransport = viewModel::onUpdateTransport,
     )
 }
 
@@ -122,6 +135,7 @@ internal fun ItineraryContent(
     onMoveDestinationUp: (Destination) -> Unit,
     onMoveDestinationDown: (Destination) -> Unit,
     onAddDestinationAfter: (Int) -> Unit,
+    onUpdateTransport: (Destination, TransportType?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Box(modifier = modifier.fillMaxSize()) {
@@ -156,6 +170,7 @@ internal fun ItineraryContent(
                         onMoveUp = { onMoveDestinationUp(destination) },
                         onMoveDown = { onMoveDestinationDown(destination) },
                         onAddAfter = { onAddDestinationAfter(destination.position) },
+                        onSelectTransport = { transport -> onUpdateTransport(destination, transport) },
                     )
                 }
             }
@@ -198,14 +213,28 @@ private fun DestinationTimelineItem(
     onMoveUp: () -> Unit,
     onMoveDown: () -> Unit,
     onAddAfter: () -> Unit,
+    onSelectTransport: (TransportType?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var showTransportPicker by rememberSaveable { mutableStateOf(false) }
+
+    if (showTransportPicker) {
+        TransportPickerDialog(
+            currentTransport = destination.transport,
+            onSelect = { transport ->
+                onSelectTransport(transport)
+                showTransportPicker = false
+            },
+            onDismiss = { showTransportPicker = false },
+        )
+    }
+
     Row(
         modifier = modifier
             .fillMaxWidth()
             .height(IntrinsicSize.Max),
     ) {
-        // Timeline column: line → circle → line
+        // Timeline column: line → circle → line (with optional transport icon)
         Column(
             modifier = Modifier
                 .width(32.dp)
@@ -224,12 +253,37 @@ private fun DestinationTimelineItem(
                     .background(MaterialTheme.colorScheme.primary, CircleShape),
             )
             if (!isLast) {
+                // Bottom line with transport icon overlaid at the centre
                 Box(
                     modifier = Modifier
-                        .width(2.dp)
-                        .weight(1f)
-                        .background(MaterialTheme.colorScheme.primary),
-                )
+                        .fillMaxWidth()
+                        .weight(1f),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .width(2.dp)
+                            .fillMaxHeight()
+                            .background(MaterialTheme.colorScheme.primary),
+                    )
+                    IconButton(
+                        onClick = { showTransportPicker = true },
+                    ) {
+                        Icon(
+                            imageVector = destination.transport?.icon ?: Icons.Default.Add,
+                            contentDescription = stringResource(
+                                if (destination.transport != null) R.string.itinerary_change_transport
+                                else R.string.itinerary_add_transport,
+                            ),
+                            modifier = Modifier.size(18.dp),
+                            tint = if (destination.transport != null) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                            },
+                        )
+                    }
+                }
             }
         }
 
@@ -321,6 +375,107 @@ private fun DestinationTimelineItem(
                 Spacer(modifier = Modifier.height(8.dp))
             }
         }
+    }
+}
+
+/** Maps a [TransportType] to its corresponding [ImageVector] icon. */
+private val TransportType.icon: ImageVector
+    get() = when (this) {
+        TransportType.WALKING -> Icons.Default.DirectionsWalk
+        TransportType.CYCLING -> Icons.Default.DirectionsBike
+        TransportType.DRIVING -> Icons.Default.DirectionsCar
+        TransportType.BUS -> Icons.Default.DirectionsBus
+        TransportType.TRAIN -> Icons.Default.Train
+        TransportType.FERRY -> Icons.Default.DirectionsBoat
+        TransportType.FLIGHT -> Icons.Default.Flight
+    }
+
+/** Returns the string resource ID for the human-readable label of a [TransportType]. */
+private val TransportType.labelRes: Int
+    get() = when (this) {
+        TransportType.WALKING -> R.string.transport_walking
+        TransportType.CYCLING -> R.string.transport_cycling
+        TransportType.DRIVING -> R.string.transport_driving
+        TransportType.BUS -> R.string.transport_bus
+        TransportType.TRAIN -> R.string.transport_train
+        TransportType.FERRY -> R.string.transport_ferry
+        TransportType.FLIGHT -> R.string.transport_flight
+    }
+
+/**
+ * Dialog for choosing (or clearing) the [TransportType] used to travel from a destination
+ * to the next one on the itinerary.
+ */
+@Composable
+private fun TransportPickerDialog(
+    currentTransport: TransportType?,
+    onSelect: (TransportType?) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.itinerary_transport_picker_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                // Render transport options in rows of 4
+                TransportType.entries.chunked(4).forEach { rowItems ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                    ) {
+                        rowItems.forEach { type ->
+                            TransportOption(
+                                icon = type.icon,
+                                label = stringResource(type.labelRes),
+                                isSelected = type == currentTransport,
+                                onClick = { onSelect(type) },
+                            )
+                        }
+                    }
+                }
+                // "None" option to clear the transport
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    TransportOption(
+                        icon = Icons.Default.Close,
+                        label = stringResource(R.string.transport_none),
+                        isSelected = currentTransport == null,
+                        onClick = { onSelect(null) },
+                    )
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.dialog_cancel)) }
+        },
+    )
+}
+
+@Composable
+private fun TransportOption(
+    icon: ImageVector,
+    label: String,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+) {
+    val contentColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .selectable(selected = isSelected, onClick = onClick, role = Role.RadioButton)
+            .padding(8.dp),
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = contentColor,
+            modifier = Modifier.size(28.dp),
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = contentColor,
+        )
     }
 }
 
@@ -538,6 +693,7 @@ private fun ItineraryEmptyPreview() {
             onMoveDestinationUp = {},
             onMoveDestinationDown = {},
             onAddDestinationAfter = {},
+            onUpdateTransport = { _, _ -> },
         )
     }
 }
@@ -546,7 +702,7 @@ private fun ItineraryEmptyPreview() {
 @Composable
 private fun ItineraryWithDestinationsPreview() {
     val destinations = listOf(
-        Destination(1, 1, "London", 0, departureDateTime = LocalDateTime.of(2024, 6, 1, 9, 0)),
+        Destination(1, 1, "London", 0, departureDateTime = LocalDateTime.of(2024, 6, 1, 9, 0), transport = TransportType.FLIGHT),
         Destination(
             2,
             1,
@@ -554,6 +710,7 @@ private fun ItineraryWithDestinationsPreview() {
             1,
             arrivalDateTime = LocalDateTime.of(2024, 6, 1, 12, 30),
             departureDateTime = LocalDateTime.of(2024, 6, 3, 10, 0),
+            transport = TransportType.TRAIN,
         ),
         Destination(3, 1, "Rome", 2, arrivalDateTime = LocalDateTime.of(2024, 6, 3, 14, 0)),
     )
@@ -571,6 +728,7 @@ private fun ItineraryWithDestinationsPreview() {
             onMoveDestinationUp = {},
             onMoveDestinationDown = {},
             onAddDestinationAfter = {},
+            onUpdateTransport = { _, _ -> },
         )
     }
 }
@@ -595,6 +753,7 @@ private fun ItinerarySingleDestinationPreview() {
             onMoveDestinationUp = {},
             onMoveDestinationDown = {},
             onAddDestinationAfter = {},
+            onUpdateTransport = { _, _ -> },
         )
     }
 }
