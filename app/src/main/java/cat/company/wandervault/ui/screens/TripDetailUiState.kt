@@ -13,5 +13,5 @@ sealed class TripDetailUiState {
     data class Success(val trip: Trip) : TripDetailUiState()
 
     /** An error occurred (e.g. trip not found). */
-    data class Error(val message: String) : TripDetailUiState()
+    data object Error : TripDetailUiState()
 }

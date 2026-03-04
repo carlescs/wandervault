@@ -346,7 +346,7 @@ private fun DateTimeRow(
     var showTimePicker by rememberSaveable { mutableStateOf(false) }
 
     val dateFormatter = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
-    val timeFormatter = remember { DateTimeFormatter.ofPattern("HH:mm") }
+    val timeFormatter = remember { DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT) }
 
     if (showDatePicker) {
         val selectableDates = remember(minDateMillis, maxDateMillis) {
@@ -372,7 +372,7 @@ private fun DateTimeRow(
             selectableDates = selectableDates,
         )
         DatePickerDialog(
-            onDismissRequest = { },
+            onDismissRequest = { showDatePicker = false },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -381,11 +381,12 @@ private fun DateTimeRow(
                             val existingTime = dateTime?.toLocalTime() ?: LocalTime.MIDNIGHT
                             onDateTimeChange(LocalDateTime.of(pickedDate, existingTime))
                         }
+                        showDatePicker = false
                     },
                 ) { Text(stringResource(R.string.dialog_ok)) }
             },
             dismissButton = {
-                TextButton(onClick = { }) {
+                TextButton(onClick = { showDatePicker = false }) {
                     Text(stringResource(R.string.dialog_cancel))
                 }
             },
@@ -398,7 +399,7 @@ private fun DateTimeRow(
             initialMinute = dateTime?.minute ?: 0,
         )
         AlertDialog(
-            onDismissRequest = { },
+            onDismissRequest = { showTimePicker = false },
             title = { Text(stringResource(R.string.itinerary_pick_time)) },
             text = { TimePicker(state = timeState) },
             confirmButton = {
@@ -408,11 +409,12 @@ private fun DateTimeRow(
                         // dateTime == null, so this branch is purely defensive.
                         val date = dateTime?.toLocalDate() ?: LocalDate.now()
                         onDateTimeChange(LocalDateTime.of(date, LocalTime.of(timeState.hour, timeState.minute)))
+                        showTimePicker = false
                     },
                 ) { Text(stringResource(R.string.dialog_ok)) }
             },
             dismissButton = {
-                TextButton(onClick = { }) {
+                TextButton(onClick = { showTimePicker = false }) {
                     Text(stringResource(R.string.dialog_cancel))
                 }
             },
@@ -432,7 +434,7 @@ private fun DateTimeRow(
             modifier = Modifier.width(72.dp),
         )
         OutlinedButton(
-            onClick = { },
+            onClick = { showDatePicker = true },
             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
             modifier = Modifier.height(32.dp),
         ) {
@@ -446,7 +448,7 @@ private fun DateTimeRow(
         }
         Spacer(modifier = Modifier.width(4.dp))
         OutlinedButton(
-            onClick = { },
+            onClick = { showTimePicker = true },
             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
             modifier = Modifier.height(32.dp),
             enabled = dateTime != null,

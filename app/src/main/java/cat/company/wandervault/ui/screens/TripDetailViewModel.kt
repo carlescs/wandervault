@@ -28,7 +28,7 @@ class TripDetailViewModel(
                 _uiState.value = if (trip != null) {
                     TripDetailUiState.Success(trip)
                 } else {
-                    TripDetailUiState.Error("Trip not found")
+                    TripDetailUiState.Error
                 }
             }
         }
