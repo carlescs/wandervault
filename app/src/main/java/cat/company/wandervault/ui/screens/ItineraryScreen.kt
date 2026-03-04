@@ -503,15 +503,17 @@ private fun DateTimeRow(
     val timeFormatter = remember { DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT) }
 
     if (showDatePicker) {
-        val selectableDates = remember(minDateMillis, maxDateMillis) {
-            // Normalize bounds so an inverted range (e.g. from out-of-order existing data)
-            // doesn't disable all dates and lock the user out of correcting them.
-            val (normalizedMin, normalizedMax) =
-                if (minDateMillis != null && maxDateMillis != null && minDateMillis > maxDateMillis) {
-                    maxDateMillis to minDateMillis
-                } else {
-                    minDateMillis to maxDateMillis
-                }
+        // Normalize bounds once so an inverted range (e.g. from out-of-order existing data)
+        // doesn't disable all dates and lock the user out of correcting them.
+        // Both selectableDates and initialDisplayedMonthMillis use these same values.
+        val (normalizedMin, normalizedMax) = remember(minDateMillis, maxDateMillis) {
+            if (minDateMillis != null && maxDateMillis != null && minDateMillis > maxDateMillis) {
+                maxDateMillis to minDateMillis
+            } else {
+                minDateMillis to maxDateMillis
+            }
+        }
+        val selectableDates = remember(normalizedMin, normalizedMax) {
             val minYear = normalizedMin?.let { LocalDate.ofEpochDay(it / MILLIS_PER_DAY).year }
             val maxYear = normalizedMax?.let { LocalDate.ofEpochDay(it / MILLIS_PER_DAY).year }
             object : SelectableDates {
@@ -529,10 +531,10 @@ private fun DateTimeRow(
         }
         // When no date is selected yet, open the picker at the month of the nearest contextual
         // bound so the user sees a relevant month instead of today, which may be far from the
-        // trip dates. minDateMillis is preferred because it represents the chronological
+        // trip dates. normalizedMin is preferred because it represents the chronological
         // predecessor in the itinerary (e.g. the previous destination's departure), giving the
         // user a natural starting point for sequential date entry.
-        val initialDisplayedMonthMillis = dateTime.toDateEpochMillis() ?: minDateMillis ?: maxDateMillis
+        val initialDisplayedMonthMillis = dateTime.toDateEpochMillis() ?: normalizedMin ?: normalizedMax
         val state = rememberDatePickerState(
             initialSelectedDateMillis = dateTime.toDateEpochMillis(),
             initialDisplayedMonthMillis = initialDisplayedMonthMillis,
