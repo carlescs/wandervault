@@ -73,7 +73,7 @@ fun TripDetailScreen(
     onNavigateUp: () -> Unit,
     onNavigateToDestination: (Int) -> Unit = {},
     modifier: Modifier = Modifier,
-    viewModel: TripDetailViewModel = koinViewModel(parameters = { parametersOf(tripId) }),
+    viewModel: TripDetailViewModel = koinViewModel(key = "TripDetailViewModel:$tripId", parameters = { parametersOf(tripId) }),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     TripDetailContent(

@@ -53,7 +53,7 @@ fun LocationDetailScreen(
     destinationId: Int,
     onNavigateUp: () -> Unit,
     modifier: Modifier = Modifier,
-    viewModel: LocationDetailViewModel = koinViewModel(),
+    viewModel: LocationDetailViewModel = koinViewModel(key = "LocationDetailViewModel:$destinationId", parameters = { parametersOf(destinationId) }),
 ) {
     LaunchedEffect(destinationId) {
         viewModel.loadDestination(destinationId)
