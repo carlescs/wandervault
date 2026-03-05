@@ -56,6 +56,7 @@ import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.time.format.TextStyle
 import java.time.temporal.WeekFields
+import java.util.Locale
 
 /**
  * Stateful entry point for the Calendar tab.
@@ -275,12 +276,36 @@ private fun CalendarMonthGrid(
             }
         }
     }
-    // A "complete stay" is a destination that has both arrival and departure dates.
+    // A "complete stay" is a destination that has both arrival and departure dates, and
+    // departure is not before arrival (invalid ranges are skipped).
     val stayRanges: List<StayRange> = remember(destinations) {
         destinations.mapNotNull { dest ->
             val arrival = dest.arrivalDateTime?.toLocalDate() ?: return@mapNotNull null
             val departure = dest.departureDateTime?.toLocalDate() ?: return@mapNotNull null
+            if (departure.isBefore(arrival)) return@mapNotNull null
             StayRange(arrival, departure)
+        }
+    }
+
+    // Pre-compute a per-date lookup for the displayed month so each DayCell does an O(1) map
+    // lookup instead of a linear scan over stayRanges.
+    val dateLookup: Map<LocalDate, StayRange> = remember(stayRanges, yearMonth) {
+        buildMap {
+            val monthStart = yearMonth.atDay(1)
+            val monthEnd = yearMonth.atEndOfMonth()
+            stayRanges.forEach { range ->
+                // Clamp iteration to the visible month to avoid iterating over the whole trip.
+                val from = maxOf(range.arrival, monthStart)
+                val to = minOf(range.departure, monthEnd)
+                var date = from
+                while (!date.isAfter(to)) {
+                    // putIfAbsent keeps the first stay when stays overlap on the same date,
+                    // which matches normal itinerary behaviour (no two destinations on the
+                    // same day). The first range in position order wins.
+                    putIfAbsent(date, range)
+                    date = date.plusDays(1)
+                }
+            }
         }
     }
 
@@ -303,9 +328,7 @@ private fun CalendarMonthGrid(
                         val dayIndex = cellIndex - leadingBlanks
                         val day = dayIndex + 1
                         val date = yearMonth.atDay(day)
-                        val stayRange = stayRanges.firstOrNull { (arrival, departure) ->
-                            !date.isBefore(arrival) && !date.isAfter(departure)
-                        }
+                        val stayRange = dateLookup[date]
                         DayCell(
                             modifier = Modifier.weight(1f),
                             day = day,
@@ -403,7 +426,11 @@ private fun StayLegendSection(
     displayedMonth: YearMonth,
     modifier: Modifier = Modifier,
 ) {
-    val dateFormatter = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
+    val configuration = LocalConfiguration.current
+    val dateFormatter = remember(configuration) {
+        val locale = if (configuration.locales.size() > 0) configuration.locales.get(0) else Locale.getDefault()
+        DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale)
+    }
 
     // Only show destinations that have a complete stay overlapping the displayed month.
     val staysInMonth = remember(destinations, displayedMonth) {
@@ -447,15 +474,17 @@ private fun StayLegendSection(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    val arrivalStr = dest.arrivalDateTime?.toLocalDate()?.format(dateFormatter)
-                    val departureStr = dest.departureDateTime?.toLocalDate()?.format(dateFormatter)
-                    if (arrivalStr != null || departureStr != null) {
-                        Text(
-                            text = "${arrivalStr ?: ""} – ${departureStr ?: ""}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+                    val arrivalStr = requireNotNull(dest.arrivalDateTime) {
+                        "staysInMonth filter guarantees arrivalDateTime is non-null"
+                    }.toLocalDate().format(dateFormatter)
+                    val departureStr = requireNotNull(dest.departureDateTime) {
+                        "staysInMonth filter guarantees departureDateTime is non-null"
+                    }.toLocalDate().format(dateFormatter)
+                    Text(
+                        text = "$arrivalStr – $departureStr",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         }
