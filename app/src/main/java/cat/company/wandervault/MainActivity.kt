@@ -18,14 +18,17 @@ import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffo
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.PreviewScreenSizes
+import cat.company.wandervault.domain.model.Destination
 import cat.company.wandervault.ui.screens.FavoritesScreen
 import cat.company.wandervault.ui.screens.HomeScreen
+import cat.company.wandervault.ui.screens.LocationDetailScreen
 import cat.company.wandervault.ui.screens.ProfileScreen
 import cat.company.wandervault.ui.screens.TripDetailScreen
 import cat.company.wandervault.ui.theme.WanderVaultTheme
@@ -47,13 +50,24 @@ class MainActivity : ComponentActivity() {
 fun WanderVaultApp() {
     var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.HOME) }
     var tripDetailId by rememberSaveable { mutableStateOf<Int?>(null) }
+    var selectedDestination by remember { mutableStateOf<Destination?>(null) }
 
-    if (tripDetailId != null) {
+    if (selectedDestination != null) {
+        BackHandler { selectedDestination = null }
+        selectedDestination?.let { destination ->
+            LocationDetailScreen(
+                destination = destination,
+                onNavigateUp = { selectedDestination = null },
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+    } else if (tripDetailId != null) {
         BackHandler { tripDetailId = null }
         tripDetailId?.let { id ->
             TripDetailScreen(
                 tripId = id,
                 onNavigateUp = { tripDetailId = null },
+                onNavigateToDestination = { selectedDestination = it },
                 modifier = Modifier.fillMaxSize(),
             )
         }

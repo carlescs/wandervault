@@ -98,6 +98,7 @@ private fun LocalDateTime?.toDateEpochMillis(): Long? =
 internal fun ItineraryTabContent(
     tripId: Int,
     innerPadding: PaddingValues,
+    onDestinationClick: (Destination) -> Unit = {},
     viewModel: ItineraryViewModel = koinViewModel(parameters = { parametersOf(tripId) }),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -117,6 +118,7 @@ internal fun ItineraryTabContent(
         onMoveDestinationDown = viewModel::onMoveDestinationDown,
         onAddDestinationAfter = { pos -> viewModel.onAddDestinationClick(pos) },
         onUpdateTransport = viewModel::onUpdateTransport,
+        onDestinationClick = onDestinationClick,
     )
 }
 
@@ -143,6 +145,7 @@ internal fun ItineraryContent(
     onMoveDestinationDown: (Destination) -> Unit,
     onAddDestinationAfter: (Int) -> Unit,
     onUpdateTransport: (Destination, TransportType?) -> Unit,
+    onDestinationClick: (Destination) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Box(modifier = modifier.fillMaxSize()) {
@@ -178,6 +181,7 @@ internal fun ItineraryContent(
                         onMoveDown = { onMoveDestinationDown(destination) },
                         onAddAfter = { onAddDestinationAfter(destination.position) },
                         onSelectTransport = { transport -> onUpdateTransport(destination, transport) },
+                        onClick = { onDestinationClick(destination) },
                     )
                 }
             }
@@ -229,6 +233,7 @@ private fun DestinationTimelineItem(
     onMoveDown: () -> Unit,
     onAddAfter: () -> Unit,
     onSelectTransport: (TransportType?) -> Unit,
+    onClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var showTransportPicker by rememberSaveable { mutableStateOf(false) }
@@ -337,7 +342,13 @@ private fun DestinationTimelineItem(
                     style = MaterialTheme.typography.titleMedium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable(
+                            role = Role.Button,
+                            onClickLabel = stringResource(R.string.itinerary_destination_open_details),
+                            onClick = onClick,
+                        ),
                 )
                 IconButton(onClick = onMoveUp, enabled = !isFirst) {
                     Icon(
