@@ -63,11 +63,27 @@ class ItineraryViewModel(
     }
 
     fun onDismissAddDestinationDialog() {
-        _uiState.update { it.copy(showAddDestinationDialog = false, newDestinationName = "", insertAfterPosition = null) }
+        _uiState.update {
+            it.copy(
+                showAddDestinationDialog = false,
+                newDestinationName = "",
+                newDestinationLatitude = "",
+                newDestinationLongitude = "",
+                insertAfterPosition = null,
+            )
+        }
     }
 
     fun onNewDestinationNameChange(name: String) {
         _uiState.update { it.copy(newDestinationName = name) }
+    }
+
+    fun onNewDestinationLatitudeChange(latitude: String) {
+        _uiState.update { it.copy(newDestinationLatitude = latitude) }
+    }
+
+    fun onNewDestinationLongitudeChange(longitude: String) {
+        _uiState.update { it.copy(newDestinationLongitude = longitude) }
     }
 
     fun onSaveDestination() {
@@ -89,6 +105,8 @@ class ItineraryViewModel(
                     tripId = tripId,
                     name = state.newDestinationName.trim(),
                     position = insertPos,
+                    latitude = state.newDestinationLatitude.toDoubleOrNull(),
+                    longitude = state.newDestinationLongitude.toDoubleOrNull(),
                 ),
             )
             onDismissAddDestinationDialog()

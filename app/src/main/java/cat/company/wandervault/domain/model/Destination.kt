@@ -17,6 +17,9 @@ import java.time.LocalDateTime
  *   `null` for the last destination (no onward journey) or when not yet set.
  *   Stored as a separate [Transport] entity so that future properties (booking references,
  *   attached documents, notes) can be added without touching this class.
+ * @param latitude Optional GPS latitude of the destination (decimal degrees, WGS-84).
+ *   When provided together with [longitude], the destination is shown as a pin on the map view.
+ * @param longitude Optional GPS longitude of the destination (decimal degrees, WGS-84).
  */
 data class Destination(
     val id: Int = 0,
@@ -26,4 +29,6 @@ data class Destination(
     val arrivalDateTime: LocalDateTime? = null,
     val departureDateTime: LocalDateTime? = null,
     val transport: Transport? = null,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
 )

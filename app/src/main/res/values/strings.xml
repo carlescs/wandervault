@@ -87,4 +87,14 @@
     <string name="transport_flight">Flight</string>
     <string name="transport_other">Other</string>
     <string name="transport_none">None</string>
+    <string name="itinerary_destination_latitude_label">Latitude (optional)</string>
+    <string name="itinerary_destination_longitude_label">Longitude (optional)</string>
+
+    <!-- Map tab -->
+    <string name="trip_detail_tab_map">Map</string>
+    <string name="map_empty_title">No destinations yet</string>
+    <string name="map_empty_subtitle">Add destinations to your itinerary to see them on the map</string>
+    <string name="map_no_coordinates_title">No coordinates set</string>
+    <string name="map_no_coordinates_subtitle">Enter latitude and longitude when adding destinations to pin them on the map</string>
+    <string name="map_destination_stop">Stop %1$d</string>
 </resources>

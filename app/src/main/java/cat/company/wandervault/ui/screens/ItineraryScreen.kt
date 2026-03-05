@@ -107,6 +107,8 @@ internal fun ItineraryTabContent(
         onAddDestinationClick = { viewModel.onAddDestinationClick() },
         onDismissAddDestinationDialog = viewModel::onDismissAddDestinationDialog,
         onNewDestinationNameChange = viewModel::onNewDestinationNameChange,
+        onNewDestinationLatitudeChange = viewModel::onNewDestinationLatitudeChange,
+        onNewDestinationLongitudeChange = viewModel::onNewDestinationLongitudeChange,
         onSaveDestination = viewModel::onSaveDestination,
         onUpdateArrivalDateTime = viewModel::onUpdateArrivalDateTime,
         onUpdateDepartureDateTime = viewModel::onUpdateDepartureDateTime,
@@ -133,6 +135,8 @@ internal fun ItineraryContent(
     onAddDestinationClick: () -> Unit,
     onDismissAddDestinationDialog: () -> Unit,
     onNewDestinationNameChange: (String) -> Unit,
+    onNewDestinationLatitudeChange: (String) -> Unit,
+    onNewDestinationLongitudeChange: (String) -> Unit,
     onSaveDestination: () -> Unit,
     onUpdateArrivalDateTime: (Destination, LocalDateTime?) -> Unit,
     onUpdateDepartureDateTime: (Destination, LocalDateTime?) -> Unit,
@@ -200,6 +204,10 @@ internal fun ItineraryContent(
         AddDestinationDialog(
             name = uiState.newDestinationName,
             onNameChange = onNewDestinationNameChange,
+            latitude = uiState.newDestinationLatitude,
+            onLatitudeChange = onNewDestinationLatitudeChange,
+            longitude = uiState.newDestinationLongitude,
+            onLongitudeChange = onNewDestinationLongitudeChange,
             isFormValid = uiState.isAddDestinationFormValid,
             onSave = onSaveDestination,
             onDismiss = onDismissAddDestinationDialog,
@@ -698,6 +706,10 @@ private fun ItineraryEmptyState(modifier: Modifier = Modifier) {
 private fun AddDestinationDialog(
     name: String,
     onNameChange: (String) -> Unit,
+    latitude: String,
+    onLatitudeChange: (String) -> Unit,
+    longitude: String,
+    onLongitudeChange: (String) -> Unit,
     isFormValid: Boolean,
     onSave: () -> Unit,
     onDismiss: () -> Unit,
@@ -706,13 +718,29 @@ private fun AddDestinationDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.itinerary_add_destination_title)) },
         text = {
-            OutlinedTextField(
-                value = name,
-                onValueChange = onNameChange,
-                label = { Text(stringResource(R.string.itinerary_destination_name_label)) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = onNameChange,
+                    label = { Text(stringResource(R.string.itinerary_destination_name_label)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = latitude,
+                    onValueChange = onLatitudeChange,
+                    label = { Text(stringResource(R.string.itinerary_destination_latitude_label)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = longitude,
+                    onValueChange = onLongitudeChange,
+                    label = { Text(stringResource(R.string.itinerary_destination_longitude_label)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         },
         confirmButton = {
             TextButton(onClick = onSave, enabled = isFormValid) {
@@ -759,6 +787,8 @@ private fun ItineraryEmptyPreview() {
             onAddDestinationClick = {},
             onDismissAddDestinationDialog = {},
             onNewDestinationNameChange = {},
+            onNewDestinationLatitudeChange = {},
+            onNewDestinationLongitudeChange = {},
             onSaveDestination = {},
             onUpdateArrivalDateTime = { _, _ -> },
             onUpdateDepartureDateTime = { _, _ -> },
@@ -796,6 +826,8 @@ private fun ItineraryWithDestinationsPreview() {
             onAddDestinationClick = {},
             onDismissAddDestinationDialog = {},
             onNewDestinationNameChange = {},
+            onNewDestinationLatitudeChange = {},
+            onNewDestinationLongitudeChange = {},
             onSaveDestination = {},
             onUpdateArrivalDateTime = { _, _ -> },
             onUpdateDepartureDateTime = { _, _ -> },
@@ -823,6 +855,8 @@ private fun ItinerarySingleDestinationPreview() {
             onAddDestinationClick = {},
             onDismissAddDestinationDialog = {},
             onNewDestinationNameChange = {},
+            onNewDestinationLatitudeChange = {},
+            onNewDestinationLongitudeChange = {},
             onSaveDestination = {},
             onUpdateArrivalDateTime = { _, _ -> },
             onUpdateDepartureDateTime = { _, _ -> },

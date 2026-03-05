@@ -44,6 +44,8 @@ private fun DestinationEntity.toDomain(transport: Transport?) = Destination(
     arrivalDateTime = arrivalDateTime,
     departureDateTime = departureDateTime,
     transport = transport,
+    latitude = latitude,
+    longitude = longitude,
 )
 
 private fun Destination.toEntity() = DestinationEntity(
@@ -53,4 +55,6 @@ private fun Destination.toEntity() = DestinationEntity(
     position = position,
     arrivalDateTime = arrivalDateTime,
     departureDateTime = departureDateTime,
+    latitude = latitude,
+    longitude = longitude,
 )

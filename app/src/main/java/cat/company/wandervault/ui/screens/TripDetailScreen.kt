@@ -15,6 +15,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Map
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
@@ -55,6 +56,7 @@ private enum class TripDetailTab(@StringRes val labelRes: Int, val icon: ImageVe
     DETAILS(R.string.trip_detail_tab_details, Icons.Default.Info),
     ITINERARY(R.string.trip_detail_tab_itinerary, Icons.Default.DateRange),
     CALENDAR(R.string.trip_detail_tab_calendar, Icons.Default.CalendarMonth),
+    MAP(R.string.trip_detail_tab_map, Icons.Default.Map),
 }
 
 /**
@@ -128,6 +130,7 @@ internal fun TripDetailContent(
             TripDetailTab.DETAILS -> TripDetailsTabContent(uiState = uiState, innerPadding = innerPadding)
             TripDetailTab.ITINERARY -> ItineraryTabContent(tripId = tripId, innerPadding = innerPadding)
             TripDetailTab.CALENDAR -> CalendarTabContent(tripId = tripId, innerPadding = innerPadding)
+            TripDetailTab.MAP -> MapTabContent(tripId = tripId, innerPadding = innerPadding)
         }
     }
 }
