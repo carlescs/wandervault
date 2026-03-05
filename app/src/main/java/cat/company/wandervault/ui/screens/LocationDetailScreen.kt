@@ -53,7 +53,7 @@ fun LocationDetailScreen(
     destinationId: Int,
     onNavigateUp: () -> Unit,
     modifier: Modifier = Modifier,
-    viewModel: LocationDetailViewModel = koinViewModel(key = destinationId.toString(), parameters = { parametersOf(destinationId) }),
+    viewModel: LocationDetailViewModel = koinViewModel(key = "LocationDetailViewModel:$destinationId", parameters = { parametersOf(destinationId) }),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     LocationDetailContent(
