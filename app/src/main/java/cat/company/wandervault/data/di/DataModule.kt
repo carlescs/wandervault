@@ -2,11 +2,13 @@ package cat.company.wandervault.data.di
 
 import androidx.room.Room
 import cat.company.wandervault.data.local.WanderVaultDatabase
+import cat.company.wandervault.data.repository.GeocoderRepositoryImpl
 import cat.company.wandervault.data.repository.DestinationRepositoryImpl
 import cat.company.wandervault.data.repository.ImageRepositoryImpl
 import cat.company.wandervault.data.repository.TransportRepositoryImpl
 import cat.company.wandervault.data.repository.TripRepositoryImpl
 import cat.company.wandervault.domain.repository.DestinationRepository
+import cat.company.wandervault.domain.repository.GeocoderRepository
 import cat.company.wandervault.domain.repository.ImageRepository
 import cat.company.wandervault.domain.repository.TransportRepository
 import cat.company.wandervault.domain.repository.TripRepository
@@ -35,4 +37,5 @@ val dataModule = module {
     single<DestinationRepository> { DestinationRepositoryImpl(get(), get()) }
     single<TransportRepository> { TransportRepositoryImpl(get()) }
     single<ImageRepository> { ImageRepositoryImpl(androidContext()) }
+    single<GeocoderRepository> { GeocoderRepositoryImpl(androidContext()) }
 }

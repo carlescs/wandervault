@@ -7,6 +7,7 @@ import cat.company.wandervault.domain.model.Transport
 import cat.company.wandervault.domain.model.TransportType
 import cat.company.wandervault.domain.usecase.DeleteDestinationUseCase
 import cat.company.wandervault.domain.usecase.DeleteTransportUseCase
+import cat.company.wandervault.domain.usecase.GeocodeLocationUseCase
 import cat.company.wandervault.domain.usecase.GetDestinationsForTripUseCase
 import cat.company.wandervault.domain.usecase.SaveDestinationUseCase
 import cat.company.wandervault.domain.usecase.SaveTransportUseCase
@@ -35,6 +36,7 @@ import java.time.LocalDateTime
  * @param saveTransport Use-case that persists a new transport leg.
  * @param updateTransport Use-case that updates an existing transport leg.
  * @param deleteTransport Use-case that removes a transport leg.
+ * @param geocodeLocation Use-case that converts a location name to GPS coordinates.
  */
 class ItineraryViewModel(
     private val tripId: Int,
@@ -45,6 +47,7 @@ class ItineraryViewModel(
     private val saveTransport: SaveTransportUseCase,
     private val updateTransport: UpdateTransportUseCase,
     private val deleteTransport: DeleteTransportUseCase,
+    private val geocodeLocation: GeocodeLocationUseCase,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ItineraryUiState())
@@ -67,8 +70,6 @@ class ItineraryViewModel(
             it.copy(
                 showAddDestinationDialog = false,
                 newDestinationName = "",
-                newDestinationLatitude = "",
-                newDestinationLongitude = "",
                 insertAfterPosition = null,
             )
         }
@@ -76,14 +77,6 @@ class ItineraryViewModel(
 
     fun onNewDestinationNameChange(name: String) {
         _uiState.update { it.copy(newDestinationName = name) }
-    }
-
-    fun onNewDestinationLatitudeChange(latitude: String) {
-        _uiState.update { it.copy(newDestinationLatitude = latitude) }
-    }
-
-    fun onNewDestinationLongitudeChange(longitude: String) {
-        _uiState.update { it.copy(newDestinationLongitude = longitude) }
     }
 
     fun onSaveDestination() {
@@ -100,17 +93,29 @@ class ItineraryViewModel(
                 .filter { it.position >= insertPos }
                 .map { dest -> async { updateDestination(dest.copy(position = dest.position + 1)) } }
                 .awaitAll()
+            // Geocode the destination name to get GPS coordinates automatically.
+            val coords = geocodeLocation(state.newDestinationName.trim())
             saveDestination(
                 Destination(
                     tripId = tripId,
                     name = state.newDestinationName.trim(),
                     position = insertPos,
-                    latitude = state.newDestinationLatitude.toDoubleOrNull(),
-                    longitude = state.newDestinationLongitude.toDoubleOrNull(),
+                    latitude = coords?.first,
+                    longitude = coords?.second,
                 ),
             )
             onDismissAddDestinationDialog()
+            // Inform the user if coordinates could not be resolved; the destination is still
+            // saved and will appear in the itinerary, but it won't show as a pin on the map.
+            if (coords == null) {
+                _uiState.update { it.copy(geocodingFailed = true) }
+            }
         }
+    }
+
+    /** Clears the geocoding failure flag once the warning has been shown to the user. */
+    fun onGeocodingWarningShown() {
+        _uiState.update { it.copy(geocodingFailed = false) }
     }
 
     fun onUpdateArrivalDateTime(destination: Destination, arrivalDateTime: LocalDateTime?) {

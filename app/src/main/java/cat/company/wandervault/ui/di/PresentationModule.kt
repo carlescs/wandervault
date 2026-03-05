@@ -19,6 +19,7 @@ val presentationModule = module {
             saveTransport = get(),
             updateTransport = get(),
             deleteTransport = get(),
+            geocodeLocation = get(),
         )
     }
 }
