@@ -88,4 +88,25 @@
     <string name="transport_flight">Flight</string>
     <string name="transport_other">Other</string>
     <string name="transport_none">None</string>
+
+    <!-- Location Detail screen -->
+    <string name="location_detail_navigate_up">Navigate up</string>
+    <string name="location_detail_tab_summary">Summary</string>
+    <string name="location_detail_tab_hotel">Hotel</string>
+    <string name="location_detail_arrival">Arrival</string>
+    <string name="location_detail_departure">Departure</string>
+    <string name="location_detail_transport">Transport</string>
+    <string name="location_detail_no_dates">No dates set</string>
+
+    <!-- Hotel form -->
+    <string name="hotel_name_label">Hotel name</string>
+    <string name="hotel_address_label">Address</string>
+    <string name="hotel_check_in_label">Check-in</string>
+    <string name="hotel_check_out_label">Check-out</string>
+    <string name="hotel_confirmation_label">Confirmation number</string>
+    <string name="hotel_notes_label">Notes</string>
+    <string name="hotel_save">Save reservation</string>
+    <string name="hotel_delete">Delete reservation</string>
+    <string name="hotel_pick_date">Pick date</string>
+    <string name="hotel_no_hotel">No hotel reservation yet</string>
 </resources>

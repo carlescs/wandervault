@@ -2,6 +2,7 @@ package cat.company.wandervault.ui.di
 
 import cat.company.wandervault.ui.screens.HomeViewModel
 import cat.company.wandervault.ui.screens.ItineraryViewModel
+import cat.company.wandervault.ui.screens.LocationDetailViewModel
 import cat.company.wandervault.ui.screens.TripDetailViewModel
 import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
@@ -19,6 +20,15 @@ val presentationModule = module {
             saveTransport = get(),
             updateTransport = get(),
             deleteTransport = get(),
+        )
+    }
+    viewModel { params ->
+        LocationDetailViewModel(
+            destination = params.get(),
+            getHotelForDestination = get(),
+            saveHotel = get(),
+            updateHotel = get(),
+            deleteHotel = get(),
         )
     }
 }
