@@ -102,7 +102,7 @@ internal fun ItineraryTabContent(
     tripId: Int,
     innerPadding: PaddingValues,
     onDestinationClick: (Int) -> Unit = {},
-    viewModel: ItineraryViewModel = koinViewModel(parameters = { parametersOf(tripId) }),
+    viewModel: ItineraryViewModel = koinViewModel(key = tripId.toString(), parameters = { parametersOf(tripId) }),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     ItineraryContent(

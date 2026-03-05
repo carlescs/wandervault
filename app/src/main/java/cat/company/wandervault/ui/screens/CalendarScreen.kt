@@ -72,7 +72,7 @@ import java.util.Locale
 internal fun CalendarTabContent(
     tripId: Int,
     innerPadding: PaddingValues,
-    viewModel: ItineraryViewModel = koinViewModel(parameters = { parametersOf(tripId) }),
+    viewModel: ItineraryViewModel = koinViewModel(key = tripId.toString(), parameters = { parametersOf(tripId) }),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     CalendarContent(
