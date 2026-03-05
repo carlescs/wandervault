@@ -36,6 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -82,11 +83,51 @@ internal fun CalendarTabContent(
 }
 
 /**
+ * A set of four colours used to render one destination stay in the calendar.
+ *
+ * @property containerColor Background colour for the stay band.
+ * @property onContainerColor Text colour drawn on top of the band.
+ * @property eventColor Background colour for the arrival/departure circle.
+ * @property onEventColor Text colour drawn inside the event circle.
+ */
+private data class StayColorScheme(
+    val containerColor: Color,
+    val onContainerColor: Color,
+    val eventColor: Color,
+    val onEventColor: Color,
+)
+
+/**
+ * Fixed palette of eight visually distinct colour schemes cycled across destination stays.
+ *
+ * Colours are assigned by destination index modulo the palette size, so up to eight stays will
+ * each receive a unique colour before the palette repeats.
+ */
+private val STAY_COLOR_SCHEMES: List<StayColorScheme> = listOf(
+    // Blue
+    StayColorScheme(Color(0xFFBBDEFB), Color(0xFF1A237E), Color(0xFF1565C0), Color.White),
+    // Green
+    StayColorScheme(Color(0xFFC8E6C9), Color(0xFF1B5E20), Color(0xFF2E7D32), Color.White),
+    // Amber — eventColor is a mid-tone amber; dark onEventColor used to meet contrast requirements.
+    StayColorScheme(Color(0xFFFFECB3), Color(0xFFE65100), Color(0xFFF57F17), Color(0xFF1A1C1E)),
+    // Purple
+    StayColorScheme(Color(0xFFE1BEE7), Color(0xFF4A148C), Color(0xFF6A1B9A), Color.White),
+    // Cyan
+    StayColorScheme(Color(0xFFB2EBF2), Color(0xFF006064), Color(0xFF00838F), Color.White),
+    // Red
+    StayColorScheme(Color(0xFFFFCDD2), Color(0xFFB71C1C), Color(0xFFC62828), Color.White),
+    // Teal
+    StayColorScheme(Color(0xFFB2DFDB), Color(0xFF004D40), Color(0xFF00695C), Color.White),
+    // Deep Orange
+    StayColorScheme(Color(0xFFFFCCBC), Color(0xFFBF360C), Color(0xFFD84315), Color.White),
+)
+
+/**
  * Stateless calendar view for a trip.
  *
  * Displays a monthly grid where days belonging to a destination stay (between arrival and
- * departure) are highlighted with a band in [MaterialTheme.colorScheme.primaryContainer].
- * Arrival and departure days additionally get a [MaterialTheme.colorScheme.primary] circle.
+ * departure) are highlighted with a coloured band unique to that stay.  Arrival and departure
+ * days additionally get a filled circle in the same stay colour.
  * Below the grid a legend lists each stay visible in the displayed month with the destination
  * name and its date range. The user can navigate between months using the previous/next arrows
  * in the header.
@@ -241,17 +282,21 @@ private fun CalendarWeekdayRow(weekStartDay: DayOfWeek) {
     Spacer(modifier = Modifier.height(4.dp))
 }
 
-/** Holds the arrival and departure [LocalDate]s for a destination stay. */
-private data class StayRange(val arrival: LocalDate, val departure: LocalDate)
+/** Holds the arrival and departure [LocalDate]s for a destination stay together with its colour scheme. */
+private data class StayRange(
+    val arrival: LocalDate,
+    val departure: LocalDate,
+    val colorScheme: StayColorScheme,
+)
 
 /**
  * A 7-column grid showing every day in [yearMonth].
  *
  * Leading blank cells are added before the first day so that columns align with the correct
  * weekday. Days whose date falls within a destination stay (arrival through departure inclusive)
- * are rendered with a coloured band; arrival and departure days additionally show a highlighted
- * circle. The band runs edge-to-edge across cells so that it appears seamless across a full row.
- * When the stay wraps to a new row the band restarts at the left edge of that row.
+ * are rendered with a coloured band unique to that stay; arrival and departure days additionally
+ * show a highlighted circle. The band runs edge-to-edge across cells so that it appears seamless
+ * across a full row. When the stay wraps to a new row the band restarts at the left edge of that row.
  *
  * @param weekStartDay The locale's first day of the week; must match the column order in
  *   [CalendarWeekdayRow] so that days land in the correct columns.
@@ -267,44 +312,70 @@ private fun CalendarMonthGrid(
     val leadingBlanks = (firstOfMonth.dayOfWeek.value - weekStartDay.value + 7) % 7
     val daysInMonth = yearMonth.lengthOfMonth()
 
-    // Pre-compute event dates (any arrival or departure) and complete stay ranges.
-    val eventDates: Set<LocalDate> = remember(destinations) {
-        buildSet {
-            destinations.forEach { dest ->
-                dest.arrivalDateTime?.toLocalDate()?.let { add(it) }
-                dest.departureDateTime?.toLocalDate()?.let { add(it) }
-            }
-        }
-    }
     // A "complete stay" is a destination that has both arrival and departure dates, and
     // departure is not before arrival (invalid ranges are skipped).
+    // Each stay is assigned a colour scheme by its index in the destinations list.
     val stayRanges: List<StayRange> = remember(destinations) {
-        destinations.mapNotNull { dest ->
-            val arrival = dest.arrivalDateTime?.toLocalDate() ?: return@mapNotNull null
-            val departure = dest.departureDateTime?.toLocalDate() ?: return@mapNotNull null
-            if (departure.isBefore(arrival)) return@mapNotNull null
-            StayRange(arrival, departure)
+        destinations.mapIndexedNotNull { index, dest ->
+            val arrival = dest.arrivalDateTime?.toLocalDate() ?: return@mapIndexedNotNull null
+            val departure = dest.departureDateTime?.toLocalDate() ?: return@mapIndexedNotNull null
+            if (departure.isBefore(arrival)) return@mapIndexedNotNull null
+            StayRange(arrival, departure, STAY_COLOR_SCHEMES[index % STAY_COLOR_SCHEMES.size])
+        }
+    }
+
+    // Derive event dates only from complete stay ranges so that arrival/departure markers are
+    // always paired with a color scheme (no silently invisible circles).
+    val eventDates: Set<LocalDate> = remember(stayRanges) {
+        buildSet {
+            stayRanges.forEach { range ->
+                add(range.arrival)
+                add(range.departure)
+            }
         }
     }
 
     // Pre-compute a per-date lookup for the displayed month so each DayCell does an O(1) map
     // lookup instead of a linear scan over stayRanges.
-    val dateLookup: Map<LocalDate, StayRange> = remember(stayRanges, yearMonth) {
-        buildMap {
-            val monthStart = yearMonth.atDay(1)
-            val monthEnd = yearMonth.atEndOfMonth()
+    // Each entry is (primaryRange, departingRange?) where departingRange is non-null only on
+    // transition days — days where one stay departs and the next arrives simultaneously.
+    val dateLookup: Map<LocalDate, Pair<StayRange, StayRange?>> = remember(stayRanges, yearMonth) {
+        val monthStart = yearMonth.atDay(1)
+        val monthEnd = yearMonth.atEndOfMonth()
+
+        // First pass: build primary range per date — arrival wins on same-day transitions.
+        val primaryMap = buildMap<LocalDate, StayRange> {
             stayRanges.forEach { range ->
-                // Clamp iteration to the visible month to avoid iterating over the whole trip.
                 val from = maxOf(range.arrival, monthStart)
                 val to = minOf(range.departure, monthEnd)
                 var date = from
                 while (!date.isAfter(to)) {
-                    // putIfAbsent keeps the first stay when stays overlap on the same date,
-                    // which matches normal itinerary behaviour (no two destinations on the
-                    // same day). The first range in position order wins.
-                    putIfAbsent(date, range)
+                    val existing = this[date]
+                    if (existing == null || (range.arrival == date && existing.arrival != date)) {
+                        put(date, range)
+                    }
                     date = date.plusDays(1)
                 }
+            }
+        }
+
+        // Second pass: detect transition days where the primary range is an arrival AND another
+        // stay departs on the same date.  The departing range is stored as the secondary so
+        // DayCell can blend both colours into a single pill-shaped band.
+        // Pre-build a departure map for O(1) lookups instead of a linear scan per date.
+        // A date may theoretically have multiple departing stays; the first one is used so the
+        // transition blending is deterministic when that edge case occurs.
+        val departureMap: Map<LocalDate, StayRange> = buildMap {
+            stayRanges.forEach { range -> putIfAbsent(range.departure, range) }
+        }
+        buildMap {
+            primaryMap.forEach { (date, primaryRange) ->
+                val departingRange = if (primaryRange.arrival == date) {
+                    departureMap[date]?.takeIf { it != primaryRange }
+                } else {
+                    null
+                }
+                put(date, Pair(primaryRange, departingRange))
             }
         }
     }
@@ -328,12 +399,13 @@ private fun CalendarMonthGrid(
                         val dayIndex = cellIndex - leadingBlanks
                         val day = dayIndex + 1
                         val date = yearMonth.atDay(day)
-                        val stayRange = dateLookup[date]
+                        val (stayRange, departingRange) = dateLookup[date] ?: Pair(null, null)
                         DayCell(
                             modifier = Modifier.weight(1f),
                             day = day,
                             isEventDay = date in eventDates,
-                            isInStay = stayRange != null,
+                            stayColorScheme = stayRange?.colorScheme,
+                            departingColorScheme = departingRange?.colorScheme,
                             isStayStart = stayRange != null && stayRange.arrival == date,
                             isStayEnd = stayRange != null && stayRange.departure == date,
                         )
@@ -347,23 +419,31 @@ private fun CalendarMonthGrid(
 /**
  * A single day cell in the calendar grid.
  *
- * When [isInStay] is `true` a [MaterialTheme.colorScheme.primaryContainer] band is drawn
- * across the full cell width.  The band has rounded corners on the arrival side
+ * When [stayColorScheme] is non-null a band is drawn across the full cell width using
+ * [StayColorScheme.containerColor].  The band has rounded corners on the arrival side
  * ([isStayStart]) and on the departure side ([isStayEnd]); cells in the middle of a stay row
  * have straight edges so that adjacent bands appear seamless.
  *
- * When [isEventDay] is `true` (arrival or departure) a [MaterialTheme.colorScheme.primary]
- * circle is drawn on top of the band so the exact event day stands out at a glance.
+ * When [departingColorScheme] is also non-null the day is a **transition day** — one stay departs
+ * and the next arrives simultaneously.  In this case the band is rendered as a full pill (both
+ * ends rounded) whose colour is a 50/50 blend of the two stays' [StayColorScheme.containerColor]s,
+ * so neither stay's colour dominates.
+ *
+ * When [isEventDay] is `true` (arrival or departure) a filled circle is drawn on top of the
+ * band using [StayColorScheme.eventColor] so the exact event day stands out at a glance.
  */
 @Composable
 private fun DayCell(
     day: Int,
     isEventDay: Boolean,
-    isInStay: Boolean,
+    stayColorScheme: StayColorScheme?,
+    departingColorScheme: StayColorScheme?,
     isStayStart: Boolean,
     isStayEnd: Boolean,
     modifier: Modifier = Modifier,
 ) {
+    val isTransitionDay = stayColorScheme != null && departingColorScheme != null
+
     // The cell occupies its grid weight at a 1:1 aspect ratio with no horizontal padding so
     // that stay bands from adjacent cells touch each other edge-to-edge.
     Box(
@@ -371,31 +451,38 @@ private fun DayCell(
         contentAlignment = Alignment.Center,
     ) {
         // Stay band: a horizontally-spanning rectangle centred in the cell.
-        if (isInStay) {
+        if (stayColorScheme != null) {
             val cornerRadius = 16.dp
+            // On a transition day blend the two container colours so neither stay dominates,
+            // and force both ends to be rounded so the band reads as a standalone pill.
+            val bandColor = if (departingColorScheme != null) {
+                lerp(departingColorScheme.containerColor, stayColorScheme.containerColor, 0.5f)
+            } else {
+                stayColorScheme.containerColor
+            }
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(32.dp)
                     .background(
-                        color = MaterialTheme.colorScheme.primaryContainer,
+                        color = bandColor,
                         shape = RoundedCornerShape(
-                            topStart = if (isStayStart) cornerRadius else 0.dp,
-                            bottomStart = if (isStayStart) cornerRadius else 0.dp,
-                            topEnd = if (isStayEnd) cornerRadius else 0.dp,
-                            bottomEnd = if (isStayEnd) cornerRadius else 0.dp,
+                            topStart = if (isStayStart || isTransitionDay) cornerRadius else 0.dp,
+                            bottomStart = if (isStayStart || isTransitionDay) cornerRadius else 0.dp,
+                            topEnd = if (isStayEnd || isTransitionDay) cornerRadius else 0.dp,
+                            bottomEnd = if (isStayEnd || isTransitionDay) cornerRadius else 0.dp,
                         ),
                     ),
             )
         }
 
         // Event circle (arrival or departure) rendered on top of the band.
-        if (isEventDay) {
+        if (isEventDay && stayColorScheme != null) {
             Box(
                 modifier = Modifier
                     .size(32.dp)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary),
+                    .background(stayColorScheme.eventColor),
             )
         }
 
@@ -404,8 +491,8 @@ private fun DayCell(
             text = day.toString(),
             style = MaterialTheme.typography.bodyMedium,
             color = when {
-                isEventDay -> MaterialTheme.colorScheme.onPrimary
-                isInStay -> MaterialTheme.colorScheme.onPrimaryContainer
+                isEventDay && stayColorScheme != null -> stayColorScheme.onEventColor
+                stayColorScheme != null -> stayColorScheme.onContainerColor
                 else -> Color.Unspecified
             },
             textAlign = TextAlign.Center,
@@ -433,13 +520,16 @@ private fun StayLegendSection(
     }
 
     // Only show destinations that have a complete stay overlapping the displayed month.
+    // Each entry pairs the destination with its assigned colour scheme.
     val staysInMonth = remember(destinations, displayedMonth) {
         val monthStart = displayedMonth.atDay(1)
         val monthEnd = displayedMonth.atEndOfMonth()
-        destinations.filter { dest ->
-            val arrival = dest.arrivalDateTime?.toLocalDate() ?: return@filter false
-            val departure = dest.departureDateTime?.toLocalDate() ?: return@filter false
-            !arrival.isAfter(monthEnd) && !departure.isBefore(monthStart)
+        destinations.mapIndexedNotNull { index, dest ->
+            val arrival = dest.arrivalDateTime?.toLocalDate() ?: return@mapIndexedNotNull null
+            val departure = dest.departureDateTime?.toLocalDate() ?: return@mapIndexedNotNull null
+            if (departure.isBefore(arrival)) return@mapIndexedNotNull null
+            if (arrival.isAfter(monthEnd) || departure.isBefore(monthStart)) return@mapIndexedNotNull null
+            Pair(dest, STAY_COLOR_SCHEMES[index % STAY_COLOR_SCHEMES.size])
         }
     }
 
@@ -456,7 +546,7 @@ private fun StayLegendSection(
             style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        staysInMonth.forEach { dest ->
+        staysInMonth.forEach { (dest, colorScheme) ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -465,7 +555,7 @@ private fun StayLegendSection(
                 Box(
                     modifier = Modifier
                         .size(10.dp)
-                        .background(MaterialTheme.colorScheme.primary, CircleShape),
+                        .background(colorScheme.eventColor, CircleShape),
                 )
                 Column {
                     Text(
