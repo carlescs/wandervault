@@ -88,4 +88,8 @@
     <string name="transport_flight">Flight</string>
     <string name="transport_other">Other</string>
     <string name="transport_none">None</string>
+    <string name="transport_company_label">Company</string>
+    <string name="transport_flight_number_label">Flight / Reference No.</string>
+    <string name="transport_confirmation_label">Confirmation No.</string>
+    <string name="dialog_save">Save</string>
 </resources>

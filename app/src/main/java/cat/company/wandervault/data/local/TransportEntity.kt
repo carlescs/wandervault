@@ -28,4 +28,10 @@ data class TransportEntity(
     val destinationId: Int,
     /** Serialised [cat.company.wandervault.domain.model.TransportType] name. */
     val type: String,
+    /** The carrier or company name (e.g. airline, bus operator). */
+    val company: String? = null,
+    /** The flight, train, or route number for this leg. */
+    val flightNumber: String? = null,
+    /** The booking or reservation confirmation code. */
+    val reservationConfirmationNumber: String? = null,
 )

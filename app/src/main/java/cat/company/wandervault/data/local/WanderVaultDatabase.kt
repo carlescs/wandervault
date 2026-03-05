@@ -6,7 +6,7 @@ import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [TripEntity::class, DestinationEntity::class, TransportEntity::class], version = 6)
+@Database(entities = [TripEntity::class, DestinationEntity::class, TransportEntity::class], version = 7)
 @TypeConverters(DateConverters::class)
 abstract class WanderVaultDatabase : RoomDatabase() {
     abstract fun tripDao(): TripDao
@@ -118,6 +118,14 @@ abstract class WanderVaultDatabase : RoomDatabase() {
                 } finally {
                     db.execSQL("PRAGMA foreign_keys=ON")
                 }
+            }
+        }
+
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE transports ADD COLUMN `company` TEXT")
+                db.execSQL("ALTER TABLE transports ADD COLUMN `flightNumber` TEXT")
+                db.execSQL("ALTER TABLE transports ADD COLUMN `reservationConfirmationNumber` TEXT")
             }
         }
     }
