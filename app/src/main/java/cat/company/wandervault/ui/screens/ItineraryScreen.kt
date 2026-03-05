@@ -68,6 +68,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cat.company.wandervault.R
 import cat.company.wandervault.domain.model.Destination
+import cat.company.wandervault.domain.model.Transport
 import cat.company.wandervault.domain.model.TransportType
 import cat.company.wandervault.ui.theme.WanderVaultTheme
 import org.koin.androidx.compose.koinViewModel
@@ -232,7 +233,7 @@ private fun DestinationTimelineItem(
 
     if (showTransportPicker) {
         TransportPickerDialog(
-            currentTransport = destination.transport,
+            currentTransport = destination.transport?.type,
             onSelect = { transport ->
                 onSelectTransport(transport)
                 showTransportPicker = false
@@ -282,7 +283,7 @@ private fun DestinationTimelineItem(
                         onClick = { showTransportPicker = true },
                     ) {
                         Icon(
-                            imageVector = destination.transport?.icon ?: Icons.Default.Add,
+                            imageVector = destination.transport?.type?.icon ?: Icons.Default.Add,
                             contentDescription = stringResource(
                                 if (destination.transport != null) R.string.itinerary_change_transport
                                 else R.string.itinerary_add_transport,
@@ -753,7 +754,7 @@ private fun ItineraryEmptyPreview() {
 @Composable
 private fun ItineraryWithDestinationsPreview() {
     val destinations = listOf(
-        Destination(1, 1, "London", 0, departureDateTime = LocalDateTime.of(2024, 6, 1, 9, 0), transport = TransportType.FLIGHT),
+        Destination(1, 1, "London", 0, departureDateTime = LocalDateTime.of(2024, 6, 1, 9, 0), transport = Transport(destinationId = 1, type = TransportType.FLIGHT)),
         Destination(
             2,
             1,
@@ -761,7 +762,7 @@ private fun ItineraryWithDestinationsPreview() {
             1,
             arrivalDateTime = LocalDateTime.of(2024, 6, 1, 12, 30),
             departureDateTime = LocalDateTime.of(2024, 6, 3, 10, 0),
-            transport = TransportType.TRAIN,
+            transport = Transport(destinationId = 2, type = TransportType.TRAIN),
         ),
         Destination(3, 1, "Rome", 2, arrivalDateTime = LocalDateTime.of(2024, 6, 3, 14, 0)),
     )

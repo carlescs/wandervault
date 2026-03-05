@@ -3,11 +3,15 @@ package cat.company.wandervault.ui.screens
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import cat.company.wandervault.domain.model.Destination
+import cat.company.wandervault.domain.model.Transport
 import cat.company.wandervault.domain.model.TransportType
 import cat.company.wandervault.domain.usecase.DeleteDestinationUseCase
+import cat.company.wandervault.domain.usecase.DeleteTransportUseCase
 import cat.company.wandervault.domain.usecase.GetDestinationsForTripUseCase
 import cat.company.wandervault.domain.usecase.SaveDestinationUseCase
+import cat.company.wandervault.domain.usecase.SaveTransportUseCase
 import cat.company.wandervault.domain.usecase.UpdateDestinationUseCase
+import cat.company.wandervault.domain.usecase.UpdateTransportUseCase
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,13 +25,16 @@ import java.time.LocalDateTime
  * ViewModel for the Itinerary tab on the Trip Detail screen.
  *
  * Manages the ordered list of [Destination]s for a given trip and exposes
- * actions to add, update, and delete destinations.
+ * actions to add, update, and delete destinations and their transport legs.
  *
  * @param tripId The ID of the trip whose itinerary is displayed.
  * @param getDestinationsForTrip Use-case that returns a live list of destinations.
  * @param saveDestination Use-case that persists a new destination.
  * @param updateDestination Use-case that updates an existing destination.
  * @param deleteDestination Use-case that removes a destination.
+ * @param saveTransport Use-case that persists a new transport leg.
+ * @param updateTransport Use-case that updates an existing transport leg.
+ * @param deleteTransport Use-case that removes a transport leg.
  */
 class ItineraryViewModel(
     private val tripId: Int,
@@ -35,6 +42,9 @@ class ItineraryViewModel(
     private val saveDestination: SaveDestinationUseCase,
     private val updateDestination: UpdateDestinationUseCase,
     private val deleteDestination: DeleteDestinationUseCase,
+    private val saveTransport: SaveTransportUseCase,
+    private val updateTransport: UpdateTransportUseCase,
+    private val deleteTransport: DeleteTransportUseCase,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ItineraryUiState())
@@ -97,9 +107,14 @@ class ItineraryViewModel(
         }
     }
 
-    fun onUpdateTransport(destination: Destination, transport: TransportType?) {
+    fun onUpdateTransport(destination: Destination, transportType: TransportType?) {
         viewModelScope.launch {
-            updateDestination(destination.copy(transport = transport))
+            val existing = destination.transport
+            when {
+                transportType == null && existing != null -> deleteTransport(existing)
+                transportType != null && existing != null -> updateTransport(existing.copy(type = transportType))
+                transportType != null -> saveTransport(Transport(destinationId = destination.id, type = transportType))
+            }
         }
     }
 
@@ -126,9 +141,9 @@ class ItineraryViewModel(
                         swapWith.copy(
                             position = destination.position,
                             departureDateTime = if (isSwapWithNowLast) null else swapWith.departureDateTime,
-                            transport = if (isSwapWithNowLast) null else swapWith.transport,
                         ),
                     )
+                    if (isSwapWithNowLast) swapWith.transport?.let { deleteTransport(it) }
                 },
             )
         }
@@ -149,9 +164,9 @@ class ItineraryViewModel(
                         destination.copy(
                             position = swapWith.position,
                             departureDateTime = if (isDestinationNowLast) null else destination.departureDateTime,
-                            transport = if (isDestinationNowLast) null else destination.transport,
                         ),
                     )
+                    if (isDestinationNowLast) destination.transport?.let { deleteTransport(it) }
                 },
                 async {
                     updateDestination(
@@ -182,9 +197,11 @@ class ItineraryViewModel(
             val remaining = _uiState.value.destinations
                 .filter { it.id != destination.id }
                 .sortedBy { it.position }
+            // The foreign key CASCADE on TransportEntity ensures the transport for the
+            // deleted destination is removed automatically.
             deleteDestination(destination)
             // Re-sequence positions and clear date-times that no longer apply to the
-            // new first (no arrival) and new last (no departure) destinations.
+            // new first (no arrival) and new last (no departure/transport) destinations.
             // Updates are issued in parallel to avoid partially-visible intermediate states.
             remaining.mapIndexedNotNull { index, dest ->
                 val isNowFirst = index == 0
@@ -192,16 +209,24 @@ class ItineraryViewModel(
                 val needsReindex = dest.position != index
                 val needsArrivalClear = isNowFirst && dest.arrivalDateTime != null
                 val needsDepartureClear = isNowLast && dest.departureDateTime != null
-                val needsTransportClear = isNowLast && dest.transport != null
-                if (needsReindex || needsArrivalClear || needsDepartureClear || needsTransportClear) {
-                    dest.copy(
-                        position = index,
-                        arrivalDateTime = if (isNowFirst) null else dest.arrivalDateTime,
-                        departureDateTime = if (isNowLast) null else dest.departureDateTime,
-                        transport = if (isNowLast) null else dest.transport,
-                    )
+                val needsTransportDelete = isNowLast && dest.transport != null
+                if (needsReindex || needsArrivalClear || needsDepartureClear || needsTransportDelete) {
+                    index to dest
                 } else null
-            }.map { updated -> async { updateDestination(updated) } }.awaitAll()
+            }.map { (index, dest) ->
+                async {
+                    val isNowFirst = index == 0
+                    val isNowLast = index == remaining.lastIndex
+                    updateDestination(
+                        dest.copy(
+                            position = index,
+                            arrivalDateTime = if (isNowFirst) null else dest.arrivalDateTime,
+                            departureDateTime = if (isNowLast) null else dest.departureDateTime,
+                        ),
+                    )
+                    if (isNowLast) dest.transport?.let { deleteTransport(it) }
+                }
+            }.awaitAll()
         }
     }
 }

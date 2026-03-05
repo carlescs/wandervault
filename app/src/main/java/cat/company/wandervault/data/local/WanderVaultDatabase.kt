@@ -6,11 +6,12 @@ import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [TripEntity::class, DestinationEntity::class], version = 5)
+@Database(entities = [TripEntity::class, DestinationEntity::class, TransportEntity::class], version = 6)
 @TypeConverters(DateConverters::class)
 abstract class WanderVaultDatabase : RoomDatabase() {
     abstract fun tripDao(): TripDao
     abstract fun destinationDao(): DestinationDao
+    abstract fun transportDao(): TransportDao
 
     companion object {
         const val DATABASE_NAME = "wandervault.db"
@@ -56,6 +57,52 @@ abstract class WanderVaultDatabase : RoomDatabase() {
         val MIGRATION_4_5 = object : Migration(4, 5) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE destinations ADD COLUMN transport TEXT")
+            }
+        }
+
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // 1. Create the new transports table.
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS transports (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `destinationId` INTEGER NOT NULL,
+                        `type` TEXT NOT NULL,
+                        FOREIGN KEY(`destinationId`) REFERENCES `destinations`(`id`)
+                            ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS index_transports_destinationId ON transports(destinationId)",
+                )
+                // 2. Migrate existing inline transport values into the new table.
+                db.execSQL(
+                    "INSERT INTO transports (destinationId, type) SELECT id, transport FROM destinations WHERE transport IS NOT NULL",
+                )
+                // 3. Recreate destinations without the transport column.
+                //    SQLite does not support DROP COLUMN on Android API < 33.
+                db.execSQL(
+                    """
+                    CREATE TABLE destinations_new (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `tripId` INTEGER NOT NULL,
+                        `name` TEXT NOT NULL,
+                        `position` INTEGER NOT NULL,
+                        `arrivalDateTime` TEXT,
+                        `departureDateTime` TEXT
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    "INSERT INTO destinations_new SELECT id, tripId, name, position, arrivalDateTime, departureDateTime FROM destinations",
+                )
+                db.execSQL("DROP TABLE destinations")
+                db.execSQL("ALTER TABLE destinations_new RENAME TO destinations")
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_destinations_tripId_position ON destinations(tripId, position)",
+                )
             }
         }
     }
