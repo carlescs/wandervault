@@ -36,6 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -336,25 +337,45 @@ private fun CalendarMonthGrid(
 
     // Pre-compute a per-date lookup for the displayed month so each DayCell does an O(1) map
     // lookup instead of a linear scan over stayRanges.
-    val dateLookup: Map<LocalDate, StayRange> = remember(stayRanges, yearMonth) {
-        buildMap {
-            val monthStart = yearMonth.atDay(1)
-            val monthEnd = yearMonth.atEndOfMonth()
+    // Each entry is (primaryRange, departingRange?) where departingRange is non-null only on
+    // transition days — days where one stay departs and the next arrives simultaneously.
+    val dateLookup: Map<LocalDate, Pair<StayRange, StayRange?>> = remember(stayRanges, yearMonth) {
+        val monthStart = yearMonth.atDay(1)
+        val monthEnd = yearMonth.atEndOfMonth()
+
+        // First pass: build primary range per date — arrival wins on same-day transitions.
+        val primaryMap = buildMap<LocalDate, StayRange> {
             stayRanges.forEach { range ->
-                // Clamp iteration to the visible month to avoid iterating over the whole trip.
                 val from = maxOf(range.arrival, monthStart)
                 val to = minOf(range.departure, monthEnd)
                 var date = from
                 while (!date.isAfter(to)) {
-                    // Prefer the range whose arrival falls on this date so that same-day
-                    // departure+arrival transition days show the incoming stay's colour and
-                    // rounded start corner rather than the outgoing stay's colour.
                     val existing = this[date]
                     if (existing == null || (range.arrival == date && existing.arrival != date)) {
                         put(date, range)
                     }
                     date = date.plusDays(1)
                 }
+            }
+        }
+
+        // Second pass: detect transition days where the primary range is an arrival AND another
+        // stay departs on the same date.  The departing range is stored as the secondary so
+        // DayCell can blend both colours into a single pill-shaped band.
+        // Pre-build a departure map for O(1) lookups instead of a linear scan per date.
+        // A date may theoretically have multiple departing stays; the first one is used so the
+        // transition blending is deterministic when that edge case occurs.
+        val departureMap: Map<LocalDate, StayRange> = buildMap {
+            stayRanges.forEach { range -> putIfAbsent(range.departure, range) }
+        }
+        buildMap {
+            primaryMap.forEach { (date, primaryRange) ->
+                val departingRange = if (primaryRange.arrival == date) {
+                    departureMap[date]?.takeIf { it != primaryRange }
+                } else {
+                    null
+                }
+                put(date, Pair(primaryRange, departingRange))
             }
         }
     }
@@ -378,12 +399,13 @@ private fun CalendarMonthGrid(
                         val dayIndex = cellIndex - leadingBlanks
                         val day = dayIndex + 1
                         val date = yearMonth.atDay(day)
-                        val stayRange = dateLookup[date]
+                        val (stayRange, departingRange) = dateLookup[date] ?: Pair(null, null)
                         DayCell(
                             modifier = Modifier.weight(1f),
                             day = day,
                             isEventDay = date in eventDates,
                             stayColorScheme = stayRange?.colorScheme,
+                            departingColorScheme = departingRange?.colorScheme,
                             isStayStart = stayRange != null && stayRange.arrival == date,
                             isStayEnd = stayRange != null && stayRange.departure == date,
                         )
@@ -402,6 +424,11 @@ private fun CalendarMonthGrid(
  * ([isStayStart]) and on the departure side ([isStayEnd]); cells in the middle of a stay row
  * have straight edges so that adjacent bands appear seamless.
  *
+ * When [departingColorScheme] is also non-null the day is a **transition day** — one stay departs
+ * and the next arrives simultaneously.  In this case the band is rendered as a full pill (both
+ * ends rounded) whose colour is a 50/50 blend of the two stays' [StayColorScheme.containerColor]s,
+ * so neither stay's colour dominates.
+ *
  * When [isEventDay] is `true` (arrival or departure) a filled circle is drawn on top of the
  * band using [StayColorScheme.eventColor] so the exact event day stands out at a glance.
  */
@@ -410,10 +437,13 @@ private fun DayCell(
     day: Int,
     isEventDay: Boolean,
     stayColorScheme: StayColorScheme?,
+    departingColorScheme: StayColorScheme?,
     isStayStart: Boolean,
     isStayEnd: Boolean,
     modifier: Modifier = Modifier,
 ) {
+    val isTransitionDay = stayColorScheme != null && departingColorScheme != null
+
     // The cell occupies its grid weight at a 1:1 aspect ratio with no horizontal padding so
     // that stay bands from adjacent cells touch each other edge-to-edge.
     Box(
@@ -423,17 +453,24 @@ private fun DayCell(
         // Stay band: a horizontally-spanning rectangle centred in the cell.
         if (stayColorScheme != null) {
             val cornerRadius = 16.dp
+            // On a transition day blend the two container colours so neither stay dominates,
+            // and force both ends to be rounded so the band reads as a standalone pill.
+            val bandColor = if (departingColorScheme != null) {
+                lerp(departingColorScheme.containerColor, stayColorScheme.containerColor, 0.5f)
+            } else {
+                stayColorScheme.containerColor
+            }
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(32.dp)
                     .background(
-                        color = stayColorScheme.containerColor,
+                        color = bandColor,
                         shape = RoundedCornerShape(
-                            topStart = if (isStayStart) cornerRadius else 0.dp,
-                            bottomStart = if (isStayStart) cornerRadius else 0.dp,
-                            topEnd = if (isStayEnd) cornerRadius else 0.dp,
-                            bottomEnd = if (isStayEnd) cornerRadius else 0.dp,
+                            topStart = if (isStayStart || isTransitionDay) cornerRadius else 0.dp,
+                            bottomStart = if (isStayStart || isTransitionDay) cornerRadius else 0.dp,
+                            topEnd = if (isStayEnd || isTransitionDay) cornerRadius else 0.dp,
+                            bottomEnd = if (isStayEnd || isTransitionDay) cornerRadius else 0.dp,
                         ),
                     ),
             )
