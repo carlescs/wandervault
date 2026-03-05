@@ -311,15 +311,6 @@ private fun CalendarMonthGrid(
     val leadingBlanks = (firstOfMonth.dayOfWeek.value - weekStartDay.value + 7) % 7
     val daysInMonth = yearMonth.lengthOfMonth()
 
-    // Pre-compute event dates (any arrival or departure) and complete stay ranges.
-    val eventDates: Set<LocalDate> = remember(destinations) {
-        buildSet {
-            destinations.forEach { dest ->
-                dest.arrivalDateTime?.toLocalDate()?.let { add(it) }
-                dest.departureDateTime?.toLocalDate()?.let { add(it) }
-            }
-        }
-    }
     // A "complete stay" is a destination that has both arrival and departure dates, and
     // departure is not before arrival (invalid ranges are skipped).
     // Each stay is assigned a colour scheme by its index in the destinations list.
@@ -329,6 +320,17 @@ private fun CalendarMonthGrid(
             val departure = dest.departureDateTime?.toLocalDate() ?: return@mapIndexedNotNull null
             if (departure.isBefore(arrival)) return@mapIndexedNotNull null
             StayRange(arrival, departure, STAY_COLOR_SCHEMES[index % STAY_COLOR_SCHEMES.size])
+        }
+    }
+
+    // Derive event dates only from complete stay ranges so that arrival/departure markers are
+    // always paired with a color scheme (no silently invisible circles).
+    val eventDates: Set<LocalDate> = remember(stayRanges) {
+        buildSet {
+            stayRanges.forEach { range ->
+                add(range.arrival)
+                add(range.departure)
+            }
         }
     }
 
@@ -344,10 +346,13 @@ private fun CalendarMonthGrid(
                 val to = minOf(range.departure, monthEnd)
                 var date = from
                 while (!date.isAfter(to)) {
-                    // putIfAbsent keeps the first stay when stays overlap on the same date,
-                    // which matches normal itinerary behaviour (no two destinations on the
-                    // same day). The first range in position order wins.
-                    putIfAbsent(date, range)
+                    // Prefer the range whose arrival falls on this date so that same-day
+                    // departure+arrival transition days show the incoming stay's colour and
+                    // rounded start corner rather than the outgoing stay's colour.
+                    val existing = this[date]
+                    if (existing == null || (range.arrival == date && existing.arrival != date)) {
+                        put(date, range)
+                    }
                     date = date.plusDays(1)
                 }
             }
@@ -485,6 +490,7 @@ private fun StayLegendSection(
         destinations.mapIndexedNotNull { index, dest ->
             val arrival = dest.arrivalDateTime?.toLocalDate() ?: return@mapIndexedNotNull null
             val departure = dest.departureDateTime?.toLocalDate() ?: return@mapIndexedNotNull null
+            if (departure.isBefore(arrival)) return@mapIndexedNotNull null
             if (arrival.isAfter(monthEnd) || departure.isBefore(monthStart)) return@mapIndexedNotNull null
             Pair(dest, STAY_COLOR_SCHEMES[index % STAY_COLOR_SCHEMES.size])
         }
