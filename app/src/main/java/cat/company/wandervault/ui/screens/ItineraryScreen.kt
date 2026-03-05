@@ -1,6 +1,7 @@
 package cat.company.wandervault.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,6 +32,7 @@ import androidx.compose.material.icons.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.Flight
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Train
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -266,7 +268,8 @@ private fun DestinationTimelineItem(
                     .background(MaterialTheme.colorScheme.primary, CircleShape),
             )
             if (!isLast) {
-                // Bottom line with transport icon overlaid at the centre
+                // Bottom line with transport circle overlaid at the centre
+                val hasTransport = destination.transport != null
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -279,18 +282,34 @@ private fun DestinationTimelineItem(
                             .fillMaxHeight()
                             .background(MaterialTheme.colorScheme.primary),
                     )
-                    IconButton(
-                        onClick = { showTransportPicker = true },
+                    // Transport circle: filled when a transport is set, dimmed outline otherwise
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .background(
+                                color = if (hasTransport) {
+                                    MaterialTheme.colorScheme.primaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.surface
+                                },
+                                shape = CircleShape,
+                            )
+                            .clickable(
+                                role = Role.Button,
+                                onClickLabel = stringResource(
+                                    if (hasTransport) R.string.itinerary_change_transport
+                                    else R.string.itinerary_add_transport,
+                                ),
+                                onClick = { showTransportPicker = true },
+                            ),
+                        contentAlignment = Alignment.Center,
                     ) {
                         Icon(
                             imageVector = destination.transport?.type?.icon ?: Icons.Default.Add,
-                            contentDescription = stringResource(
-                                if (destination.transport != null) R.string.itinerary_change_transport
-                                else R.string.itinerary_add_transport,
-                            ),
+                            contentDescription = null,
                             modifier = Modifier.size(18.dp),
-                            tint = if (destination.transport != null) {
-                                MaterialTheme.colorScheme.primary
+                            tint = if (hasTransport) {
+                                MaterialTheme.colorScheme.onPrimaryContainer
                             } else {
                                 MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
                             },
@@ -401,6 +420,7 @@ private val TransportType.icon: ImageVector
         TransportType.TRAIN -> Icons.Default.Train
         TransportType.FERRY -> Icons.Default.DirectionsBoat
         TransportType.FLIGHT -> Icons.Default.Flight
+        TransportType.OTHER -> Icons.Default.MoreHoriz
     }
 
 /** Returns the string resource ID for the human-readable label of a [TransportType]. */
@@ -413,6 +433,7 @@ private val TransportType.labelRes: Int
         TransportType.TRAIN -> R.string.transport_train
         TransportType.FERRY -> R.string.transport_ferry
         TransportType.FLIGHT -> R.string.transport_flight
+        TransportType.OTHER -> R.string.transport_other
     }
 
 /**

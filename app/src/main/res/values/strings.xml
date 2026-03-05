@@ -80,5 +80,6 @@
     <string name="transport_train">Train</string>
     <string name="transport_ferry">Ferry</string>
     <string name="transport_flight">Flight</string>
+    <string name="transport_other">Other</string>
     <string name="transport_none">None</string>
 </resources>
