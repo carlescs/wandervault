@@ -237,6 +237,7 @@ private fun DestinationTimelineItem(
 
     if (showTransportPicker) {
         TransportPickerDialog(
+            destinationId = destination.id,
             currentTransport = destination.transport,
             onSelect = { transport ->
                 onSelectTransport(transport)
@@ -463,14 +464,25 @@ private val TransportType.labelRes: Int
 /**
  * Dialog for choosing (or clearing) the [TransportType] and entering transport details
  * (company, flight/reference number, confirmation number) for a destination leg.
+ *
+ * @param destinationId The ID of the destination this transport belongs to; always used when
+ *   constructing the emitted [Transport] so callers never receive a placeholder `destinationId = 0`.
+ * @param currentTransport The existing transport for pre-populating the fields, or `null` if none.
+ * @param onSelect Called with the resulting [Transport] (or `null` to clear the transport).
+ * @param onDismiss Called when the dialog is dismissed without saving.
  */
 @Composable
 private fun TransportPickerDialog(
+    destinationId: Int,
     currentTransport: Transport?,
     onSelect: (Transport?) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var selectedType by rememberSaveable { mutableStateOf(currentTransport?.type) }
+    // Store type as its name string to avoid relying on enum Serializable under rememberSaveable.
+    var selectedTypeName by rememberSaveable { mutableStateOf(currentTransport?.type?.name) }
+    val selectedType = selectedTypeName?.let { name ->
+        runCatching { TransportType.valueOf(name) }.getOrNull()
+    }
     var company by rememberSaveable { mutableStateOf(currentTransport?.company ?: "") }
     var flightNumber by rememberSaveable { mutableStateOf(currentTransport?.flightNumber ?: "") }
     var confirmationNumber by rememberSaveable {
@@ -496,7 +508,7 @@ private fun TransportPickerDialog(
                                 icon = type.icon,
                                 label = stringResource(type.labelRes),
                                 isSelected = type == selectedType,
-                                onClick = { selectedType = type },
+                                onClick = { selectedTypeName = type.name },
                             )
                         }
                     }
@@ -507,7 +519,7 @@ private fun TransportPickerDialog(
                         icon = Icons.Default.Close,
                         label = stringResource(R.string.transport_none),
                         isSelected = selectedType == null,
-                        onClick = { selectedType = null },
+                        onClick = { selectedTypeName = null },
                     )
                 }
                 // Detail fields shown when a transport type is selected
@@ -546,7 +558,7 @@ private fun TransportPickerDialog(
                     val transport = if (type != null) {
                         Transport(
                             id = currentTransport?.id ?: 0,
-                            destinationId = currentTransport?.destinationId ?: 0,
+                            destinationId = destinationId,
                             type = type,
                             company = company.trim().takeIf { it.isNotBlank() },
                             flightNumber = flightNumber.trim().takeIf { it.isNotBlank() },
