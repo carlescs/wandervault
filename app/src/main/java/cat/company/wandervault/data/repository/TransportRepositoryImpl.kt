@@ -24,7 +24,7 @@ class TransportRepositoryImpl(private val dao: TransportDao) : TransportReposito
 internal fun TransportEntity.toDomain() = Transport(
     id = id,
     destinationId = destinationId,
-    type = TransportType.valueOf(type),
+    type = runCatching { TransportType.valueOf(type) }.getOrElse { TransportType.OTHER },
 )
 
 private fun Transport.toEntity() = TransportEntity(

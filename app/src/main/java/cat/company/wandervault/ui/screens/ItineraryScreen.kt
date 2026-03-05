@@ -306,7 +306,10 @@ private fun DestinationTimelineItem(
                     ) {
                         Icon(
                             imageVector = destination.transport?.type?.icon ?: Icons.Default.Add,
-                            contentDescription = null,
+                            contentDescription = stringResource(
+                                if (hasTransport) R.string.itinerary_change_transport
+                                else R.string.itinerary_add_transport,
+                            ),
                             modifier = Modifier.size(18.dp),
                             tint = if (hasTransport) {
                                 MaterialTheme.colorScheme.onPrimaryContainer

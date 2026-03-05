@@ -62,47 +62,62 @@ abstract class WanderVaultDatabase : RoomDatabase() {
 
         val MIGRATION_5_6 = object : Migration(5, 6) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                // 1. Create the new transports table.
-                db.execSQL(
-                    """
-                    CREATE TABLE IF NOT EXISTS transports (
-                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-                        `destinationId` INTEGER NOT NULL,
-                        `type` TEXT NOT NULL,
-                        FOREIGN KEY(`destinationId`) REFERENCES `destinations`(`id`)
-                            ON UPDATE NO ACTION ON DELETE CASCADE
+                // Disable FK enforcement for the duration of the migration so that dropping
+                // and recreating the referenced `destinations` table does not violate the FK
+                // constraint on `transports` (which we create in step 1).
+                db.execSQL("PRAGMA foreign_keys=OFF")
+                try {
+                    // 1. Create the new transports table.
+                    db.execSQL(
+                        """
+                        CREATE TABLE IF NOT EXISTS transports (
+                            `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                            `destinationId` INTEGER NOT NULL,
+                            `type` TEXT NOT NULL,
+                            FOREIGN KEY(`destinationId`) REFERENCES `destinations`(`id`)
+                                ON UPDATE NO ACTION ON DELETE CASCADE
+                        )
+                        """.trimIndent(),
                     )
-                    """.trimIndent(),
-                )
-                db.execSQL(
-                    "CREATE UNIQUE INDEX IF NOT EXISTS index_transports_destinationId ON transports(destinationId)",
-                )
-                // 2. Migrate existing inline transport values into the new table.
-                db.execSQL(
-                    "INSERT INTO transports (destinationId, type) SELECT id, transport FROM destinations WHERE transport IS NOT NULL",
-                )
-                // 3. Recreate destinations without the transport column.
-                //    SQLite does not support DROP COLUMN on Android API < 33.
-                db.execSQL(
-                    """
-                    CREATE TABLE destinations_new (
-                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-                        `tripId` INTEGER NOT NULL,
-                        `name` TEXT NOT NULL,
-                        `position` INTEGER NOT NULL,
-                        `arrivalDateTime` TEXT,
-                        `departureDateTime` TEXT
+                    db.execSQL(
+                        "CREATE UNIQUE INDEX IF NOT EXISTS index_transports_destinationId ON transports(destinationId)",
                     )
-                    """.trimIndent(),
-                )
-                db.execSQL(
-                    "INSERT INTO destinations_new SELECT id, tripId, name, position, arrivalDateTime, departureDateTime FROM destinations",
-                )
-                db.execSQL("DROP TABLE destinations")
-                db.execSQL("ALTER TABLE destinations_new RENAME TO destinations")
-                db.execSQL(
-                    "CREATE INDEX IF NOT EXISTS index_destinations_tripId_position ON destinations(tripId, position)",
-                )
+                    // 2. Migrate existing inline transport values into the new table.
+                    db.execSQL(
+                        "INSERT INTO transports (destinationId, type) SELECT id, transport FROM destinations WHERE transport IS NOT NULL",
+                    )
+                    // 3. Recreate destinations without the transport column.
+                    //    SQLite does not support DROP COLUMN on Android API < 33.
+                    db.execSQL(
+                        """
+                        CREATE TABLE destinations_new (
+                            `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                            `tripId` INTEGER NOT NULL,
+                            `name` TEXT NOT NULL,
+                            `position` INTEGER NOT NULL,
+                            `arrivalDateTime` TEXT,
+                            `departureDateTime` TEXT
+                        )
+                        """.trimIndent(),
+                    )
+                    db.execSQL(
+                        "INSERT INTO destinations_new SELECT id, tripId, name, position, arrivalDateTime, departureDateTime FROM destinations",
+                    )
+                    db.execSQL("DROP TABLE destinations")
+                    db.execSQL("ALTER TABLE destinations_new RENAME TO destinations")
+                    db.execSQL(
+                        "CREATE INDEX IF NOT EXISTS index_destinations_tripId_position ON destinations(tripId, position)",
+                    )
+                    // Verify FK integrity before re-enabling enforcement.
+                    // foreign_key_check returns one row per violation; throw if any are found.
+                    db.query("PRAGMA foreign_key_check").use { cursor ->
+                        if (cursor.moveToFirst()) {
+                            error("MIGRATION_5_6: foreign key integrity check failed")
+                        }
+                    }
+                } finally {
+                    db.execSQL("PRAGMA foreign_keys=ON")
+                }
             }
         }
     }
