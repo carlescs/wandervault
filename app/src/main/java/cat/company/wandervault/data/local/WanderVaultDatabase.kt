@@ -6,12 +6,13 @@ import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [TripEntity::class, DestinationEntity::class, TransportEntity::class], version = 6)
+@Database(entities = [TripEntity::class, DestinationEntity::class, TransportEntity::class, HotelEntity::class], version = 7)
 @TypeConverters(DateConverters::class)
 abstract class WanderVaultDatabase : RoomDatabase() {
     abstract fun tripDao(): TripDao
     abstract fun destinationDao(): DestinationDao
     abstract fun transportDao(): TransportDao
+    abstract fun hotelDao(): HotelDao
 
     companion object {
         const val DATABASE_NAME = "wandervault.db"
@@ -57,6 +58,30 @@ abstract class WanderVaultDatabase : RoomDatabase() {
         val MIGRATION_4_5 = object : Migration(4, 5) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE destinations ADD COLUMN transport TEXT")
+            }
+        }
+
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS hotels (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `destinationId` INTEGER NOT NULL,
+                        `name` TEXT NOT NULL,
+                        `address` TEXT NOT NULL,
+                        `checkInDate` TEXT,
+                        `checkOutDate` TEXT,
+                        `confirmationNumber` TEXT NOT NULL,
+                        `notes` TEXT NOT NULL,
+                        FOREIGN KEY(`destinationId`) REFERENCES `destinations`(`id`)
+                            ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS index_hotels_destinationId ON hotels(destinationId)",
+                )
             }
         }
 
