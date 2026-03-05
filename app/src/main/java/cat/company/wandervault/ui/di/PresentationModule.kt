@@ -22,10 +22,5 @@ val presentationModule = module {
             deleteTransport = get(),
         )
     }
-    viewModel { params ->
-        LocationDetailViewModel(
-            destinationId = params.get(),
-            getDestinationById = get(),
-        )
-    }
+    viewModel { LocationDetailViewModel(getDestinationById = get()) }
 }

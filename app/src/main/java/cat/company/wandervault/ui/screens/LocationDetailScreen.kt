@@ -19,6 +19,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -34,7 +35,6 @@ import cat.company.wandervault.domain.model.Transport
 import cat.company.wandervault.domain.model.TransportType
 import cat.company.wandervault.ui.theme.WanderVaultTheme
 import org.koin.androidx.compose.koinViewModel
-import org.koin.core.parameter.parametersOf
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -53,8 +53,11 @@ fun LocationDetailScreen(
     destinationId: Int,
     onNavigateUp: () -> Unit,
     modifier: Modifier = Modifier,
-    viewModel: LocationDetailViewModel = koinViewModel(key = destinationId.toString(), parameters = { parametersOf(destinationId) }),
+    viewModel: LocationDetailViewModel = koinViewModel(),
 ) {
+    LaunchedEffect(destinationId) {
+        viewModel.loadDestination(destinationId)
+    }
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     LocationDetailContent(
         uiState = uiState,
