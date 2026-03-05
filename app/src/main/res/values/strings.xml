@@ -95,4 +95,8 @@
     <string name="location_detail_arrival">Arrival</string>
     <string name="location_detail_departure">Departure</string>
     <string name="location_detail_transport">Transport</string>
+    <string name="transport_company_label">Company</string>
+    <string name="transport_flight_number_label">Flight / Reference No.</string>
+    <string name="transport_confirmation_label">Confirmation No.</string>
+    <string name="dialog_save">Save</string>
 </resources>

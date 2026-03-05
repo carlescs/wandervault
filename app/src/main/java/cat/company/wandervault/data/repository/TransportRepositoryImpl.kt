@@ -25,10 +25,16 @@ internal fun TransportEntity.toDomain() = Transport(
     id = id,
     destinationId = destinationId,
     type = runCatching { TransportType.valueOf(type) }.getOrElse { TransportType.OTHER },
+    company = company,
+    flightNumber = flightNumber,
+    reservationConfirmationNumber = reservationConfirmationNumber,
 )
 
 private fun Transport.toEntity() = TransportEntity(
     id = id,
     destinationId = destinationId,
     type = type.name,
+    company = company,
+    flightNumber = flightNumber,
+    reservationConfirmationNumber = reservationConfirmationNumber,
 )

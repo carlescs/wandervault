@@ -19,8 +19,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
@@ -145,7 +147,7 @@ internal fun ItineraryContent(
     onMoveDestinationUp: (Destination) -> Unit,
     onMoveDestinationDown: (Destination) -> Unit,
     onAddDestinationAfter: (Int) -> Unit,
-    onUpdateTransport: (Destination, TransportType?) -> Unit,
+    onUpdateTransport: (Destination, Transport?) -> Unit,
     onDestinationClick: (Destination) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -233,7 +235,7 @@ private fun DestinationTimelineItem(
     onMoveUp: () -> Unit,
     onMoveDown: () -> Unit,
     onAddAfter: () -> Unit,
-    onSelectTransport: (TransportType?) -> Unit,
+    onSelectTransport: (Transport?) -> Unit,
     onClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -241,7 +243,8 @@ private fun DestinationTimelineItem(
 
     if (showTransportPicker) {
         TransportPickerDialog(
-            currentTransport = destination.transport?.type,
+            destinationId = destination.id,
+            currentTransport = destination.transport,
             onSelect = { transport ->
                 onSelectTransport(transport)
                 showTransportPicker = false
@@ -404,6 +407,25 @@ private fun DestinationTimelineItem(
             }
 
             if (!isLast) {
+                // Show transport details (company, flight/reference number, confirmation) when set
+                val transport = destination.transport
+                if (transport != null) {
+                    val details = listOfNotNull(
+                        transport.company,
+                        transport.flightNumber,
+                        transport.reservationConfirmationNumber,
+                    )
+                    if (details.isNotEmpty()) {
+                        Text(
+                            text = details.joinToString(" · "),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(top = 2.dp),
+                        )
+                    }
+                }
                 // "Add destination here" button shown between this item and the next
                 TextButton(
                     onClick = onAddAfter,
@@ -453,20 +475,41 @@ private val TransportType.labelRes: Int
     }
 
 /**
- * Dialog for choosing (or clearing) the [TransportType] used to travel from a destination
- * to the next one on the itinerary.
+ * Dialog for choosing (or clearing) the [TransportType] and entering transport details
+ * (company, flight/reference number, confirmation number) for a destination leg.
+ *
+ * @param destinationId The ID of the destination this transport belongs to; always used when
+ *   constructing the emitted [Transport] so callers never receive a placeholder `destinationId = 0`.
+ * @param currentTransport The existing transport for pre-populating the fields, or `null` if none.
+ * @param onSelect Called with the resulting [Transport] (or `null` to clear the transport).
+ * @param onDismiss Called when the dialog is dismissed without saving.
  */
 @Composable
 private fun TransportPickerDialog(
-    currentTransport: TransportType?,
-    onSelect: (TransportType?) -> Unit,
+    destinationId: Int,
+    currentTransport: Transport?,
+    onSelect: (Transport?) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    // Store type as its name string to avoid relying on enum Serializable under rememberSaveable.
+    var selectedTypeName by rememberSaveable { mutableStateOf(currentTransport?.type?.name) }
+    val selectedType = selectedTypeName?.let { name ->
+        runCatching { TransportType.valueOf(name) }.getOrNull()
+    }
+    var company by rememberSaveable { mutableStateOf(currentTransport?.company ?: "") }
+    var flightNumber by rememberSaveable { mutableStateOf(currentTransport?.flightNumber ?: "") }
+    var confirmationNumber by rememberSaveable {
+        mutableStateOf(currentTransport?.reservationConfirmationNumber ?: "")
+    }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.itinerary_transport_picker_title)) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+            ) {
                 // Render transport options in rows of 4
                 TransportType.entries.chunked(4).forEach { rowItems ->
                     Row(
@@ -477,8 +520,8 @@ private fun TransportPickerDialog(
                             TransportOption(
                                 icon = type.icon,
                                 label = stringResource(type.labelRes),
-                                isSelected = type == currentTransport,
-                                onClick = { onSelect(type) },
+                                isSelected = type == selectedType,
+                                onClick = { selectedTypeName = type.name },
                             )
                         }
                     }
@@ -488,13 +531,59 @@ private fun TransportPickerDialog(
                     TransportOption(
                         icon = Icons.Default.Close,
                         label = stringResource(R.string.transport_none),
-                        isSelected = currentTransport == null,
-                        onClick = { onSelect(null) },
+                        isSelected = selectedType == null,
+                        onClick = { selectedTypeName = null },
+                    )
+                }
+                // Detail fields shown when a transport type is selected
+                if (selectedType != null) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    OutlinedTextField(
+                        value = company,
+                        onValueChange = { company = it },
+                        label = { Text(stringResource(R.string.transport_company_label)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    OutlinedTextField(
+                        value = flightNumber,
+                        onValueChange = { flightNumber = it },
+                        label = { Text(stringResource(R.string.transport_flight_number_label)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    OutlinedTextField(
+                        value = confirmationNumber,
+                        onValueChange = { confirmationNumber = it },
+                        label = { Text(stringResource(R.string.transport_confirmation_label)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
                     )
                 }
             }
         },
-        confirmButton = {},
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val type = selectedType
+                    val transport = if (type != null) {
+                        Transport(
+                            id = currentTransport?.id ?: 0,
+                            destinationId = destinationId,
+                            type = type,
+                            company = company.trim().takeIf { it.isNotBlank() },
+                            flightNumber = flightNumber.trim().takeIf { it.isNotBlank() },
+                            reservationConfirmationNumber = confirmationNumber.trim().takeIf { it.isNotBlank() },
+                        )
+                    } else {
+                        null
+                    }
+                    onSelect(transport)
+                },
+            ) { Text(stringResource(R.string.dialog_save)) }
+        },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.dialog_cancel)) }
         },
