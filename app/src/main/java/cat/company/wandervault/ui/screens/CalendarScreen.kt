@@ -13,10 +13,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -35,9 +35,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -51,6 +53,7 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 import java.time.format.TextStyle
 import java.time.temporal.WeekFields
 
@@ -80,9 +83,12 @@ internal fun CalendarTabContent(
 /**
  * Stateless calendar view for a trip.
  *
- * Displays a monthly grid where days that have at least one destination arrival or departure are
- * highlighted with a primary-coloured background circle. The user can navigate between months
- * using the previous/next arrows in the header.
+ * Displays a monthly grid where days belonging to a destination stay (between arrival and
+ * departure) are highlighted with a band in [MaterialTheme.colorScheme.primaryContainer].
+ * Arrival and departure days additionally get a [MaterialTheme.colorScheme.primary] circle.
+ * Below the grid a legend lists each stay visible in the displayed month with the destination
+ * name and its date range. The user can navigate between months using the previous/next arrows
+ * in the header.
  *
  * @param destinations The list of destinations for the trip.
  * @param isLoading Whether the destinations are still being loaded.
@@ -95,16 +101,6 @@ internal fun CalendarContent(
     innerPadding: PaddingValues,
     modifier: Modifier = Modifier,
 ) {
-    // Collect all dates that have at least one destination arrival or departure.
-    val eventDates: Set<LocalDate> = remember(destinations) {
-        buildSet {
-            for (dest in destinations) {
-                dest.arrivalDateTime?.toLocalDate()?.let { add(it) }
-                dest.departureDateTime?.toLocalDate()?.let { add(it) }
-            }
-        }
-    }
-
     // The earliest date across all destinations, used to jump to the right month on first load.
     val eventMonth: YearMonth? = remember(destinations) {
         destinations
@@ -154,7 +150,8 @@ internal fun CalendarContent(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(innerPadding),
+            .padding(innerPadding)
+            .verticalScroll(rememberScrollState()),
     ) {
         CalendarMonthHeader(
             yearMonth = displayedMonth,
@@ -164,8 +161,12 @@ internal fun CalendarContent(
         CalendarWeekdayRow(weekStartDay = weekStartDay)
         CalendarMonthGrid(
             yearMonth = displayedMonth,
-            eventDates = eventDates,
+            destinations = destinations,
             weekStartDay = weekStartDay,
+        )
+        StayLegendSection(
+            destinations = destinations,
+            displayedMonth = displayedMonth,
         )
     }
 }
@@ -239,11 +240,17 @@ private fun CalendarWeekdayRow(weekStartDay: DayOfWeek) {
     Spacer(modifier = Modifier.height(4.dp))
 }
 
+/** Holds the arrival and departure [LocalDate]s for a destination stay. */
+private data class StayRange(val arrival: LocalDate, val departure: LocalDate)
+
 /**
  * A 7-column grid showing every day in [yearMonth].
  *
  * Leading blank cells are added before the first day so that columns align with the correct
- * weekday. Days whose date is in [eventDates] are rendered with a highlighted [DayCell].
+ * weekday. Days whose date falls within a destination stay (arrival through departure inclusive)
+ * are rendered with a coloured band; arrival and departure days additionally show a highlighted
+ * circle. The band runs edge-to-edge across cells so that it appears seamless across a full row.
+ * When the stay wraps to a new row the band restarts at the left edge of that row.
  *
  * @param weekStartDay The locale's first day of the week; must match the column order in
  *   [CalendarWeekdayRow] so that days land in the correct columns.
@@ -251,7 +258,7 @@ private fun CalendarWeekdayRow(weekStartDay: DayOfWeek) {
 @Composable
 private fun CalendarMonthGrid(
     yearMonth: YearMonth,
-    eventDates: Set<LocalDate>,
+    destinations: List<Destination>,
     weekStartDay: DayOfWeek,
 ) {
     val firstOfMonth = yearMonth.atDay(1)
@@ -259,22 +266,57 @@ private fun CalendarMonthGrid(
     val leadingBlanks = (firstOfMonth.dayOfWeek.value - weekStartDay.value + 7) % 7
     val daysInMonth = yearMonth.lengthOfMonth()
 
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(7),
-        modifier = Modifier.fillMaxWidth(),
-        // The whole month always fits in the available height; scrolling is not needed.
-        // Month navigation is handled by the CalendarMonthHeader arrows instead.
-        userScrollEnabled = false,
-    ) {
-        // Leading blank spacers to align the first day with its weekday column.
-        items(leadingBlanks) {
-            Box(modifier = Modifier.aspectRatio(1f))
+    // Pre-compute event dates (any arrival or departure) and complete stay ranges.
+    val eventDates: Set<LocalDate> = remember(destinations) {
+        buildSet {
+            destinations.forEach { dest ->
+                dest.arrivalDateTime?.toLocalDate()?.let { add(it) }
+                dest.departureDateTime?.toLocalDate()?.let { add(it) }
+            }
         }
-        // One cell per day of the month.
-        items(daysInMonth) { dayIndex ->
-            val day = dayIndex + 1
-            val date = yearMonth.atDay(day)
-            DayCell(day = day, hasEvent = date in eventDates)
+    }
+    // A "complete stay" is a destination that has both arrival and departure dates.
+    val stayRanges: List<StayRange> = remember(destinations) {
+        destinations.mapNotNull { dest ->
+            val arrival = dest.arrivalDateTime?.toLocalDate() ?: return@mapNotNull null
+            val departure = dest.departureDateTime?.toLocalDate() ?: return@mapNotNull null
+            StayRange(arrival, departure)
+        }
+    }
+
+    val totalCells = leadingBlanks + daysInMonth
+    val rowCount = (totalCells + 6) / 7
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        for (row in 0 until rowCount) {
+            Row(modifier = Modifier.fillMaxWidth()) {
+                for (col in 0..6) {
+                    val cellIndex = row * 7 + col
+                    if (cellIndex < leadingBlanks || cellIndex >= totalCells) {
+                        // Blank spacer to keep days aligned with their weekday column.
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .aspectRatio(1f),
+                        )
+                    } else {
+                        val dayIndex = cellIndex - leadingBlanks
+                        val day = dayIndex + 1
+                        val date = yearMonth.atDay(day)
+                        val stayRange = stayRanges.firstOrNull { (arrival, departure) ->
+                            !date.isBefore(arrival) && !date.isAfter(departure)
+                        }
+                        DayCell(
+                            modifier = Modifier.weight(1f),
+                            day = day,
+                            isEventDay = date in eventDates,
+                            isInStay = stayRange != null,
+                            isStayStart = stayRange != null && stayRange.arrival == date,
+                            isStayEnd = stayRange != null && stayRange.departure == date,
+                        )
+                    }
+                }
+            }
         }
     }
 }
@@ -282,42 +324,140 @@ private fun CalendarMonthGrid(
 /**
  * A single day cell in the calendar grid.
  *
- * When [hasEvent] is `true` the day number is displayed on a primary-coloured circle to make
- * event days easy to spot at a glance.
+ * When [isInStay] is `true` a [MaterialTheme.colorScheme.primaryContainer] band is drawn
+ * across the full cell width.  The band has rounded corners on the arrival side
+ * ([isStayStart]) and on the departure side ([isStayEnd]); cells in the middle of a stay row
+ * have straight edges so that adjacent bands appear seamless.
+ *
+ * When [isEventDay] is `true` (arrival or departure) a [MaterialTheme.colorScheme.primary]
+ * circle is drawn on top of the band so the exact event day stands out at a glance.
  */
 @Composable
 private fun DayCell(
     day: Int,
-    hasEvent: Boolean,
+    isEventDay: Boolean,
+    isInStay: Boolean,
+    isStayStart: Boolean,
+    isStayEnd: Boolean,
     modifier: Modifier = Modifier,
 ) {
+    // The cell occupies its grid weight at a 1:1 aspect ratio with no horizontal padding so
+    // that stay bands from adjacent cells touch each other edge-to-edge.
     Box(
-        modifier = modifier
-            .aspectRatio(1f)
-            .padding(2.dp),
+        modifier = modifier.aspectRatio(1f),
         contentAlignment = Alignment.Center,
     ) {
-        if (hasEvent) {
+        // Stay band: a horizontally-spanning rectangle centred in the cell.
+        if (isInStay) {
+            val cornerRadius = 16.dp
             Box(
                 modifier = Modifier
-                    .size(36.dp)
+                    .fillMaxWidth()
+                    .height(32.dp)
+                    .background(
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        shape = RoundedCornerShape(
+                            topStart = if (isStayStart) cornerRadius else 0.dp,
+                            bottomStart = if (isStayStart) cornerRadius else 0.dp,
+                            topEnd = if (isStayEnd) cornerRadius else 0.dp,
+                            bottomEnd = if (isStayEnd) cornerRadius else 0.dp,
+                        ),
+                    ),
+            )
+        }
+
+        // Event circle (arrival or departure) rendered on top of the band.
+        if (isEventDay) {
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.primary),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = day.toString(),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onPrimary,
-                    textAlign = TextAlign.Center,
-                )
-            }
-        } else {
-            Text(
-                text = day.toString(),
-                style = MaterialTheme.typography.bodyMedium,
-                textAlign = TextAlign.Center,
             )
+        }
+
+        // Day number — colour adapts to the background so it remains legible.
+        Text(
+            text = day.toString(),
+            style = MaterialTheme.typography.bodyMedium,
+            color = when {
+                isEventDay -> MaterialTheme.colorScheme.onPrimary
+                isInStay -> MaterialTheme.colorScheme.onPrimaryContainer
+                else -> Color.Unspecified
+            },
+            textAlign = TextAlign.Center,
+        )
+    }
+}
+
+/**
+ * A section below the calendar grid listing all destination stays that overlap the displayed
+ * month.  Each item shows a coloured dot, the destination name, and the full stay date range
+ * so the user can identify which band in the grid belongs to which destination.
+ *
+ * The section is omitted entirely when no stays overlap the displayed month.
+ */
+@Composable
+private fun StayLegendSection(
+    destinations: List<Destination>,
+    displayedMonth: YearMonth,
+    modifier: Modifier = Modifier,
+) {
+    val dateFormatter = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
+
+    // Only show destinations that have a complete stay overlapping the displayed month.
+    val staysInMonth = remember(destinations, displayedMonth) {
+        val monthStart = displayedMonth.atDay(1)
+        val monthEnd = displayedMonth.atEndOfMonth()
+        destinations.filter { dest ->
+            val arrival = dest.arrivalDateTime?.toLocalDate() ?: return@filter false
+            val departure = dest.departureDateTime?.toLocalDate() ?: return@filter false
+            !arrival.isAfter(monthEnd) && !departure.isBefore(monthStart)
+        }
+    }
+
+    if (staysInMonth.isEmpty()) return
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(
+            text = stringResource(R.string.calendar_stays_section_title),
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        staysInMonth.forEach { dest ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(10.dp)
+                        .background(MaterialTheme.colorScheme.primary, CircleShape),
+                )
+                Column {
+                    Text(
+                        text = dest.name,
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    val arrivalStr = dest.arrivalDateTime?.toLocalDate()?.format(dateFormatter)
+                    val departureStr = dest.departureDateTime?.toLocalDate()?.format(dateFormatter)
+                    if (arrivalStr != null || departureStr != null) {
+                        Text(
+                            text = "${arrivalStr ?: ""} – ${departureStr ?: ""}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
         }
     }
 }
