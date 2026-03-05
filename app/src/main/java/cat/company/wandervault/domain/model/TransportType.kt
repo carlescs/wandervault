@@ -14,4 +14,5 @@ enum class TransportType {
     TRAIN,
     FERRY,
     FLIGHT,
+    OTHER,
 }
