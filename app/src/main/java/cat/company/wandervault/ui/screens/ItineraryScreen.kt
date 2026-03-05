@@ -612,9 +612,8 @@ private fun DateTimeRow(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.width(72.dp),
+            modifier = Modifier.weight(1f),
         )
-        Spacer(modifier = Modifier.weight(1f))
         OutlinedButton(
             onClick = { showDatePicker = true },
             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
