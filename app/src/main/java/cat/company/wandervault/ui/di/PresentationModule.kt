@@ -25,10 +25,6 @@ val presentationModule = module {
     viewModel { params ->
         LocationDetailViewModel(
             destination = params.get(),
-            getHotelForDestination = get(),
-            saveHotel = get(),
-            updateHotel = get(),
-            deleteHotel = get(),
         )
     }
 }
