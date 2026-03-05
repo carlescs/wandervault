@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -36,7 +37,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -425,9 +425,12 @@ private fun CalendarMonthGrid(
  * have straight edges so that adjacent bands appear seamless.
  *
  * When [departingColorScheme] is also non-null the day is a **transition day** — one stay departs
- * and the next arrives simultaneously.  In this case the band is rendered as a full pill (both
- * ends rounded) whose colour is a 50/50 blend of the two stays' [StayColorScheme.containerColor]s,
- * so neither stay's colour dominates.
+ * and the next arrives simultaneously.  In this case the band is split in two halves: the left
+ * half shows the departing stay's [StayColorScheme.containerColor] (rounded on its right edge so
+ * it visually terminates at the centre of the cell) and the right half shows the arriving stay's
+ * [StayColorScheme.containerColor] (rounded on its left edge so it visually starts at the centre).
+ * Each half connects seamlessly to its neighbouring cells on the other side, making the handoff
+ * between stays immediately legible without blending or losing either colour.
  *
  * When [isEventDay] is `true` (arrival or departure) a filled circle is drawn on top of the
  * band using [StayColorScheme.eventColor] so the exact event day stands out at a glance.
@@ -453,27 +456,65 @@ private fun DayCell(
         // Stay band: a horizontally-spanning rectangle centred in the cell.
         if (stayColorScheme != null) {
             val cornerRadius = 16.dp
-            // On a transition day blend the two container colours so neither stay dominates,
-            // and force both ends to be rounded so the band reads as a standalone pill.
-            val bandColor = if (departingColorScheme != null) {
-                lerp(departingColorScheme.containerColor, stayColorScheme.containerColor, 0.5f)
+            if (isTransitionDay) {
+                // On a transition day split the band into two halves so that neither stay's colour
+                // is blended away.  The left half shows the departing stay ending here (rounded
+                // on its right edge) and the right half shows the arriving stay starting here
+                // (rounded on its left edge).  This keeps each band visually continuous with its
+                // neighbouring cells while making the handoff between stays clear at a glance.
+                val departingScheme = requireNotNull(departingColorScheme) {
+                    "departingColorScheme must be non-null when isTransitionDay is true"
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(32.dp),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .background(
+                                color = departingScheme.containerColor,
+                                shape = RoundedCornerShape(
+                                    topStart = 0.dp,
+                                    bottomStart = 0.dp,
+                                    topEnd = cornerRadius,
+                                    bottomEnd = cornerRadius,
+                                ),
+                            ),
+                    )
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .background(
+                                color = stayColorScheme.containerColor,
+                                shape = RoundedCornerShape(
+                                    topStart = cornerRadius,
+                                    bottomStart = cornerRadius,
+                                    topEnd = 0.dp,
+                                    bottomEnd = 0.dp,
+                                ),
+                            ),
+                    )
+                }
             } else {
-                stayColorScheme.containerColor
-            }
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(32.dp)
-                    .background(
-                        color = bandColor,
-                        shape = RoundedCornerShape(
-                            topStart = if (isStayStart || isTransitionDay) cornerRadius else 0.dp,
-                            bottomStart = if (isStayStart || isTransitionDay) cornerRadius else 0.dp,
-                            topEnd = if (isStayEnd || isTransitionDay) cornerRadius else 0.dp,
-                            bottomEnd = if (isStayEnd || isTransitionDay) cornerRadius else 0.dp,
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(32.dp)
+                        .background(
+                            color = stayColorScheme.containerColor,
+                            shape = RoundedCornerShape(
+                                topStart = if (isStayStart) cornerRadius else 0.dp,
+                                bottomStart = if (isStayStart) cornerRadius else 0.dp,
+                                topEnd = if (isStayEnd) cornerRadius else 0.dp,
+                                bottomEnd = if (isStayEnd) cornerRadius else 0.dp,
+                            ),
                         ),
-                    ),
-            )
+                )
+            }
         }
 
         // Event circle (arrival or departure) rendered on top of the band.
