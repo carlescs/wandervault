@@ -26,6 +26,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -48,8 +50,9 @@ import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.YearMonth
+import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
-import java.util.Locale
+import java.time.temporal.WeekFields
 
 /**
  * Stateful entry point for the Calendar tab.
@@ -102,8 +105,8 @@ internal fun CalendarContent(
         }
     }
 
-    // Initial month: the month of the earliest event date, or the current month when no dates.
-    val initialMonth: YearMonth = remember(destinations) {
+    // The earliest date across all destinations, used to jump to the right month on first load.
+    val eventMonth: YearMonth? = remember(destinations) {
         destinations
             .flatMap {
                 listOfNotNull(
@@ -113,12 +116,18 @@ internal fun CalendarContent(
             }
             .minOrNull()
             ?.let { YearMonth.from(it) }
-            ?: YearMonth.now()
     }
 
     // Persist the displayed month as an ISO "YYYY-MM" string so it survives config changes.
-    var displayedMonthStr by rememberSaveable(initialMonth) {
-        mutableStateOf(initialMonth.toString())
+    // hasJumpedToEventMonth ensures we jump to the trip's first event month only once,
+    // so manual navigation by the user is preserved across destination updates.
+    var displayedMonthStr by rememberSaveable { mutableStateOf(YearMonth.now().toString()) }
+    var hasJumpedToEventMonth by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(eventMonth) {
+        if (!hasJumpedToEventMonth && eventMonth != null) {
+            hasJumpedToEventMonth = true
+            displayedMonthStr = eventMonth.toString()
+        }
     }
     val displayedMonth = YearMonth.parse(displayedMonthStr)
 
@@ -134,6 +143,14 @@ internal fun CalendarContent(
         return
     }
 
+    // Derive the locale's first day of the week so weekday columns and leading-blank offsets
+    // are consistent across locales (e.g. Sunday-first in the US, Monday-first in Europe).
+    // LocalConfiguration is used as the key so the value is recalculated on locale changes.
+    val configuration = LocalConfiguration.current
+    val weekStartDay: DayOfWeek = remember(configuration) {
+        WeekFields.of(configuration.locales[0]).firstDayOfWeek
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -144,16 +161,20 @@ internal fun CalendarContent(
             onPreviousMonth = { displayedMonthStr = displayedMonth.minusMonths(1).toString() },
             onNextMonth = { displayedMonthStr = displayedMonth.plusMonths(1).toString() },
         )
-        CalendarWeekdayRow()
+        CalendarWeekdayRow(weekStartDay = weekStartDay)
         CalendarMonthGrid(
             yearMonth = displayedMonth,
             eventDates = eventDates,
+            weekStartDay = weekStartDay,
         )
     }
 }
 
 /**
  * Header row showing the current month and year with previous/next navigation arrows.
+ *
+ * The month–year label is formatted with the locale-default pattern so that locales that order
+ * "Year Month" (e.g. Japanese, Chinese) display correctly.
  */
 @Composable
 private fun CalendarMonthHeader(
@@ -161,6 +182,10 @@ private fun CalendarMonthHeader(
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
 ) {
+    val configuration = LocalConfiguration.current
+    val monthYearFormatter = remember(configuration) {
+        DateTimeFormatter.ofPattern("MMMM yyyy", configuration.locales[0])
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -175,7 +200,7 @@ private fun CalendarMonthHeader(
             )
         }
         Text(
-            text = "${yearMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault())} ${yearMonth.year}",
+            text = yearMonth.atDay(1).format(monthYearFormatter),
             style = MaterialTheme.typography.titleMedium,
         )
         IconButton(onClick = onNextMonth) {
@@ -188,16 +213,22 @@ private fun CalendarMonthHeader(
 }
 
 /**
- * A row of single-letter weekday abbreviations, starting on Monday (ISO-8601 week start).
+ * A row of single-letter weekday abbreviations starting on the locale's first day of the week.
+ *
+ * @param weekStartDay The first day of the week for the current locale (e.g. Sunday in the US,
+ *   Monday in most of Europe). Derived from [WeekFields.of].
  */
 @Composable
-private fun CalendarWeekdayRow() {
-    // DayOfWeek.entries are ordered Mon(1)…Sun(7) by ISO-8601 declaration order.
-    val weekdays = DayOfWeek.entries
+private fun CalendarWeekdayRow(weekStartDay: DayOfWeek) {
+    val locale = LocalConfiguration.current.locales[0]
+    // Reorder weekdays so the column sequence begins on the locale's first day.
+    val weekdays = remember(weekStartDay, locale) {
+        DayOfWeek.entries.sortedBy { (it.value - weekStartDay.value + 7) % 7 }
+    }
     Row(modifier = Modifier.fillMaxWidth()) {
         weekdays.forEach { day ->
             Text(
-                text = day.getDisplayName(TextStyle.NARROW, Locale.getDefault()),
+                text = day.getDisplayName(TextStyle.NARROW, locale),
                 modifier = Modifier.weight(1f),
                 textAlign = TextAlign.Center,
                 style = MaterialTheme.typography.labelSmall,
@@ -213,15 +244,19 @@ private fun CalendarWeekdayRow() {
  *
  * Leading blank cells are added before the first day so that columns align with the correct
  * weekday. Days whose date is in [eventDates] are rendered with a highlighted [DayCell].
+ *
+ * @param weekStartDay The locale's first day of the week; must match the column order in
+ *   [CalendarWeekdayRow] so that days land in the correct columns.
  */
 @Composable
 private fun CalendarMonthGrid(
     yearMonth: YearMonth,
     eventDates: Set<LocalDate>,
+    weekStartDay: DayOfWeek,
 ) {
     val firstOfMonth = yearMonth.atDay(1)
-    // Monday = 1, so offset = dayOfWeek.value - 1 gives Mon=0 … Sun=6.
-    val leadingBlanks = firstOfMonth.dayOfWeek.value - 1
+    // Number of blank cells before day 1 so it falls in the correct weekday column.
+    val leadingBlanks = (firstOfMonth.dayOfWeek.value - weekStartDay.value + 7) % 7
     val daysInMonth = yearMonth.lengthOfMonth()
 
     LazyVerticalGrid(
