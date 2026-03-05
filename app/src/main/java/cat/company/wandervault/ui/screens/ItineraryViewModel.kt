@@ -4,7 +4,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import cat.company.wandervault.domain.model.Destination
 import cat.company.wandervault.domain.model.Transport
-import cat.company.wandervault.domain.model.TransportType
 import cat.company.wandervault.domain.usecase.DeleteDestinationUseCase
 import cat.company.wandervault.domain.usecase.DeleteTransportUseCase
 import cat.company.wandervault.domain.usecase.GetDestinationsForTripUseCase
@@ -107,13 +106,17 @@ class ItineraryViewModel(
         }
     }
 
-    fun onUpdateTransport(destination: Destination, transportType: TransportType?) {
+    fun onUpdateTransport(destination: Destination, transport: Transport?) {
         viewModelScope.launch {
             val existing = destination.transport
             when {
-                transportType == null && existing != null -> deleteTransport(existing)
-                transportType != null && existing != null -> updateTransport(existing.copy(type = transportType))
-                transportType != null -> saveTransport(Transport(destinationId = destination.id, type = transportType))
+                transport == null && existing != null -> deleteTransport(existing)
+                transport != null && existing != null -> updateTransport(
+                    transport.copy(id = existing.id, destinationId = destination.id),
+                )
+                transport != null -> saveTransport(
+                    transport.copy(id = 0, destinationId = destination.id),
+                )
             }
         }
     }
