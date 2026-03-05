@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -348,7 +349,8 @@ private fun DestinationTimelineItem(
                             role = Role.Button,
                             onClickLabel = stringResource(R.string.itinerary_destination_open_details),
                             onClick = onClick,
-                        ),
+                        )
+                        .heightIn(min = 48.dp),
                 )
                 IconButton(onClick = onMoveUp, enabled = !isFirst) {
                     Icon(

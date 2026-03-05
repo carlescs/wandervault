@@ -18,6 +18,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -48,7 +49,10 @@ fun LocationDetailScreen(
     destination: Destination,
     onNavigateUp: () -> Unit,
     modifier: Modifier = Modifier,
-    viewModel: LocationDetailViewModel = koinViewModel(parameters = { parametersOf(destination) }),
+    viewModel: LocationDetailViewModel = koinViewModel(
+        key = destination.id.toString(),
+        parameters = { parametersOf(destination) },
+    ),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     LocationDetailContent(
@@ -86,7 +90,7 @@ internal fun LocationDetailContent(
             )
         },
     ) { innerPadding ->
-        val dateTimeFormatter = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
+        val dateTimeFormatter = remember { DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT) }
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = innerPadding,
