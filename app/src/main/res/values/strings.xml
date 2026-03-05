@@ -47,9 +47,14 @@
     <string name="trip_detail_title">Trip Details</string>
     <string name="trip_detail_tab_details">Details</string>
     <string name="trip_detail_tab_itinerary">Itinerary</string>
+    <string name="trip_detail_tab_calendar">Calendar</string>
     <string name="trip_detail_loading">Loading trip…</string>
     <string name="trip_detail_error">Could not load trip details.</string>
     <string name="trip_detail_cover_image_desc">Cover image for %1$s</string>
+
+    <!-- Calendar tab -->
+    <string name="calendar_previous_month">Previous month</string>
+    <string name="calendar_next_month">Next month</string>
 
     <!-- Itinerary planner -->
     <string name="itinerary_add_destination">Add destination</string>
