@@ -74,6 +74,7 @@
     <string name="itinerary_move_up">Move destination up</string>
     <string name="itinerary_move_down">Move destination down</string>
     <string name="itinerary_add_destination_here">Add destination here</string>
+    <string name="itinerary_destination_open_details">Open details</string>
 
     <!-- Transport type picker -->
     <string name="itinerary_transport_picker_title">Select transport</string>
@@ -88,6 +89,13 @@
     <string name="transport_flight">Flight</string>
     <string name="transport_other">Other</string>
     <string name="transport_none">None</string>
+
+    <!-- Location Detail screen -->
+    <string name="location_detail_navigate_up">Navigate up</string>
+    <string name="location_detail_arrival">Arrival</string>
+    <string name="location_detail_departure">Departure</string>
+    <string name="location_detail_transport">Transport</string>
+    <string name="location_detail_not_found">Destination not found</string>
     <string name="transport_company_label">Company</string>
     <string name="transport_flight_number_label">Flight / Reference No.</string>
     <string name="transport_confirmation_label">Confirmation No.</string>

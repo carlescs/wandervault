@@ -18,6 +18,9 @@ interface TransportDao {
     @Delete
     suspend fun delete(transport: TransportEntity)
 
+    @Query("SELECT * FROM transports WHERE destinationId = :destinationId LIMIT 1")
+    fun getByDestinationId(destinationId: Int): Flow<TransportEntity?>
+
     @Query(
         "SELECT t.* FROM transports t " +
             "INNER JOIN destinations d ON t.destinationId = d.id " +

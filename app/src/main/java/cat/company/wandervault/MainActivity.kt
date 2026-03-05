@@ -26,6 +26,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.PreviewScreenSizes
 import cat.company.wandervault.ui.screens.FavoritesScreen
 import cat.company.wandervault.ui.screens.HomeScreen
+import cat.company.wandervault.ui.screens.LocationDetailScreen
 import cat.company.wandervault.ui.screens.ProfileScreen
 import cat.company.wandervault.ui.screens.TripDetailScreen
 import cat.company.wandervault.ui.theme.WanderVaultTheme
@@ -47,13 +48,24 @@ class MainActivity : ComponentActivity() {
 fun WanderVaultApp() {
     var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.HOME) }
     var tripDetailId by rememberSaveable { mutableStateOf<Int?>(null) }
+    var selectedDestinationId by rememberSaveable { mutableStateOf<Int?>(null) }
 
-    if (tripDetailId != null) {
+    if (selectedDestinationId != null) {
+        BackHandler { selectedDestinationId = null }
+        selectedDestinationId?.let { destinationId ->
+            LocationDetailScreen(
+                destinationId = destinationId,
+                onNavigateUp = { selectedDestinationId = null },
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+    } else if (tripDetailId != null) {
         BackHandler { tripDetailId = null }
         tripDetailId?.let { id ->
             TripDetailScreen(
                 tripId = id,
                 onNavigateUp = { tripDetailId = null },
+                onNavigateToDestination = { selectedDestinationId = it },
                 modifier = Modifier.fillMaxSize(),
             )
         }

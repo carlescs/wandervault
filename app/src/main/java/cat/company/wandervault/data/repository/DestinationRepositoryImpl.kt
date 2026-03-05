@@ -14,6 +14,14 @@ class DestinationRepositoryImpl(
     private val transportDao: TransportDao,
 ) : DestinationRepository {
 
+    override fun getDestinationById(id: Int): Flow<Destination?> =
+        combine(
+            dao.getById(id),
+            transportDao.getByDestinationId(id),
+        ) { entity, transport ->
+            entity?.toDomain(transport?.toDomain())
+        }
+
     override fun getDestinationsForTrip(tripId: Int): Flow<List<Destination>> =
         combine(
             dao.getByTripId(tripId),

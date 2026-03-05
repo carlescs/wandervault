@@ -18,6 +18,9 @@ interface DestinationDao {
     @Delete
     suspend fun delete(destination: DestinationEntity)
 
+    @Query("SELECT * FROM destinations WHERE id = :id")
+    fun getById(id: Int): Flow<DestinationEntity?>
+
     @Query("SELECT * FROM destinations WHERE tripId = :tripId ORDER BY position ASC")
     fun getByTripId(tripId: Int): Flow<List<DestinationEntity>>
 

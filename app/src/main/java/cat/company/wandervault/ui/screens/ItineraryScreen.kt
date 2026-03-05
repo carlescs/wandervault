@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -100,6 +101,7 @@ private fun LocalDateTime?.toDateEpochMillis(): Long? =
 internal fun ItineraryTabContent(
     tripId: Int,
     innerPadding: PaddingValues,
+    onDestinationClick: (Int) -> Unit = {},
     viewModel: ItineraryViewModel = koinViewModel(parameters = { parametersOf(tripId) }),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -119,6 +121,7 @@ internal fun ItineraryTabContent(
         onMoveDestinationDown = viewModel::onMoveDestinationDown,
         onAddDestinationAfter = { pos -> viewModel.onAddDestinationClick(pos) },
         onUpdateTransport = viewModel::onUpdateTransport,
+        onDestinationClick = onDestinationClick,
     )
 }
 
@@ -145,6 +148,7 @@ internal fun ItineraryContent(
     onMoveDestinationDown: (Destination) -> Unit,
     onAddDestinationAfter: (Int) -> Unit,
     onUpdateTransport: (Destination, Transport?) -> Unit,
+    onDestinationClick: (Int) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Box(modifier = modifier.fillMaxSize()) {
@@ -180,6 +184,7 @@ internal fun ItineraryContent(
                         onMoveDown = { onMoveDestinationDown(destination) },
                         onAddAfter = { onAddDestinationAfter(destination.position) },
                         onSelectTransport = { transport -> onUpdateTransport(destination, transport) },
+                        onClick = { onDestinationClick(destination.id) },
                     )
                 }
             }
@@ -231,6 +236,7 @@ private fun DestinationTimelineItem(
     onMoveDown: () -> Unit,
     onAddAfter: () -> Unit,
     onSelectTransport: (Transport?) -> Unit,
+    onClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var showTransportPicker by rememberSaveable { mutableStateOf(false) }
@@ -340,7 +346,14 @@ private fun DestinationTimelineItem(
                     style = MaterialTheme.typography.titleMedium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 48.dp)
+                        .clickable(
+                            role = Role.Button,
+                            onClickLabel = stringResource(R.string.itinerary_destination_open_details),
+                            onClick = onClick,
+                        ),
                 )
                 IconButton(onClick = onMoveUp, enabled = !isFirst) {
                     Icon(
