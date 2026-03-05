@@ -101,7 +101,7 @@ private fun LocalDateTime?.toDateEpochMillis(): Long? =
 internal fun ItineraryTabContent(
     tripId: Int,
     innerPadding: PaddingValues,
-    onDestinationClick: (Destination) -> Unit = {},
+    onDestinationClick: (Int) -> Unit = {},
     viewModel: ItineraryViewModel = koinViewModel(parameters = { parametersOf(tripId) }),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -148,7 +148,7 @@ internal fun ItineraryContent(
     onMoveDestinationDown: (Destination) -> Unit,
     onAddDestinationAfter: (Int) -> Unit,
     onUpdateTransport: (Destination, Transport?) -> Unit,
-    onDestinationClick: (Destination) -> Unit = {},
+    onDestinationClick: (Int) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Box(modifier = modifier.fillMaxSize()) {
@@ -184,7 +184,7 @@ internal fun ItineraryContent(
                         onMoveDown = { onMoveDestinationDown(destination) },
                         onAddAfter = { onAddDestinationAfter(destination.position) },
                         onSelectTransport = { transport -> onUpdateTransport(destination, transport) },
-                        onClick = { onDestinationClick(destination) },
+                        onClick = { onDestinationClick(destination.id) },
                     )
                 }
             }
@@ -348,12 +348,12 @@ private fun DestinationTimelineItem(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier
                         .weight(1f)
+                        .heightIn(min = 48.dp)
                         .clickable(
                             role = Role.Button,
                             onClickLabel = stringResource(R.string.itinerary_destination_open_details),
                             onClick = onClick,
-                        )
-                        .heightIn(min = 48.dp),
+                        ),
                 )
                 IconButton(onClick = onMoveUp, enabled = !isFirst) {
                     Icon(

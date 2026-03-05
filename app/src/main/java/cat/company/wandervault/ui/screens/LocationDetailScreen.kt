@@ -1,6 +1,7 @@
 package cat.company.wandervault.ui.screens
 
 import androidx.annotation.StringRes
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -19,7 +21,9 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -38,21 +42,18 @@ import java.time.format.FormatStyle
 /**
  * Location Detail screen entry point.
  *
- * Displays the summary information for a single destination stop.
+ * Loads the destination from the repository by [destinationId] and displays its summary.
  *
- * @param destination The destination whose details are displayed.
+ * @param destinationId The ID of the destination whose details are displayed.
  * @param onNavigateUp Called when the user taps the back/up button.
  * @param modifier Optional [Modifier].
  */
 @Composable
 fun LocationDetailScreen(
-    destination: Destination,
+    destinationId: Int,
     onNavigateUp: () -> Unit,
     modifier: Modifier = Modifier,
-    viewModel: LocationDetailViewModel = koinViewModel(
-        key = destination.id.toString(),
-        parameters = { parametersOf(destination) },
-    ),
+    viewModel: LocationDetailViewModel = koinViewModel(parameters = { parametersOf(destinationId) }),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     LocationDetailContent(
@@ -74,11 +75,15 @@ internal fun LocationDetailContent(
     onNavigateUp: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val title = when (uiState) {
+        is LocationDetailUiState.Success -> uiState.destination.name
+        else -> ""
+    }
     Scaffold(
         modifier = modifier,
         topBar = {
             TopAppBar(
-                title = { Text(uiState.destination.name) },
+                title = { Text(title) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateUp) {
                         Icon(
@@ -90,37 +95,66 @@ internal fun LocationDetailContent(
             )
         },
     ) { innerPadding ->
-        val dateTimeFormatter = remember { DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT) }
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = innerPadding,
-        ) {
-            item {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = uiState.destination.name,
-                        style = MaterialTheme.typography.headlineMedium,
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    uiState.destination.arrivalDateTime?.let { arrival ->
-                        LabeledInfoRow(
-                            label = stringResource(R.string.location_detail_arrival),
-                            value = arrival.format(dateTimeFormatter),
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                    }
-                    uiState.destination.departureDateTime?.let { departure ->
-                        LabeledInfoRow(
-                            label = stringResource(R.string.location_detail_departure),
-                            value = departure.format(dateTimeFormatter),
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                    }
-                    uiState.destination.transport?.let { transport ->
-                        LabeledInfoRow(
-                            label = stringResource(R.string.location_detail_transport),
-                            value = stringResource(transport.type.labelRes),
-                        )
+        when (uiState) {
+            is LocationDetailUiState.Loading -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CircularProgressIndicator()
+                }
+            }
+            is LocationDetailUiState.Error -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(stringResource(R.string.location_detail_not_found))
+                }
+            }
+            is LocationDetailUiState.Success -> {
+                val destination = uiState.destination
+                val locale = LocalConfiguration.current.locales[0]
+                val dateTimeFormatter = remember(locale) {
+                    DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
+                        .withLocale(locale)
+                }
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = innerPadding,
+                ) {
+                    item {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                text = destination.name,
+                                style = MaterialTheme.typography.headlineMedium,
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            destination.arrivalDateTime?.let { arrival ->
+                                LabeledInfoRow(
+                                    label = stringResource(R.string.location_detail_arrival),
+                                    value = arrival.format(dateTimeFormatter),
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                            }
+                            destination.departureDateTime?.let { departure ->
+                                LabeledInfoRow(
+                                    label = stringResource(R.string.location_detail_departure),
+                                    value = departure.format(dateTimeFormatter),
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                            }
+                            destination.transport?.let { transport ->
+                                LabeledInfoRow(
+                                    label = stringResource(R.string.location_detail_transport),
+                                    value = stringResource(transport.type.labelRes),
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -175,7 +209,7 @@ private fun LocationDetailPreview() {
     )
     WanderVaultTheme {
         LocationDetailContent(
-            uiState = LocationDetailUiState(destination = destination),
+            uiState = LocationDetailUiState.Success(destination = destination),
             onNavigateUp = {},
         )
     }
@@ -187,7 +221,18 @@ private fun LocationDetailNoDatesPreview() {
     val destination = Destination(id = 2, tripId = 1, name = "Rome", position = 1)
     WanderVaultTheme {
         LocationDetailContent(
-            uiState = LocationDetailUiState(destination = destination),
+            uiState = LocationDetailUiState.Success(destination = destination),
+            onNavigateUp = {},
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun LocationDetailLoadingPreview() {
+    WanderVaultTheme {
+        LocationDetailContent(
+            uiState = LocationDetailUiState.Loading,
             onNavigateUp = {},
         )
     }

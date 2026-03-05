@@ -3,10 +3,15 @@ package cat.company.wandervault.ui.screens
 import cat.company.wandervault.domain.model.Destination
 
 /**
- * UI state for the Location Detail screen.
- *
- * @param destination The destination being viewed.
+ * Represents the UI state for the Location Detail screen.
  */
-data class LocationDetailUiState(
-    val destination: Destination,
-)
+sealed class LocationDetailUiState {
+    /** The destination details are being loaded. */
+    data object Loading : LocationDetailUiState()
+
+    /** The destination was loaded successfully. */
+    data class Success(val destination: Destination) : LocationDetailUiState()
+
+    /** An error occurred (e.g. destination not found). */
+    data object Error : LocationDetailUiState()
+}

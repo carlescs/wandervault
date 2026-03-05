@@ -5,6 +5,9 @@ import kotlinx.coroutines.flow.Flow
 
 /** Repository for managing [Destination] data. */
 interface DestinationRepository {
+    /** Returns a [Flow] emitting the [Destination] with the given [id], or `null` if not found. */
+    fun getDestinationById(id: Int): Flow<Destination?>
+
     /** Returns a [Flow] that emits the ordered list of destinations for the given trip. */
     fun getDestinationsForTrip(tripId: Int): Flow<List<Destination>>
 

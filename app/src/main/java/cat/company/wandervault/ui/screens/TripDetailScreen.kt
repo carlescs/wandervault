@@ -40,7 +40,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cat.company.wandervault.R
-import cat.company.wandervault.domain.model.Destination
 import cat.company.wandervault.domain.model.Trip
 import cat.company.wandervault.ui.theme.WanderVaultTheme
 import coil.compose.AsyncImage
@@ -72,7 +71,7 @@ private enum class TripDetailTab(@StringRes val labelRes: Int, val icon: ImageVe
 fun TripDetailScreen(
     tripId: Int,
     onNavigateUp: () -> Unit,
-    onNavigateToDestination: (Destination) -> Unit = {},
+    onNavigateToDestination: (Int) -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: TripDetailViewModel = koinViewModel(parameters = { parametersOf(tripId) }),
 ) {
@@ -100,7 +99,7 @@ internal fun TripDetailContent(
     uiState: TripDetailUiState,
     tripId: Int,
     onNavigateUp: () -> Unit,
-    onNavigateToDestination: (Destination) -> Unit = {},
+    onNavigateToDestination: (Int) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var selectedTab by rememberSaveable { mutableStateOf(TripDetailTab.DETAILS) }

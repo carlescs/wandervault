@@ -24,7 +24,8 @@ val presentationModule = module {
     }
     viewModel { params ->
         LocationDetailViewModel(
-            destination = params.get(),
+            destinationId = params.get(),
+            getDestinationById = get(),
         )
     }
 }
