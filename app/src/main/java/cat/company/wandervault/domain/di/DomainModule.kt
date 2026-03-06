@@ -4,6 +4,7 @@ import cat.company.wandervault.domain.usecase.CopyImageToInternalStorageUseCase
 import cat.company.wandervault.domain.usecase.DeleteDestinationUseCase
 import cat.company.wandervault.domain.usecase.DeleteImageUseCase
 import cat.company.wandervault.domain.usecase.DeleteTransportUseCase
+import cat.company.wandervault.domain.usecase.GetArrivalTransportForDestinationUseCase
 import cat.company.wandervault.domain.usecase.GetDestinationByIdUseCase
 import cat.company.wandervault.domain.usecase.GetDestinationsForTripUseCase
 import cat.company.wandervault.domain.usecase.GetTripUseCase
@@ -22,6 +23,7 @@ val domainModule = module {
     factory { SaveTripUseCase(get()) }
     factory { UpdateTripUseCase(get()) }
     factory { GetDestinationByIdUseCase(get()) }
+    factory { GetArrivalTransportForDestinationUseCase(get()) }
     factory { GetDestinationsForTripUseCase(get()) }
     factory { SaveDestinationUseCase(get()) }
     factory { UpdateDestinationUseCase(get()) }

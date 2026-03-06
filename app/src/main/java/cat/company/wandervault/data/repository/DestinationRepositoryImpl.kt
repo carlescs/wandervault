@@ -8,6 +8,7 @@ import cat.company.wandervault.domain.model.Transport
 import cat.company.wandervault.domain.repository.DestinationRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 
 class DestinationRepositoryImpl(
     private val dao: DestinationDao,
@@ -42,6 +43,9 @@ class DestinationRepositoryImpl(
     override suspend fun deleteDestination(destination: Destination) {
         dao.delete(destination.toEntity())
     }
+
+    override fun getArrivalTransportForDestination(destinationId: Int): Flow<Transport?> =
+        transportDao.getArrivalTransportForDestination(destinationId).map { it?.toDomain() }
 }
 
 private fun DestinationEntity.toDomain(transport: Transport?) = Destination(
