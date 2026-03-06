@@ -161,6 +161,24 @@ class TransportDetailViewModel(
         updateLeg(index) { copy(confirmationNumber = value) }
     }
 
+    /** Moves the leg at [index] one position up (swaps with the leg at [index] - 1). */
+    fun onMoveLegUp(index: Int) {
+        updateLegs {
+            val swapped = swapLegs(index, index - 1)
+            if (swapped !== this) _hasUnsavedEdits = true
+            swapped
+        }
+    }
+
+    /** Moves the leg at [index] one position down (swaps with the leg at [index] + 1). */
+    fun onMoveLegDown(index: Int) {
+        updateLegs {
+            val swapped = swapLegs(index, index + 1)
+            if (swapped !== this) _hasUnsavedEdits = true
+            swapped
+        }
+    }
+
     /**
      * Persists the current list of legs to the database.
      *
@@ -246,6 +264,22 @@ class TransportDetailViewModel(
         _uiState.value = current.copy(
             legs = current.legs.toMutableList().also { it[index] = it[index].update() },
         )
+    }
+
+    /**
+     * Returns a new list with the elements at [indexA] and [indexB] swapped.
+     * If either index is out of range the original list is returned unchanged.
+     */
+    private fun List<TransportLegEditState>.swapLegs(
+        indexA: Int,
+        indexB: Int,
+    ): List<TransportLegEditState> {
+        if (indexA !in indices || indexB !in indices) return this
+        val mutable = toMutableList()
+        val tmp = mutable[indexA]
+        mutable[indexA] = mutable[indexB]
+        mutable[indexB] = tmp
+        return mutable
     }
 }
 
