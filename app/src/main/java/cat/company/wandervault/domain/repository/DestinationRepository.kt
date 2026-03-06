@@ -12,6 +12,10 @@ interface DestinationRepository {
     /**
      * Returns a [Flow] emitting the [Destination] at the given [position] in [tripId], or `null`
      * if no such destination exists.
+     *
+     * The returned [Destination] does not have its [Destination.transport] (and legs) populated.
+     * Use [getArrivalTransportForDestination] or other transport-specific methods to load
+     * transport data if needed.
      */
     fun getDestinationByTripAndPosition(tripId: Int, position: Int): Flow<Destination?>
 
