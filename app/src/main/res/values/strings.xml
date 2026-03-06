@@ -100,4 +100,11 @@
     <string name="transport_flight_number_label">Flight / Reference No.</string>
     <string name="transport_confirmation_label">Confirmation No.</string>
     <string name="dialog_save">Save</string>
+
+    <!-- Transport Detail screen -->
+    <string name="transport_detail_navigate_up">Navigate up</string>
+    <string name="transport_detail_not_found">Destination not found</string>
+    <string name="transport_detail_type_label">Transport type</string>
+    <string name="transport_detail_edit">Edit transport</string>
+    <string name="transport_detail_add">Add transport</string>
 </resources>
