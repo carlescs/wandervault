@@ -5,10 +5,14 @@ import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -172,8 +176,8 @@ private fun TripDetailBottomBar(
 /**
  * Content for the Details tab of the Trip Detail screen.
  *
- * Shows a cover image (when available), trip title and formatted date range.
- * Handles [TripDetailUiState.Loading] and [TripDetailUiState.Error] states as well.
+ * Shows a cover image (when available), trip title, formatted date range, and an AI-generated
+ * summary via Gemini Nano. Handles [TripDetailUiState.Loading] and [TripDetailUiState.Error] states.
  */
 @Composable
 private fun TripDetailsTabContent(
@@ -245,9 +249,59 @@ private fun TripDetailsTabContent(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
+                        Spacer(modifier = Modifier.height(16.dp))
+                        AiDescriptionSection(descriptionState = uiState.descriptionState)
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * Renders the AI-generated trip description section.
+ *
+ * Shows a section title ("AI Summary") followed by the current [DescriptionState]:
+ * a spinner while loading, the generated text when available, or a graceful fallback message.
+ */
+@Composable
+private fun AiDescriptionSection(descriptionState: DescriptionState) {
+    Text(
+        text = stringResource(R.string.trip_detail_ai_summary_title),
+        style = MaterialTheme.typography.titleMedium,
+    )
+    Spacer(modifier = Modifier.height(8.dp))
+    when (descriptionState) {
+        is DescriptionState.Loading -> {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = stringResource(R.string.trip_detail_ai_summary_generating),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        is DescriptionState.Available -> {
+            Text(
+                text = descriptionState.text,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+        is DescriptionState.Unavailable -> {
+            Text(
+                text = stringResource(R.string.trip_detail_ai_summary_unavailable),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        is DescriptionState.Error -> {
+            Text(
+                text = stringResource(R.string.trip_detail_ai_summary_error),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error,
+            )
         }
     }
 }
@@ -279,5 +333,51 @@ private fun TripDetailSuccessPreview() {
     )
     WanderVaultTheme {
         TripDetailContent(uiState = TripDetailUiState.Success(trip), tripId = 1, onNavigateUp = {})
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun TripDetailAiAvailablePreview() {
+    val trip = Trip(
+        id = 1,
+        title = "Tokyo Adventure",
+        startDate = LocalDate.of(2024, 9, 1),
+        endDate = LocalDate.of(2024, 9, 15),
+    )
+    WanderVaultTheme {
+        TripDetailContent(
+            uiState = TripDetailUiState.Success(
+                trip = trip,
+                descriptionState = DescriptionState.Available(
+                    "Tokyo Adventure is an exciting 15-day journey through Japan's vibrant capital. " +
+                        "Explore ancient temples, futuristic technology, and world-class cuisine " +
+                        "across one of the world's most dynamic cities.",
+                ),
+            ),
+            tripId = 1,
+            onNavigateUp = {},
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun TripDetailAiUnavailablePreview() {
+    val trip = Trip(
+        id = 1,
+        title = "Paris Getaway",
+        startDate = LocalDate.of(2024, 6, 1),
+        endDate = LocalDate.of(2024, 6, 10),
+    )
+    WanderVaultTheme {
+        TripDetailContent(
+            uiState = TripDetailUiState.Success(
+                trip = trip,
+                descriptionState = DescriptionState.Unavailable,
+            ),
+            tripId = 1,
+            onNavigateUp = {},
+        )
     }
 }
