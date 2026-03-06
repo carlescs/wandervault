@@ -19,6 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -51,6 +52,7 @@ fun WanderVaultApp() {
     var tripDetailId by rememberSaveable { mutableStateOf<Int?>(null) }
     var selectedDestinationId by rememberSaveable { mutableStateOf<Int?>(null) }
     var selectedTransportDestinationId by rememberSaveable { mutableStateOf<Int?>(null) }
+    val saveableStateHolder = rememberSaveableStateHolder()
 
     if (selectedTransportDestinationId != null) {
         BackHandler { selectedTransportDestinationId = null }
@@ -72,15 +74,26 @@ fun WanderVaultApp() {
             )
         }
     } else if (tripDetailId != null) {
-        BackHandler { tripDetailId = null }
+        BackHandler {
+            tripDetailId?.let { id ->
+                saveableStateHolder.removeState("TripDetail:$id")
+                tripDetailId = null
+            }
+        }
         tripDetailId?.let { id ->
-            TripDetailScreen(
-                tripId = id,
-                onNavigateUp = { tripDetailId = null },
-                onNavigateToDestination = { selectedDestinationId = it },
-                onNavigateToTransport = { selectedTransportDestinationId = it },
-                modifier = Modifier.fillMaxSize(),
-            )
+            val tripDetailKey = "TripDetail:$id"
+            saveableStateHolder.SaveableStateProvider(key = tripDetailKey) {
+                TripDetailScreen(
+                    tripId = id,
+                    onNavigateUp = {
+                        saveableStateHolder.removeState(tripDetailKey)
+                        tripDetailId = null
+                    },
+                    onNavigateToDestination = { selectedDestinationId = it },
+                    onNavigateToTransport = { selectedTransportDestinationId = it },
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
         }
     } else {
         NavigationSuiteScaffold(
