@@ -173,41 +173,60 @@ internal fun TransportDetailContent(
                         .padding(innerPadding)
                         .verticalScroll(rememberScrollState())
                         .padding(horizontal = 16.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    if (uiState.legs.isEmpty()) {
-                        Text(
-                            text = stringResource(R.string.transport_detail_no_legs),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(vertical = 8.dp),
-                        )
-                    }
-
-                    uiState.legs.forEachIndexed { index, leg ->
-                        TransportLegCard(
-                            index = index,
-                            totalLegs = uiState.legs.size,
-                            leg = leg,
-                            onRemove = { onRemoveLeg(index) },
-                            onTypeSelected = { typeName -> onTypeSelected(index, typeName) },
-                            onCompanyChange = { value -> onCompanyChange(index, value) },
-                            onFlightNumberChange = { value -> onFlightNumberChange(index, value) },
-                            onConfirmationNumberChange = { value -> onConfirmationNumberChange(index, value) },
-                        )
-                    }
-
-                    TextButton(
-                        onClick = onAddLeg,
-                        modifier = Modifier.align(Alignment.CenterHorizontally),
+                    // Outer card: the "main transport" for this destination.
+                    // All legs are children rendered inside it.
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                        ),
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                        )
-                        Spacer(modifier = Modifier.size(4.dp))
-                        Text(stringResource(R.string.transport_detail_add_leg))
+                        Column {
+                            if (uiState.legs.isEmpty()) {
+                                Text(
+                                    text = stringResource(R.string.transport_detail_no_legs),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                                )
+                            }
+
+                            uiState.legs.forEachIndexed { index, leg ->
+                                if (index > 0) {
+                                    HorizontalDivider()
+                                }
+                                TransportLegSection(
+                                    index = index,
+                                    totalLegs = uiState.legs.size,
+                                    leg = leg,
+                                    onRemove = { onRemoveLeg(index) },
+                                    onTypeSelected = { typeName -> onTypeSelected(index, typeName) },
+                                    onCompanyChange = { value -> onCompanyChange(index, value) },
+                                    onFlightNumberChange = { value -> onFlightNumberChange(index, value) },
+                                    onConfirmationNumberChange = { value -> onConfirmationNumberChange(index, value) },
+                                )
+                            }
+
+                            if (uiState.legs.isNotEmpty()) {
+                                HorizontalDivider()
+                            }
+
+                            TextButton(
+                                onClick = onAddLeg,
+                                modifier = Modifier
+                                    .align(Alignment.CenterHorizontally)
+                                    .padding(vertical = 4.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                                Spacer(modifier = Modifier.size(4.dp))
+                                Text(stringResource(R.string.transport_detail_add_leg))
+                            }
+                        }
                     }
                 }
             }
@@ -216,7 +235,7 @@ internal fun TransportDetailContent(
 }
 
 @Composable
-private fun TransportLegCard(
+private fun TransportLegSection(
     index: Int,
     totalLegs: Int,
     leg: TransportLegEditState,
@@ -231,94 +250,87 @@ private fun TransportLegCard(
         runCatching { TransportType.valueOf(name) }.getOrNull()
     }
 
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-        ),
+    Column(
+        modifier = modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+        // Leg header: leg number + delete button
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            // Card header: leg number + delete button
+            Text(
+                text = if (totalLegs > 1) {
+                    stringResource(R.string.transport_detail_leg_number, index + 1)
+                } else {
+                    stringResource(R.string.transport_detail_type_label)
+                },
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            IconButton(onClick = onRemove) {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = stringResource(R.string.transport_detail_remove_leg),
+                    tint = MaterialTheme.colorScheme.error,
+                )
+            }
+        }
+
+        // Transport type grid (rows of 4 icons)
+        TransportType.entries.chunked(4).forEach { rowItems ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.SpaceEvenly,
             ) {
-                Text(
-                    text = if (totalLegs > 1) {
-                        stringResource(R.string.transport_detail_leg_number, index + 1)
-                    } else {
-                        stringResource(R.string.transport_detail_type_label)
-                    },
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                IconButton(onClick = onRemove) {
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = stringResource(R.string.transport_detail_remove_leg),
-                        tint = MaterialTheme.colorScheme.error,
+                rowItems.forEach { type ->
+                    TransportDetailOption(
+                        icon = type.detailIcon,
+                        label = stringResource(type.detailLabelRes),
+                        isSelected = type == selectedType,
+                        onClick = { onTypeSelected(type.name) },
                     )
                 }
             }
+        }
 
-            // Transport type grid (rows of 4 icons)
-            TransportType.entries.chunked(4).forEach { rowItems ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                ) {
-                    rowItems.forEach { type ->
-                        TransportDetailOption(
-                            icon = type.detailIcon,
-                            label = stringResource(type.detailLabelRes),
-                            isSelected = type == selectedType,
-                            onClick = { onTypeSelected(type.name) },
-                        )
-                    }
-                }
-            }
+        // "None" option to clear the transport type for this leg
+        Row(modifier = Modifier.fillMaxWidth()) {
+            TransportDetailOption(
+                icon = Icons.Default.Close,
+                label = stringResource(R.string.transport_none),
+                isSelected = selectedType == null,
+                onClick = { onTypeSelected(null) },
+            )
+        }
 
-            // "None" option to clear the transport type for this leg
-            Row(modifier = Modifier.fillMaxWidth()) {
-                TransportDetailOption(
-                    icon = Icons.Default.Close,
-                    label = stringResource(R.string.transport_none),
-                    isSelected = selectedType == null,
-                    onClick = { onTypeSelected(null) },
-                )
-            }
+        if (selectedType != null) {
+            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
-            if (selectedType != null) {
-                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-
-                OutlinedTextField(
-                    value = leg.company,
-                    onValueChange = onCompanyChange,
-                    label = { Text(stringResource(R.string.transport_company_label)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                OutlinedTextField(
-                    value = leg.flightNumber,
-                    onValueChange = onFlightNumberChange,
-                    label = { Text(stringResource(R.string.transport_flight_number_label)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                OutlinedTextField(
-                    value = leg.confirmationNumber,
-                    onValueChange = onConfirmationNumberChange,
-                    label = { Text(stringResource(R.string.transport_confirmation_label)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
+            OutlinedTextField(
+                value = leg.company,
+                onValueChange = onCompanyChange,
+                label = { Text(stringResource(R.string.transport_company_label)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            OutlinedTextField(
+                value = leg.flightNumber,
+                onValueChange = onFlightNumberChange,
+                label = { Text(stringResource(R.string.transport_flight_number_label)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            OutlinedTextField(
+                value = leg.confirmationNumber,
+                onValueChange = onConfirmationNumberChange,
+                label = { Text(stringResource(R.string.transport_confirmation_label)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
     }
 }
