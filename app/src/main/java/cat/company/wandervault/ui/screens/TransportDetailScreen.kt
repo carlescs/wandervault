@@ -50,7 +50,6 @@ import cat.company.wandervault.R
 import cat.company.wandervault.domain.model.TransportType
 import cat.company.wandervault.ui.theme.WanderVaultTheme
 import org.koin.androidx.compose.koinViewModel
-import org.koin.core.parameter.parametersOf
 
 /**
  * Transport Detail screen entry point.
@@ -69,7 +68,6 @@ fun TransportDetailScreen(
     modifier: Modifier = Modifier,
     viewModel: TransportDetailViewModel = koinViewModel(
         key = "TransportDetailViewModel:$destinationId",
-        parameters = { parametersOf(destinationId) },
     ),
 ) {
     LaunchedEffect(destinationId) {

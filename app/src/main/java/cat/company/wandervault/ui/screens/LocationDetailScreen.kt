@@ -170,7 +170,7 @@ internal fun LocationDetailContent(
                                 TransportInfoSection(
                                     label = stringResource(R.string.location_detail_transport),
                                     transport = transport,
-                                    onClick = { onTransportClick(destination.id) },
+                                    modifier = Modifier.clickable(role = Role.Button) { onTransportClick(destination.id) },
                                 )
                             } ?: run {
                                 LabeledInfoRow(
@@ -191,7 +191,6 @@ internal fun LocationDetailContent(
 private fun TransportInfoSection(
     label: String,
     transport: Transport,
-    onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val detailSpacing = 4.dp
@@ -199,7 +198,6 @@ private fun TransportInfoSection(
         LabeledInfoRow(
             label = label,
             value = stringResource(transport.type.labelRes),
-            onClick = onClick,
         )
         transport.company?.let { company ->
             Spacer(modifier = Modifier.height(detailSpacing))
