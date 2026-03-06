@@ -98,10 +98,7 @@ fun TransportDetailScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     TransportDetailContent(
         uiState = uiState,
-        onNavigateUp = {
-            viewModel.onSave()
-            onNavigateUp()
-        },
+        onNavigateUp = onNavigateUp,
         onAddLeg = viewModel::onAddLeg,
         onRemoveLeg = viewModel::onRemoveLeg,
         onMoveLegUp = viewModel::onMoveLegUp,
