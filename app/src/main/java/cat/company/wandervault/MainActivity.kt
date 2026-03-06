@@ -28,6 +28,7 @@ import cat.company.wandervault.ui.screens.FavoritesScreen
 import cat.company.wandervault.ui.screens.HomeScreen
 import cat.company.wandervault.ui.screens.LocationDetailScreen
 import cat.company.wandervault.ui.screens.ProfileScreen
+import cat.company.wandervault.ui.screens.TransportDetailScreen
 import cat.company.wandervault.ui.screens.TripDetailScreen
 import cat.company.wandervault.ui.theme.WanderVaultTheme
 
@@ -49,13 +50,24 @@ fun WanderVaultApp() {
     var currentDestination by rememberSaveable { mutableStateOf(AppDestinations.HOME) }
     var tripDetailId by rememberSaveable { mutableStateOf<Int?>(null) }
     var selectedDestinationId by rememberSaveable { mutableStateOf<Int?>(null) }
+    var selectedTransportDestinationId by rememberSaveable { mutableStateOf<Int?>(null) }
 
-    if (selectedDestinationId != null) {
+    if (selectedTransportDestinationId != null) {
+        BackHandler { selectedTransportDestinationId = null }
+        selectedTransportDestinationId?.let { destinationId ->
+            TransportDetailScreen(
+                destinationId = destinationId,
+                onNavigateUp = { selectedTransportDestinationId = null },
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+    } else if (selectedDestinationId != null) {
         BackHandler { selectedDestinationId = null }
         selectedDestinationId?.let { destinationId ->
             LocationDetailScreen(
                 destinationId = destinationId,
                 onNavigateUp = { selectedDestinationId = null },
+                onTransportClick = { selectedTransportDestinationId = it },
                 modifier = Modifier.fillMaxSize(),
             )
         }
@@ -66,6 +78,7 @@ fun WanderVaultApp() {
                 tripId = id,
                 onNavigateUp = { tripDetailId = null },
                 onNavigateToDestination = { selectedDestinationId = it },
+                onNavigateToTransport = { selectedTransportDestinationId = it },
                 modifier = Modifier.fillMaxSize(),
             )
         }

@@ -65,6 +65,7 @@ private enum class TripDetailTab(@StringRes val labelRes: Int, val icon: ImageVe
  * @param tripId The ID of the trip to display.
  * @param onNavigateUp Called when the user taps the back/up button.
  * @param onNavigateToDestination Called when the user taps a destination in the itinerary.
+ * @param onNavigateToTransport Called when the user taps the transport icon in the itinerary.
  * @param modifier Optional [Modifier].
  */
 @Composable
@@ -72,6 +73,7 @@ fun TripDetailScreen(
     tripId: Int,
     onNavigateUp: () -> Unit,
     onNavigateToDestination: (Int) -> Unit = {},
+    onNavigateToTransport: (Int) -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: TripDetailViewModel = koinViewModel(key = "TripDetailViewModel:$tripId", parameters = { parametersOf(tripId) }),
 ) {
@@ -81,6 +83,7 @@ fun TripDetailScreen(
         tripId = tripId,
         onNavigateUp = onNavigateUp,
         onNavigateToDestination = onNavigateToDestination,
+        onNavigateToTransport = onNavigateToTransport,
         modifier = modifier,
     )
 }
@@ -92,6 +95,7 @@ fun TripDetailScreen(
  *
  * @param tripId The ID of the trip – forwarded to [ItineraryTabContent] when the Itinerary tab is selected.
  * @param onNavigateToDestination Called when the user taps a destination in the itinerary tab.
+ * @param onNavigateToTransport Called when the user taps the transport icon in the itinerary tab.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -100,6 +104,7 @@ internal fun TripDetailContent(
     tripId: Int,
     onNavigateUp: () -> Unit,
     onNavigateToDestination: (Int) -> Unit = {},
+    onNavigateToTransport: (Int) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var selectedTab by rememberSaveable { mutableStateOf(TripDetailTab.DETAILS) }
@@ -140,6 +145,7 @@ internal fun TripDetailContent(
                 tripId = tripId,
                 innerPadding = innerPadding,
                 onDestinationClick = onNavigateToDestination,
+                onTransportClick = onNavigateToTransport,
             )
             TripDetailTab.CALENDAR -> CalendarTabContent(tripId = tripId, innerPadding = innerPadding)
         }

@@ -1,6 +1,7 @@
 package cat.company.wandervault.ui.screens
 
 import androidx.annotation.StringRes
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -26,6 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -47,12 +49,14 @@ import java.time.format.FormatStyle
  *
  * @param destinationId The ID of the destination whose details are displayed.
  * @param onNavigateUp Called when the user taps the back/up button.
+ * @param onTransportClick Called with the destination ID when the user taps the transport row.
  * @param modifier Optional [Modifier].
  */
 @Composable
 fun LocationDetailScreen(
     destinationId: Int,
     onNavigateUp: () -> Unit,
+    onTransportClick: (Int) -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: LocationDetailViewModel = koinViewModel(key = "LocationDetailViewModel:$destinationId", parameters = { parametersOf(destinationId) }),
 ) {
@@ -63,6 +67,7 @@ fun LocationDetailScreen(
     LocationDetailContent(
         uiState = uiState,
         onNavigateUp = onNavigateUp,
+        onTransportClick = onTransportClick,
         modifier = modifier,
     )
 }
@@ -77,6 +82,7 @@ fun LocationDetailScreen(
 internal fun LocationDetailContent(
     uiState: LocationDetailUiState,
     onNavigateUp: () -> Unit,
+    onTransportClick: (Int) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val title = when (uiState) {
@@ -164,6 +170,13 @@ internal fun LocationDetailContent(
                                 TransportInfoSection(
                                     label = stringResource(R.string.location_detail_transport),
                                     transport = transport,
+                                    modifier = Modifier.clickable(role = Role.Button) { onTransportClick(destination.id) },
+                                )
+                            } ?: run {
+                                LabeledInfoRow(
+                                    label = stringResource(R.string.location_detail_transport),
+                                    value = stringResource(R.string.transport_none),
+                                    onClick = { onTransportClick(destination.id) },
                                 )
                             }
                         }
@@ -214,9 +227,17 @@ private fun TransportInfoSection(
 private fun LabeledInfoRow(
     label: String,
     value: String,
+    onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier = modifier) {
+    val paddedModifier = modifier.padding(vertical = 4.dp)
+    Column(
+        modifier = if (onClick != null) {
+            paddedModifier.clickable(role = Role.Button, onClick = onClick)
+        } else {
+            paddedModifier
+        },
+    ) {
         Text(
             text = label,
             style = MaterialTheme.typography.labelMedium,

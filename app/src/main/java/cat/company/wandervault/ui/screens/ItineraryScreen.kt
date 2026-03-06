@@ -19,13 +19,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DirectionsBike
 import androidx.compose.material.icons.filled.DirectionsBoat
@@ -102,6 +98,7 @@ internal fun ItineraryTabContent(
     tripId: Int,
     innerPadding: PaddingValues,
     onDestinationClick: (Int) -> Unit = {},
+    onTransportClick: (Int) -> Unit = {},
     viewModel: ItineraryViewModel = koinViewModel(key = "ItineraryViewModel:$tripId", parameters = { parametersOf(tripId) }),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -120,7 +117,7 @@ internal fun ItineraryTabContent(
         onMoveDestinationUp = viewModel::onMoveDestinationUp,
         onMoveDestinationDown = viewModel::onMoveDestinationDown,
         onAddDestinationAfter = { pos -> viewModel.onAddDestinationClick(pos) },
-        onUpdateTransport = viewModel::onUpdateTransport,
+        onTransportClick = onTransportClick,
         onDestinationClick = onDestinationClick,
     )
 }
@@ -147,7 +144,7 @@ internal fun ItineraryContent(
     onMoveDestinationUp: (Destination) -> Unit,
     onMoveDestinationDown: (Destination) -> Unit,
     onAddDestinationAfter: (Int) -> Unit,
-    onUpdateTransport: (Destination, Transport?) -> Unit,
+    onTransportClick: (Int) -> Unit = {},
     onDestinationClick: (Int) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -183,7 +180,7 @@ internal fun ItineraryContent(
                         onMoveUp = { onMoveDestinationUp(destination) },
                         onMoveDown = { onMoveDestinationDown(destination) },
                         onAddAfter = { onAddDestinationAfter(destination.position) },
-                        onSelectTransport = { transport -> onUpdateTransport(destination, transport) },
+                        onTransportClick = { onTransportClick(destination.id) },
                         onClick = { onDestinationClick(destination.id) },
                     )
                 }
@@ -235,24 +232,10 @@ private fun DestinationTimelineItem(
     onMoveUp: () -> Unit,
     onMoveDown: () -> Unit,
     onAddAfter: () -> Unit,
-    onSelectTransport: (Transport?) -> Unit,
+    onTransportClick: () -> Unit = {},
     onClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    var showTransportPicker by rememberSaveable { mutableStateOf(false) }
-
-    if (showTransportPicker) {
-        TransportPickerDialog(
-            destinationId = destination.id,
-            currentTransport = destination.transport,
-            onSelect = { transport ->
-                onSelectTransport(transport)
-                showTransportPicker = false
-            },
-            onDismiss = { showTransportPicker = false },
-        )
-    }
-
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -309,7 +292,7 @@ private fun DestinationTimelineItem(
                                     if (hasTransport) R.string.itinerary_change_transport
                                     else R.string.itinerary_add_transport,
                                 ),
-                                onClick = { showTransportPicker = true },
+                                onClick = onTransportClick,
                             ),
                         contentAlignment = Alignment.Center,
                     ) {
@@ -473,150 +456,6 @@ private val TransportType.labelRes: Int
         TransportType.FLIGHT -> R.string.transport_flight
         TransportType.OTHER -> R.string.transport_other
     }
-
-/**
- * Dialog for choosing (or clearing) the [TransportType] and entering transport details
- * (company, flight/reference number, confirmation number) for a destination leg.
- *
- * @param destinationId The ID of the destination this transport belongs to; always used when
- *   constructing the emitted [Transport] so callers never receive a placeholder `destinationId = 0`.
- * @param currentTransport The existing transport for pre-populating the fields, or `null` if none.
- * @param onSelect Called with the resulting [Transport] (or `null` to clear the transport).
- * @param onDismiss Called when the dialog is dismissed without saving.
- */
-@Composable
-private fun TransportPickerDialog(
-    destinationId: Int,
-    currentTransport: Transport?,
-    onSelect: (Transport?) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    // Store type as its name string to avoid relying on enum Serializable under rememberSaveable.
-    var selectedTypeName by rememberSaveable { mutableStateOf(currentTransport?.type?.name) }
-    val selectedType = selectedTypeName?.let { name ->
-        runCatching { TransportType.valueOf(name) }.getOrNull()
-    }
-    var company by rememberSaveable { mutableStateOf(currentTransport?.company ?: "") }
-    var flightNumber by rememberSaveable { mutableStateOf(currentTransport?.flightNumber ?: "") }
-    var confirmationNumber by rememberSaveable {
-        mutableStateOf(currentTransport?.reservationConfirmationNumber ?: "")
-    }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.itinerary_transport_picker_title)) },
-        text = {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-                modifier = Modifier.verticalScroll(rememberScrollState()),
-            ) {
-                // Render transport options in rows of 4
-                TransportType.entries.chunked(4).forEach { rowItems ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                    ) {
-                        rowItems.forEach { type ->
-                            TransportOption(
-                                icon = type.icon,
-                                label = stringResource(type.labelRes),
-                                isSelected = type == selectedType,
-                                onClick = { selectedTypeName = type.name },
-                            )
-                        }
-                    }
-                }
-                // "None" option to clear the transport
-                Row(modifier = Modifier.fillMaxWidth()) {
-                    TransportOption(
-                        icon = Icons.Default.Close,
-                        label = stringResource(R.string.transport_none),
-                        isSelected = selectedType == null,
-                        onClick = { selectedTypeName = null },
-                    )
-                }
-                // Detail fields shown when a transport type is selected
-                if (selectedType != null) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    OutlinedTextField(
-                        value = company,
-                        onValueChange = { company = it },
-                        label = { Text(stringResource(R.string.transport_company_label)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    OutlinedTextField(
-                        value = flightNumber,
-                        onValueChange = { flightNumber = it },
-                        label = { Text(stringResource(R.string.transport_flight_number_label)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    OutlinedTextField(
-                        value = confirmationNumber,
-                        onValueChange = { confirmationNumber = it },
-                        label = { Text(stringResource(R.string.transport_confirmation_label)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    val type = selectedType
-                    val transport = if (type != null) {
-                        Transport(
-                            id = currentTransport?.id ?: 0,
-                            destinationId = destinationId,
-                            type = type,
-                            company = company.trim().takeIf { it.isNotBlank() },
-                            flightNumber = flightNumber.trim().takeIf { it.isNotBlank() },
-                            reservationConfirmationNumber = confirmationNumber.trim().takeIf { it.isNotBlank() },
-                        )
-                    } else {
-                        null
-                    }
-                    onSelect(transport)
-                },
-            ) { Text(stringResource(R.string.dialog_save)) }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.dialog_cancel)) }
-        },
-    )
-}
-
-@Composable
-private fun TransportOption(
-    icon: ImageVector,
-    label: String,
-    isSelected: Boolean,
-    onClick: () -> Unit,
-) {
-    val contentColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
-            .selectable(selected = isSelected, onClick = onClick, role = Role.RadioButton)
-            .padding(8.dp),
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = contentColor,
-            modifier = Modifier.size(28.dp),
-        )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = contentColor,
-        )
-    }
-}
 
 /**
  * A labelled row showing date and time buttons for a single [LocalDateTime] value.
@@ -870,7 +709,7 @@ private fun ItineraryEmptyPreview() {
             onMoveDestinationUp = {},
             onMoveDestinationDown = {},
             onAddDestinationAfter = {},
-            onUpdateTransport = { _, _ -> },
+            onTransportClick = {},
         )
     }
 }
@@ -907,7 +746,7 @@ private fun ItineraryWithDestinationsPreview() {
             onMoveDestinationUp = {},
             onMoveDestinationDown = {},
             onAddDestinationAfter = {},
-            onUpdateTransport = { _, _ -> },
+            onTransportClick = {},
         )
     }
 }
@@ -934,7 +773,7 @@ private fun ItinerarySingleDestinationPreview() {
             onMoveDestinationUp = {},
             onMoveDestinationDown = {},
             onAddDestinationAfter = {},
-            onUpdateTransport = { _, _ -> },
+            onTransportClick = {},
         )
     }
 }
