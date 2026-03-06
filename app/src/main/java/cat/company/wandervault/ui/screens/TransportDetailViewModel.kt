@@ -40,6 +40,14 @@ class TransportDetailViewModel(
     /** The last destination snapshot received from the database (used in [onSave]). */
     private var _lastDestination: Destination? = null
 
+    /**
+     * True when the user has made unsaved edits.  While true, incoming DB emissions do not
+     * overwrite the edit state so in-progress work is preserved.  Reset to false after
+     * [onSave] so that the next DB emission refreshes the legs with the real persisted IDs,
+     * preventing duplicate inserts on a second save.
+     */
+    private var _hasUnsavedEdits = false
+
     private val _uiState = MutableStateFlow<TransportDetailUiState>(TransportDetailUiState.Loading)
     val uiState: StateFlow<TransportDetailUiState> = _uiState.asStateFlow()
 
@@ -53,10 +61,9 @@ class TransportDetailViewModel(
                         _uiState.value = TransportDetailUiState.Error
                     } else {
                         _lastDestination = destination
-                        val current = _uiState.value
-                        // Preserve any in-progress edits already made by the user.
-                        val legs = if (current is TransportDetailUiState.Success) {
-                            current.legs
+                        // Preserve in-progress edits; only remap from the DB when there are none.
+                        val legs = if (_hasUnsavedEdits && _uiState.value is TransportDetailUiState.Success) {
+                            (_uiState.value as TransportDetailUiState.Success).legs
                         } else {
                             destination.transports.map { it.toEditState() }
                         }
@@ -73,6 +80,7 @@ class TransportDetailViewModel(
     fun loadDestination(id: Int) {
         _uiState.value = TransportDetailUiState.Loading
         _lastDestination = null
+        _hasUnsavedEdits = false
         // Force a new emission even if the same ID is loaded again (StateFlow deduplicates equal values).
         _destinationId.value = null
         _destinationId.value = id
@@ -80,31 +88,46 @@ class TransportDetailViewModel(
 
     /** Adds a new empty leg to the end of the list. */
     fun onAddLeg() {
+        _hasUnsavedEdits = true
         updateLegs { this + TransportLegEditState() }
     }
 
     /** Removes the leg at the given [index]. */
     fun onRemoveLeg(index: Int) {
-        updateLegs { toMutableList().also { it.removeAt(index) } }
+        updateLegs {
+            val mutable = toMutableList()
+            if (index in mutable.indices) {
+                // Only mark dirty if the list actually changes (no-op for out-of-range indices).
+                _hasUnsavedEdits = true
+                mutable.removeAt(index)
+                mutable
+            } else {
+                this
+            }
+        }
     }
 
     /** Updates the selected transport type for the leg at [index]. */
     fun onTypeSelected(index: Int, typeName: String?) {
+        _hasUnsavedEdits = true
         updateLeg(index) { copy(typeName = typeName) }
     }
 
     /** Updates the company/carrier name field for the leg at [index]. */
     fun onCompanyChange(index: Int, value: String) {
+        _hasUnsavedEdits = true
         updateLeg(index) { copy(company = value) }
     }
 
     /** Updates the flight/reference number field for the leg at [index]. */
     fun onFlightNumberChange(index: Int, value: String) {
+        _hasUnsavedEdits = true
         updateLeg(index) { copy(flightNumber = value) }
     }
 
     /** Updates the reservation confirmation number field for the leg at [index]. */
     fun onConfirmationNumberChange(index: Int, value: String) {
+        _hasUnsavedEdits = true
         updateLeg(index) { copy(confirmationNumber = value) }
     }
 
@@ -119,6 +142,9 @@ class TransportDetailViewModel(
     fun onSave() {
         val destination = _lastDestination ?: return
         val state = _uiState.value as? TransportDetailUiState.Success ?: return
+        // Clear the dirty flag before persisting so the next DB emission will remap from
+        // the real persisted IDs, preventing duplicate inserts on a second save.
+        _hasUnsavedEdits = false
         viewModelScope.launch {
             val existingById = destination.transports.associateBy { it.id }
             val editedIds = mutableSetOf<Int>()

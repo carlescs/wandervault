@@ -196,7 +196,7 @@ private fun TransportsInfoSection(
     Column(modifier = modifier) {
         transports.forEachIndexed { index, transport ->
             val legLabel = if (transports.size > 1) {
-                "$label ${index + 1}"
+                stringResource(R.string.transport_leg_label, label, index + 1)
             } else {
                 label
             }
@@ -207,6 +207,9 @@ private fun TransportsInfoSection(
         }
     }
 }
+
+@Composable
+private fun TransportInfoSection(
     label: String,
     transport: Transport,
     modifier: Modifier = Modifier,
