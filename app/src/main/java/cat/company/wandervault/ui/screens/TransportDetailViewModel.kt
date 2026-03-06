@@ -215,6 +215,14 @@ class TransportDetailViewModel(
                     runCatching { TransportType.valueOf(name) }.getOrNull()
                 } ?: return@forEachIndexed
 
+                // The last leg ends at the final destination; its stopName is not editable and
+                // should always be stored as null.
+                val stopName = if (position == state.legs.lastIndex) {
+                    null
+                } else {
+                    leg.stopName.trim().takeIf { it.isNotBlank() }
+                }
+
                 if (leg.id > 0) {
                     editedIds.add(leg.id)
                     val existing = existingLegsById[leg.id]
@@ -223,7 +231,7 @@ class TransportDetailViewModel(
                             existing.copy(
                                 type = selectedType,
                                 position = position,
-                                stopName = leg.stopName.trim().takeIf { it.isNotBlank() },
+                                stopName = stopName,
                                 company = leg.company.trim().takeIf { it.isNotBlank() },
                                 flightNumber = leg.flightNumber.trim().takeIf { it.isNotBlank() },
                                 reservationConfirmationNumber = leg.confirmationNumber.trim().takeIf { it.isNotBlank() },
@@ -237,7 +245,7 @@ class TransportDetailViewModel(
                             transportId = transportId,
                             type = selectedType,
                             position = position,
-                            stopName = leg.stopName.trim().takeIf { it.isNotBlank() },
+                            stopName = stopName,
                             company = leg.company.trim().takeIf { it.isNotBlank() },
                             flightNumber = leg.flightNumber.trim().takeIf { it.isNotBlank() },
                             reservationConfirmationNumber = leg.confirmationNumber.trim().takeIf { it.isNotBlank() },
