@@ -73,7 +73,9 @@ class LocationDetailViewModel(
 
     /** Switch the screen to display the destination with the given [id]. */
     fun loadDestination(id: Int) {
-        _uiState.value = LocationDetailUiState.Loading
-        _destinationId.value = id
+        if (_destinationId.value != id) {
+            _uiState.value = LocationDetailUiState.Loading
+            _destinationId.value = id
+        }
     }
 }
