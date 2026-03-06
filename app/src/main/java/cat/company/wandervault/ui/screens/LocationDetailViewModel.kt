@@ -4,12 +4,15 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import cat.company.wandervault.domain.usecase.GetArrivalTransportForDestinationUseCase
 import cat.company.wandervault.domain.usecase.GetDestinationByIdUseCase
+import cat.company.wandervault.domain.usecase.GetDestinationsForTripUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 /**
@@ -21,10 +24,13 @@ import kotlinx.coroutines.launch
  *
  * @param getDestinationById Use-case that fetches a single destination by ID.
  * @param getArrivalTransport Use-case that fetches the transport used to arrive at a destination.
+ * @param getDestinationsForTrip Use-case that fetches all destinations for a trip, used to
+ *   determine whether the destination is the first or last stop.
  */
 class LocationDetailViewModel(
     private val getDestinationById: GetDestinationByIdUseCase,
     private val getArrivalTransport: GetArrivalTransportForDestinationUseCase,
+    private val getDestinationsForTrip: GetDestinationsForTripUseCase,
 ) : ViewModel() {
 
     private val _destinationId = MutableStateFlow<Int?>(null)
@@ -41,10 +47,24 @@ class LocationDetailViewModel(
                         getDestinationById(id),
                         getArrivalTransport(id),
                     ) { destination, arrivalTransport ->
-                        if (destination != null) {
-                            LocationDetailUiState.Success(destination, arrivalTransport)
+                        destination to arrivalTransport
+                    }.flatMapLatest { (destination, arrivalTransport) ->
+                        if (destination == null) {
+                            flowOf(LocationDetailUiState.Error)
                         } else {
-                            LocationDetailUiState.Error
+                            getDestinationsForTrip(destination.tripId).map { tripDestinations ->
+                                val sortedPositions = tripDestinations.map { it.position }.sorted()
+                                val isFirst = sortedPositions.isNotEmpty() &&
+                                    destination.position == sortedPositions.first()
+                                val isLast = sortedPositions.isNotEmpty() &&
+                                    destination.position == sortedPositions.last()
+                                LocationDetailUiState.Success(
+                                    destination = destination,
+                                    arrivalTransport = arrivalTransport,
+                                    isFirst = isFirst,
+                                    isLast = isLast,
+                                )
+                            }
                         }
                     }
                 }

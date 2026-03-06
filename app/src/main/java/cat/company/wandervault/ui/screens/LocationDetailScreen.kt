@@ -130,6 +130,8 @@ internal fun LocationDetailContent(
             is LocationDetailUiState.Success -> {
                 val destination = uiState.destination
                 val arrivalTransport = uiState.arrivalTransport
+                val isFirst = uiState.isFirst
+                val isLast = uiState.isLast
                 val locale = LocalConfiguration.current.locales[0]
                 val dateTimeFormatter = remember(locale) {
                     DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
@@ -146,39 +148,43 @@ internal fun LocationDetailContent(
                                 style = MaterialTheme.typography.headlineMedium,
                             )
                             Spacer(modifier = Modifier.height(16.dp))
-                            destination.arrivalDateTime?.let { arrival ->
-                                LabeledInfoRow(
-                                    label = stringResource(R.string.location_detail_arrival),
-                                    value = arrival.format(dateTimeFormatter),
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
+                            if (!isFirst) {
+                                destination.arrivalDateTime?.let { arrival ->
+                                    LabeledInfoRow(
+                                        label = stringResource(R.string.location_detail_arrival),
+                                        value = arrival.format(dateTimeFormatter),
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                }
+                                if (arrivalTransport != null) {
+                                    TransportsInfoSection(
+                                        label = stringResource(R.string.location_detail_arrival_transport),
+                                        transport = arrivalTransport,
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                }
                             }
-                            if (arrivalTransport != null) {
-                                TransportsInfoSection(
-                                    label = stringResource(R.string.location_detail_arrival_transport),
-                                    transport = arrivalTransport,
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                            }
-                            destination.departureDateTime?.let { departure ->
-                                LabeledInfoRow(
-                                    label = stringResource(R.string.location_detail_departure),
-                                    value = departure.format(dateTimeFormatter),
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                            }
-                            if (destination.transport != null) {
-                                TransportsInfoSection(
-                                    label = stringResource(R.string.location_detail_transport),
-                                    transport = destination.transport,
-                                    modifier = Modifier.clickable(role = Role.Button) { onTransportClick(destination.id) },
-                                )
-                            } else {
-                                LabeledInfoRow(
-                                    label = stringResource(R.string.location_detail_transport),
-                                    value = stringResource(R.string.transport_none),
-                                    onClick = { onTransportClick(destination.id) },
-                                )
+                            if (!isLast) {
+                                destination.departureDateTime?.let { departure ->
+                                    LabeledInfoRow(
+                                        label = stringResource(R.string.location_detail_departure),
+                                        value = departure.format(dateTimeFormatter),
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                }
+                                if (destination.transport != null) {
+                                    TransportsInfoSection(
+                                        label = stringResource(R.string.location_detail_transport),
+                                        transport = destination.transport,
+                                        modifier = Modifier.clickable(role = Role.Button) { onTransportClick(destination.id) },
+                                    )
+                                } else {
+                                    LabeledInfoRow(
+                                        label = stringResource(R.string.location_detail_transport),
+                                        value = stringResource(R.string.transport_none),
+                                        onClick = { onTransportClick(destination.id) },
+                                    )
+                                }
                             }
                         }
                     }
@@ -288,28 +294,27 @@ private val TransportType.labelRes: Int
 
 @Preview(showBackground = true)
 @Composable
-private fun LocationDetailPreview() {
+private fun LocationDetailIntermediatePreview() {
     val destination = Destination(
-        id = 1,
+        id = 2,
         tripId = 1,
         name = "Paris",
-        position = 0,
-        arrivalDateTime = LocalDateTime.of(2024, 6, 3, 10, 30),
-        departureDateTime = LocalDateTime.of(2024, 6, 7, 14, 0),
+        position = 1,
+        arrivalDateTime = LocalDateTime.of(2024, 6, 1, 12, 30),
+        departureDateTime = LocalDateTime.of(2024, 6, 3, 10, 0),
         transport = Transport(
-            id = 1,
-            destinationId = 1,
+            id = 2,
+            destinationId = 2,
             legs = listOf(
-                TransportLeg(transportId = 1, type = TransportType.FLIGHT, company = "Air France", flightNumber = "AF1234"),
-                TransportLeg(transportId = 1, type = TransportType.TRAIN, position = 1, company = "RATP"),
+                TransportLeg(transportId = 2, type = TransportType.TRAIN, company = "Eurostar", reservationConfirmationNumber = "ES9024"),
             ),
         ),
     )
     val arrivalTransport = Transport(
-        id = 2,
-        destinationId = 0,
+        id = 1,
+        destinationId = 1,
         legs = listOf(
-            TransportLeg(transportId = 2, type = TransportType.TRAIN, company = "Eurostar", flightNumber = "ES9024"),
+            TransportLeg(transportId = 1, type = TransportType.FLIGHT, company = "Air France", flightNumber = "AF1234"),
         ),
     )
     WanderVaultTheme {
@@ -317,6 +322,68 @@ private fun LocationDetailPreview() {
             uiState = LocationDetailUiState.Success(
                 destination = destination,
                 arrivalTransport = arrivalTransport,
+                isFirst = false,
+                isLast = false,
+            ),
+            onNavigateUp = {},
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun LocationDetailFirstStopPreview() {
+    val destination = Destination(
+        id = 1,
+        tripId = 1,
+        name = "London",
+        position = 0,
+        departureDateTime = LocalDateTime.of(2024, 6, 1, 9, 0),
+        transport = Transport(
+            id = 1,
+            destinationId = 1,
+            legs = listOf(
+                TransportLeg(transportId = 1, type = TransportType.FLIGHT, company = "Air France", flightNumber = "AF1234"),
+            ),
+        ),
+    )
+    WanderVaultTheme {
+        LocationDetailContent(
+            uiState = LocationDetailUiState.Success(
+                destination = destination,
+                arrivalTransport = null,
+                isFirst = true,
+                isLast = false,
+            ),
+            onNavigateUp = {},
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun LocationDetailLastStopPreview() {
+    val destination = Destination(
+        id = 3,
+        tripId = 1,
+        name = "Rome",
+        position = 2,
+        arrivalDateTime = LocalDateTime.of(2024, 6, 3, 14, 0),
+    )
+    val arrivalTransport = Transport(
+        id = 2,
+        destinationId = 2,
+        legs = listOf(
+            TransportLeg(transportId = 2, type = TransportType.TRAIN, company = "Trenitalia", reservationConfirmationNumber = "FR9302"),
+        ),
+    )
+    WanderVaultTheme {
+        LocationDetailContent(
+            uiState = LocationDetailUiState.Success(
+                destination = destination,
+                arrivalTransport = arrivalTransport,
+                isFirst = false,
+                isLast = true,
             ),
             onNavigateUp = {},
         )
