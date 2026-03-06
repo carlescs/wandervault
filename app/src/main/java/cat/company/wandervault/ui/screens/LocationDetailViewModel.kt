@@ -53,11 +53,10 @@ class LocationDetailViewModel(
                             flowOf(LocationDetailUiState.Error)
                         } else {
                             getDestinationsForTrip(destination.tripId).map { tripDestinations ->
-                                val sortedPositions = tripDestinations.map { it.position }.sorted()
-                                val isFirst = sortedPositions.isNotEmpty() &&
-                                    destination.position == sortedPositions.first()
-                                val isLast = sortedPositions.isNotEmpty() &&
-                                    destination.position == sortedPositions.last()
+                                val firstPosition = tripDestinations.firstOrNull()?.position
+                                val lastPosition = tripDestinations.lastOrNull()?.position
+                                val isFirst = destination.position == firstPosition
+                                val isLast = destination.position == lastPosition
                                 LocationDetailUiState.Success(
                                     destination = destination,
                                     arrivalTransport = arrivalTransport,
