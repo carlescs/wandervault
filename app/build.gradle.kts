@@ -74,6 +74,9 @@ android {
     buildFeatures {
         compose = true
     }
+    androidResources {
+        localeFilters += "en"
+    }
 }
 
 ksp {
