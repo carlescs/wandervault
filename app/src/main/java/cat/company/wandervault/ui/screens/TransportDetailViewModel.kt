@@ -77,6 +77,8 @@ class TransportDetailViewModel(
     fun loadDestination(id: Int) {
         _uiState.value = TransportDetailUiState.Loading
         _lastDestination = null
+        // Force a new emission even if the same ID is loaded again (StateFlow deduplicates equal values).
+        _destinationId.value = null
         _destinationId.value = id
     }
 
