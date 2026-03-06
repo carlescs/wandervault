@@ -74,13 +74,19 @@ fun WanderVaultApp() {
             )
         }
     } else if (tripDetailId != null) {
-        BackHandler { tripDetailId = null }
+        BackHandler {
+            tripDetailId?.let { id ->
+                saveableStateHolder.removeState("TripDetail:$id")
+                tripDetailId = null
+            }
+        }
         tripDetailId?.let { id ->
-            saveableStateHolder.SaveableStateProvider(key = id) {
+            val tripDetailKey = "TripDetail:$id"
+            saveableStateHolder.SaveableStateProvider(key = tripDetailKey) {
                 TripDetailScreen(
                     tripId = id,
                     onNavigateUp = {
-                        saveableStateHolder.removeState(id)
+                        saveableStateHolder.removeState(tripDetailKey)
                         tripDetailId = null
                     },
                     onNavigateToDestination = { selectedDestinationId = it },
