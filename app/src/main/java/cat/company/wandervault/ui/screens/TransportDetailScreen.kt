@@ -422,13 +422,14 @@ private fun TransportLegsTabContent(
         uiState.legs.forEachIndexed { index, leg ->
             key(leg.clientKey) {
                 val isLastLeg = index == uiState.legs.lastIndex
-                // Leg card: type selector + booking details + move controls.
-                // Intermediate legs are deleted via their corresponding IntermediateLegStop
-                // delete button below.
+                // Leg card: type selector + booking details + move/delete controls.
+                // Intermediate legs are deleted via their corresponding IntermediateLegStop delete
+                // button below; the last leg has an explicit delete button in the card header.
                 TransportLegSection(
                     index = index,
                     totalLegs = uiState.legs.size,
                     leg = leg,
+                    onRemove = if (isLastLeg) { { onRemoveLeg(index) } } else null,
                     onMoveUp = { onMoveLegUp(index) },
                     onMoveDown = { onMoveLegDown(index) },
                     onTypeSelected = { typeName -> onTypeSelected(index, typeName) },
@@ -559,6 +560,7 @@ private fun TransportLegSection(
     index: Int,
     totalLegs: Int,
     leg: TransportLegEditState,
+    onRemove: (() -> Unit)?,
     onMoveUp: () -> Unit,
     onMoveDown: () -> Unit,
     onTypeSelected: (String?) -> Unit,
@@ -581,7 +583,7 @@ private fun TransportLegSection(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            // Leg header: leg number + move up/down controls
+            // Leg header: leg number + move up/down + delete (shown only for the last leg)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -618,6 +620,15 @@ private fun TransportLegSection(
                             MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
                         },
                     )
+                }
+                if (onRemove != null) {
+                    IconButton(onClick = onRemove) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = stringResource(R.string.transport_detail_remove_leg),
+                            tint = MaterialTheme.colorScheme.error,
+                        )
+                    }
                 }
             }
 
