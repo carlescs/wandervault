@@ -392,42 +392,49 @@ private fun DestinationTimelineItem(
 
             if (!isLast) {
                 // Show transport details for all legs when set
+                val legIconSize = 12.dp
+                val legIconSpacing = 4.dp
                 destination.transport?.legs?.forEach { leg ->
-                    // Show the type + stop name if a meaningful stop is set for this leg
-                    leg.stopName?.takeIf { it.isNotBlank() }?.let { stopName ->
-                        Row(
-                            modifier = Modifier.padding(top = 2.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        ) {
-                            Icon(
-                                imageVector = leg.type.icon,
-                                contentDescription = null,
-                                modifier = Modifier.size(12.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            Text(
-                                text = stopName,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                    }
-                    val details = listOfNotNull(
+                    // Show the type icon + type label + booking details first
+                    val typeLabel = stringResource(leg.type.labelRes)
+                    val bookingDetails = listOfNotNull(
                         leg.company,
                         leg.flightNumber,
                         leg.reservationConfirmationNumber,
                     )
-                    if (details.isNotEmpty()) {
+                    val rowText = if (bookingDetails.isNotEmpty()) {
+                        "$typeLabel · ${bookingDetails.joinToString(" · ")}"
+                    } else {
+                        typeLabel
+                    }
+                    Row(
+                        modifier = Modifier.padding(top = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(legIconSpacing),
+                    ) {
+                        Icon(
+                            imageVector = leg.type.icon,
+                            contentDescription = typeLabel,
+                            modifier = Modifier.size(legIconSize),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                         Text(
-                            text = details.joinToString(" · "),
+                            text = rowText,
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.padding(top = 2.dp),
+                        )
+                    }
+                    // Show the stop name (intermediate destination) after booking details
+                    leg.stopName?.takeIf { it.isNotBlank() }?.let { stopName ->
+                        Text(
+                            text = stopName,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(top = 2.dp, start = legIconSize + legIconSpacing),
                         )
                     }
                 }
