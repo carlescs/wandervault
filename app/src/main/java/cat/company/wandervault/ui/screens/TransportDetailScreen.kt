@@ -508,7 +508,8 @@ private fun LegTimelineStop(
 
 /**
  * An editable intermediate stop shown between two leg cards (or between the last leg card and
- * the final destination).  When [stopName] is blank the field is shown as a placeholder.
+ * the final destination).  When [stopName] is blank the [OutlinedTextField] shows only its
+ * floating label; the user types directly into the empty field.
  */
 @Composable
 private fun IntermediateLegStop(

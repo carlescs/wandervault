@@ -163,14 +163,20 @@ class TransportDetailViewModel(
 
     /** Moves the leg at [index] one position up (swaps with the leg at [index] - 1). */
     fun onMoveLegUp(index: Int) {
-        _hasUnsavedEdits = true
-        updateLegs { swapLegs(index, index - 1) }
+        updateLegs {
+            val swapped = swapLegs(index, index - 1)
+            if (swapped !== this) _hasUnsavedEdits = true
+            swapped
+        }
     }
 
     /** Moves the leg at [index] one position down (swaps with the leg at [index] + 1). */
     fun onMoveLegDown(index: Int) {
-        _hasUnsavedEdits = true
-        updateLegs { swapLegs(index, index + 1) }
+        updateLegs {
+            val swapped = swapLegs(index, index + 1)
+            if (swapped !== this) _hasUnsavedEdits = true
+            swapped
+        }
     }
 
     /**
