@@ -21,6 +21,9 @@ interface DestinationDao {
     @Query("SELECT * FROM destinations WHERE id = :id")
     fun getById(id: Int): Flow<DestinationEntity?>
 
+    @Query("SELECT * FROM destinations WHERE tripId = :tripId AND position = :position LIMIT 1")
+    fun getByTripIdAndPosition(tripId: Int, position: Int): Flow<DestinationEntity?>
+
     @Query("SELECT * FROM destinations WHERE tripId = :tripId ORDER BY position ASC")
     fun getByTripId(tripId: Int): Flow<List<DestinationEntity>>
 

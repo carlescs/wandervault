@@ -8,6 +8,7 @@ import cat.company.wandervault.domain.model.TransportType
 import cat.company.wandervault.domain.usecase.DeleteTransportUseCase
 import cat.company.wandervault.domain.usecase.DeleteTransportLegUseCase
 import cat.company.wandervault.domain.usecase.GetDestinationByIdUseCase
+import cat.company.wandervault.domain.usecase.GetNextDestinationUseCase
 import cat.company.wandervault.domain.usecase.GetOrCreateTransportForDestinationUseCase
 import cat.company.wandervault.domain.usecase.SaveTransportLegUseCase
 import cat.company.wandervault.domain.usecase.UpdateTransportLegUseCase
@@ -16,6 +17,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 /**
@@ -27,6 +30,8 @@ import kotlinx.coroutines.launch
  *
  * @param getDestinationById Use-case that fetches a destination by ID.
  * @param getOrCreateTransport Use-case that gets or creates the parent transport for a destination.
+ * @param getNextDestination Use-case that fetches the next destination in the trip itinerary
+ *   (used to resolve the destination name shown on the Details tab).
  * @param saveTransportLeg Use-case that persists a new transport leg.
  * @param updateTransportLeg Use-case that updates an existing transport leg.
  * @param deleteTransportLeg Use-case that removes a transport leg.
@@ -35,6 +40,7 @@ import kotlinx.coroutines.launch
 class TransportDetailViewModel(
     private val getDestinationById: GetDestinationByIdUseCase,
     private val getOrCreateTransport: GetOrCreateTransportForDestinationUseCase,
+    private val getNextDestination: GetNextDestinationUseCase,
     private val saveTransportLeg: SaveTransportLegUseCase,
     private val updateTransportLeg: UpdateTransportLegUseCase,
     private val deleteTransportLeg: DeleteTransportLegUseCase,
@@ -62,7 +68,16 @@ class TransportDetailViewModel(
             _destinationId
                 .filterNotNull()
                 .flatMapLatest { id -> getDestinationById(id) }
-                .collect { destination ->
+                .flatMapLatest { destination ->
+                    if (destination == null) {
+                        flowOf(Pair<Destination?, Destination?>(null, null))
+                    } else {
+                        getNextDestination(destination).map { nextDest ->
+                            Pair(destination, nextDest)
+                        }
+                    }
+                }
+                .collect { (destination, nextDestination) ->
                     if (destination == null) {
                         _uiState.value = TransportDetailUiState.Error
                     } else {
@@ -75,6 +90,8 @@ class TransportDetailViewModel(
                         }
                         _uiState.value = TransportDetailUiState.Success(
                             destinationName = destination.name,
+                            originName = destination.name,
+                            nextDestinationName = nextDestination?.name,
                             legs = legs,
                         )
                     }
@@ -92,10 +109,11 @@ class TransportDetailViewModel(
         _destinationId.value = id
     }
 
-    /** Adds a new empty leg to the end of the list. */
+    /** Adds a new empty leg to the end of the list, inheriting the type of the last existing leg. */
     fun onAddLeg() {
         _hasUnsavedEdits = true
-        updateLegs { this + TransportLegEditState() }
+        val lastTypeName = (_uiState.value as? TransportDetailUiState.Success)?.legs?.lastOrNull()?.typeName
+        updateLegs { this + TransportLegEditState(typeName = lastTypeName) }
     }
 
     /** Removes the leg at the given [index]. */
@@ -117,6 +135,12 @@ class TransportDetailViewModel(
     fun onTypeSelected(index: Int, typeName: String?) {
         _hasUnsavedEdits = true
         updateLeg(index) { copy(typeName = typeName) }
+    }
+
+    /** Updates the stop name field for the leg at [index]. */
+    fun onStopNameChange(index: Int, value: String) {
+        _hasUnsavedEdits = true
+        updateLeg(index) { copy(stopName = value) }
     }
 
     /** Updates the company/carrier name field for the leg at [index]. */
@@ -181,6 +205,7 @@ class TransportDetailViewModel(
                             existing.copy(
                                 type = selectedType,
                                 position = position,
+                                stopName = leg.stopName.trim().takeIf { it.isNotBlank() },
                                 company = leg.company.trim().takeIf { it.isNotBlank() },
                                 flightNumber = leg.flightNumber.trim().takeIf { it.isNotBlank() },
                                 reservationConfirmationNumber = leg.confirmationNumber.trim().takeIf { it.isNotBlank() },
@@ -194,6 +219,7 @@ class TransportDetailViewModel(
                             transportId = transportId,
                             type = selectedType,
                             position = position,
+                            stopName = leg.stopName.trim().takeIf { it.isNotBlank() },
                             company = leg.company.trim().takeIf { it.isNotBlank() },
                             flightNumber = leg.flightNumber.trim().takeIf { it.isNotBlank() },
                             reservationConfirmationNumber = leg.confirmationNumber.trim().takeIf { it.isNotBlank() },
@@ -226,7 +252,9 @@ class TransportDetailViewModel(
 private fun TransportLeg.toEditState() = TransportLegEditState(
     id = id,
     typeName = type.name,
+    stopName = stopName ?: "",
     company = company ?: "",
     flightNumber = flightNumber ?: "",
     confirmationNumber = reservationConfirmationNumber ?: "",
 )
+

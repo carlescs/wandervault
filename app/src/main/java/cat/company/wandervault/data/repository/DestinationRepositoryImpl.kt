@@ -33,6 +33,10 @@ class DestinationRepositoryImpl(
             }
         }
 
+    // transport is intentionally not loaded here — name-only lookup per the repository contract.
+    override fun getDestinationByTripAndPosition(tripId: Int, position: Int): Flow<Destination?> =
+        dao.getByTripIdAndPosition(tripId, position).map { entity -> entity?.toDomain(null) }
+
     override fun getDestinationsForTrip(tripId: Int): Flow<List<Destination>> =
         combine(
             dao.getByTripId(tripId),

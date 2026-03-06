@@ -34,6 +34,8 @@ data class TransportLegEntity(
     val type: String,
     /** Zero-based order of this leg among all legs for the same transport. */
     val position: Int = 0,
+    /** The name of the stop or place where this leg ends (intermediate city, airport, etc.). */
+    val stopName: String? = null,
     /** The carrier or company name (e.g. airline, bus operator). */
     val company: String? = null,
     /** The flight, train, or route number for this leg. */
