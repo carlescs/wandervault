@@ -15,6 +15,7 @@ import cat.company.wandervault.domain.usecase.UpdateTransportLegUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
@@ -25,7 +26,9 @@ import kotlinx.coroutines.launch
  * ViewModel for the Transport Detail screen.
  *
  * Loads the destination by ID and manages inline editing of its transport legs.
- * Multiple legs can be added, edited, or removed before saving.
+ * Multiple legs can be added, edited, or removed. Changes are persisted automatically
+ * after a short debounce delay; [onSave] can also be called explicitly (e.g., on navigate-away)
+ * to flush any pending edits immediately.
  * Call [loadDestination] to start observing a destination.
  *
  * @param getDestinationById Use-case that fetches a destination by ID.
@@ -102,6 +105,13 @@ class TransportDetailViewModel(
                         )
                     }
                 }
+        }
+
+        // Auto-save: persist changes to the database after a short delay once editing stops.
+        viewModelScope.launch {
+            _uiState
+                .debounce(AUTO_SAVE_DEBOUNCE_MS)
+                .collect { onSave() }
         }
     }
 
@@ -188,12 +198,16 @@ class TransportDetailViewModel(
     /**
      * Persists the current list of legs to the database.
      *
+     * This is called automatically by the debounced auto-save, and also explicitly when the
+     * user navigates away to flush any edits that were made within the debounce window.
+     *
      * - If all legs are empty/cleared, the parent transport is deleted (which cascade-deletes legs).
      * - Otherwise, the parent transport is created if it doesn't exist yet, and legs are
      *   inserted, updated, or deleted as required.
      * - Legs with no transport type selected are skipped (treated as empty).
      */
     fun onSave() {
+        if (!_hasUnsavedEdits) return
         val destination = _lastDestination ?: return
         val state = _uiState.value as? TransportDetailUiState.Success ?: return
         // Clear the dirty flag before persisting so the next DB emission will remap from
@@ -294,6 +308,11 @@ class TransportDetailViewModel(
         mutable[indexA] = mutable[indexB]
         mutable[indexB] = tmp
         return mutable
+    }
+
+    companion object {
+        /** Debounce delay in milliseconds before auto-saving leg edits to the database. */
+        private const val AUTO_SAVE_DEBOUNCE_MS = 300L
     }
 }
 
