@@ -108,10 +108,6 @@ fun TransportDetailScreen(
         onCompanyChange = viewModel::onCompanyChange,
         onFlightNumberChange = viewModel::onFlightNumberChange,
         onConfirmationNumberChange = viewModel::onConfirmationNumberChange,
-        onSave = {
-            viewModel.onSave()
-            onNavigateUp()
-        },
         modifier = modifier,
     )
 }
@@ -136,7 +132,6 @@ internal fun TransportDetailContent(
     onCompanyChange: (Int, String) -> Unit,
     onFlightNumberChange: (Int, String) -> Unit,
     onConfirmationNumberChange: (Int, String) -> Unit,
-    onSave: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var selectedTab by rememberSaveable { mutableStateOf(TransportDetailTab.DETAILS) }
@@ -156,14 +151,6 @@ internal fun TransportDetailContent(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = stringResource(R.string.transport_detail_navigate_up),
                         )
-                    }
-                },
-                actions = {
-                    TextButton(
-                        onClick = onSave,
-                        enabled = uiState is TransportDetailUiState.Success,
-                    ) {
-                        Text(stringResource(R.string.dialog_save))
                     }
                 },
             )
@@ -773,7 +760,6 @@ private fun TransportDetailMultiLegPreview() {
             onCompanyChange = { _, _ -> },
             onFlightNumberChange = { _, _ -> },
             onConfirmationNumberChange = { _, _ -> },
-            onSave = {},
         )
     }
 }
@@ -807,7 +793,6 @@ private fun TransportDetailSingleLegPreview() {
             onCompanyChange = { _, _ -> },
             onFlightNumberChange = { _, _ -> },
             onConfirmationNumberChange = { _, _ -> },
-            onSave = {},
         )
     }
 }
@@ -833,7 +818,6 @@ private fun TransportDetailNoLegsPreview() {
             onCompanyChange = { _, _ -> },
             onFlightNumberChange = { _, _ -> },
             onConfirmationNumberChange = { _, _ -> },
-            onSave = {},
         )
     }
 }
@@ -854,7 +838,6 @@ private fun TransportDetailLoadingPreview() {
             onCompanyChange = { _, _ -> },
             onFlightNumberChange = { _, _ -> },
             onConfirmationNumberChange = { _, _ -> },
-            onSave = {},
         )
     }
 }
