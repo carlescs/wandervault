@@ -60,6 +60,12 @@ class TransportDetailViewModel(
      */
     private var _hasUnsavedEdits = false
 
+    /**
+     * Counter used to assign unique negative [TransportLegEditState.clientKey] values to new
+     * (unsaved) legs.  Negative values avoid collision with positive database IDs.
+     */
+    private var _nextClientKey = -1
+
     private val _uiState = MutableStateFlow<TransportDetailUiState>(TransportDetailUiState.Loading)
     val uiState: StateFlow<TransportDetailUiState> = _uiState.asStateFlow()
 
@@ -113,7 +119,7 @@ class TransportDetailViewModel(
     fun onAddLeg() {
         _hasUnsavedEdits = true
         val lastTypeName = (_uiState.value as? TransportDetailUiState.Success)?.legs?.lastOrNull()?.typeName
-        updateLegs { this + TransportLegEditState(typeName = lastTypeName) }
+        updateLegs { this + TransportLegEditState(clientKey = _nextClientKey--, typeName = lastTypeName) }
     }
 
     /** Removes the leg at the given [index]. */
@@ -293,6 +299,7 @@ class TransportDetailViewModel(
 
 private fun TransportLeg.toEditState() = TransportLegEditState(
     id = id,
+    clientKey = id,
     typeName = type.name,
     stopName = stopName ?: "",
     company = company ?: "",

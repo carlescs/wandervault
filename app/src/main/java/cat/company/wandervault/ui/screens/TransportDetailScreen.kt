@@ -51,6 +51,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -419,33 +420,35 @@ private fun TransportLegsTabContent(
         }
 
         uiState.legs.forEachIndexed { index, leg ->
-            val isLastLeg = index == uiState.legs.lastIndex
-            // Leg card: type selector + booking details + move/delete controls.
-            // The delete button is only shown on the last leg; intermediate legs are deleted via
-            // their corresponding IntermediateLegStop delete button below.
-            TransportLegSection(
-                index = index,
-                totalLegs = uiState.legs.size,
-                leg = leg,
-                onRemove = if (isLastLeg) { { onRemoveLeg(index) } } else null,
-                onMoveUp = { onMoveLegUp(index) },
-                onMoveDown = { onMoveLegDown(index) },
-                onTypeSelected = { typeName -> onTypeSelected(index, typeName) },
-                onCompanyChange = { value -> onCompanyChange(index, value) },
-                onFlightNumberChange = { value -> onFlightNumberChange(index, value) },
-                onConfirmationNumberChange = { value -> onConfirmationNumberChange(index, value) },
-            )
-
-            // Editable intermediate stop shown only between legs.
-            // The last leg ends at the final destination, which is already displayed below.
-            // The delete button on the stop deletes the leg that ends there (this leg, at [index]),
-            // which removes both the leg and its destination stop in one action.
-            if (!isLastLeg) {
-                IntermediateLegStop(
-                    stopName = leg.stopName,
-                    onStopNameChange = { value -> onStopNameChange(index, value) },
-                    onRemove = { onRemoveLeg(index) },
+            key(leg.clientKey) {
+                val isLastLeg = index == uiState.legs.lastIndex
+                // Leg card: type selector + booking details + move/delete controls.
+                // The delete button is only shown on the last leg; intermediate legs are deleted via
+                // their corresponding IntermediateLegStop delete button below.
+                TransportLegSection(
+                    index = index,
+                    totalLegs = uiState.legs.size,
+                    leg = leg,
+                    onRemove = if (isLastLeg) { { onRemoveLeg(index) } } else null,
+                    onMoveUp = { onMoveLegUp(index) },
+                    onMoveDown = { onMoveLegDown(index) },
+                    onTypeSelected = { typeName -> onTypeSelected(index, typeName) },
+                    onCompanyChange = { value -> onCompanyChange(index, value) },
+                    onFlightNumberChange = { value -> onFlightNumberChange(index, value) },
+                    onConfirmationNumberChange = { value -> onConfirmationNumberChange(index, value) },
                 )
+
+                // Editable intermediate stop shown only between legs.
+                // The last leg ends at the final destination, which is already displayed below.
+                // The delete button on the stop deletes the leg that ends there (this leg, at [index]),
+                // which removes both the leg and its destination stop in one action.
+                if (!isLastLeg) {
+                    IntermediateLegStop(
+                        stopName = leg.stopName,
+                        onStopNameChange = { value -> onStopNameChange(index, value) },
+                        onRemove = { onRemoveLeg(index) },
+                    )
+                }
             }
         }
 
@@ -537,10 +540,15 @@ private fun IntermediateLegStop(
             singleLine = true,
             modifier = Modifier.weight(1f),
         )
+        val removeDescription = if (stopName.isNotBlank()) {
+            stringResource(R.string.transport_detail_remove_leg_named, stopName)
+        } else {
+            stringResource(R.string.transport_detail_remove_leg)
+        }
         IconButton(onClick = onRemove) {
             Icon(
                 imageVector = Icons.Default.Delete,
-                contentDescription = stringResource(R.string.transport_detail_remove_leg),
+                contentDescription = removeDescription,
                 tint = MaterialTheme.colorScheme.error,
             )
         }
