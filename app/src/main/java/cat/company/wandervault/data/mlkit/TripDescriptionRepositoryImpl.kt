@@ -8,9 +8,12 @@ import com.google.mlkit.genai.common.FeatureStatus
 import com.google.mlkit.genai.prompt.Generation
 import com.google.mlkit.genai.prompt.TextPart
 import com.google.mlkit.genai.prompt.generateContentRequest
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withContext
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
+import java.util.Locale
 
 /**
  * ML Kit implementation of [TripDescriptionRepository] that uses the on-device Gemini Nano
@@ -20,17 +23,25 @@ class TripDescriptionRepositoryImpl : TripDescriptionRepository {
 
     private val client by lazy { Generation.getClient() }
 
-    override suspend fun generateDescription(trip: Trip, destinations: List<Destination>): String? {
-        when (client.checkStatus()) {
-            FeatureStatus.UNAVAILABLE -> return null
-            FeatureStatus.DOWNLOADABLE -> awaitDownload()
-            FeatureStatus.AVAILABLE -> Unit
+    override suspend fun generateDescription(trip: Trip, destinations: List<Destination>): String? =
+        withContext(Dispatchers.IO) {
+            when (client.checkStatus()) {
+                FeatureStatus.UNAVAILABLE -> return@withContext null
+                FeatureStatus.DOWNLOADABLE -> awaitDownload()
+                FeatureStatus.AVAILABLE -> Unit
+            }
+            val request = generateContentRequest(TextPart(buildPrompt(trip, destinations))) {
+                maxOutputTokens = MAX_DESCRIPTION_TOKENS
+            }
+            val response = client.generateContent(request)
+            val text = response.candidates.firstOrNull()?.text
+            if (text.isNullOrBlank()) {
+                throw IllegalStateException(
+                    "Gemini Nano returned no description candidates for an available model.",
+                )
+            }
+            text
         }
-        val request = generateContentRequest(TextPart(buildPrompt(trip, destinations))) {
-            maxOutputTokens = MAX_DESCRIPTION_TOKENS
-        }
-        return client.generateContent(request).candidates.firstOrNull()?.text
-    }
 
     /**
      * Waits for the Gemini Nano model to finish downloading by collecting the download Flow
@@ -69,8 +80,8 @@ class TripDescriptionRepositoryImpl : TripDescriptionRepository {
                     appendLine()
                     dest.transport?.legs?.forEach { leg ->
                         val typeName = leg.type.name
-                            .lowercase()
-                            .replaceFirstChar { it.uppercase() }
+                            .lowercase(Locale.ROOT)
+                            .replaceFirstChar { it.titlecase(Locale.ROOT) }
                         append("     → $typeName")
                         if (!leg.company.isNullOrBlank()) append(" with ${leg.company}")
                         if (!leg.flightNumber.isNullOrBlank()) append(" (${leg.flightNumber})")
