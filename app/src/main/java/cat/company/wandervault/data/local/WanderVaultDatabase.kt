@@ -6,7 +6,7 @@ import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [TripEntity::class, DestinationEntity::class, TransportEntity::class, TransportLegEntity::class], version = 9)
+@Database(entities = [TripEntity::class, DestinationEntity::class, TransportEntity::class, TransportLegEntity::class], version = 8)
 @TypeConverters(DateConverters::class)
 abstract class WanderVaultDatabase : RoomDatabase() {
     abstract fun tripDao(): TripDao
@@ -131,20 +131,11 @@ abstract class WanderVaultDatabase : RoomDatabase() {
         }
         val MIGRATION_7_8 = object : Migration(7, 8) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                // Add position column to allow multiple ordered legs per destination.
-                db.execSQL("ALTER TABLE transports ADD COLUMN `position` INTEGER NOT NULL DEFAULT 0")
-                // Remove the unique constraint on destinationId to allow multiple legs.
-                db.execSQL("DROP INDEX IF EXISTS `index_transports_destinationId`")
-                db.execSQL("CREATE INDEX IF NOT EXISTS `index_transports_destinationId` ON `transports`(`destinationId`)")
-            }
-        }
-
-        val MIGRATION_8_9 = object : Migration(8, 9) {
-            override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("PRAGMA foreign_keys=OFF")
                 try {
                     // 1. Create the transport_legs table.
-                    //    transportId values are populated from transports.id (see step 3).
+                    //    At DB version 7 each destination has at most one transport row, so each
+                    //    existing transport row becomes a single leg with position = 0.
                     db.execSQL(
                         """
                         CREATE TABLE IF NOT EXISTS `transport_legs` (
@@ -164,16 +155,13 @@ abstract class WanderVaultDatabase : RoomDatabase() {
                         "CREATE INDEX IF NOT EXISTS `index_transport_legs_transportId` ON `transport_legs` (`transportId`)",
                     )
 
-                    // 2. Migrate existing transport legs from the old transports table.
-                    //    For each destinationId, MIN(id) becomes the parent transport record.
-                    //    All rows for that destination become legs pointing to MIN(id).
+                    // 2. Migrate every existing transport row into transport_legs.
+                    //    The transport row's own id becomes the transportId for the leg.
                     db.execSQL(
                         """
                         INSERT INTO `transport_legs` (`transportId`, `type`, `position`, `company`, `flightNumber`, `reservationConfirmationNumber`)
-                        SELECT
-                            (SELECT MIN(id) FROM transports t2 WHERE t2.destinationId = t1.destinationId),
-                            t1.type, t1.position, t1.company, t1.flightNumber, t1.reservationConfirmationNumber
-                        FROM transports t1
+                        SELECT `id`, `type`, 0, `company`, `flightNumber`, `reservationConfirmationNumber`
+                        FROM `transports`
                         """.trimIndent(),
                     )
 
@@ -189,7 +177,7 @@ abstract class WanderVaultDatabase : RoomDatabase() {
                         """.trimIndent(),
                     )
                     db.execSQL(
-                        "INSERT INTO `transports_new` (`id`, `destinationId`) SELECT MIN(id), destinationId FROM transports GROUP BY destinationId",
+                        "INSERT INTO `transports_new` (`id`, `destinationId`) SELECT `id`, `destinationId` FROM `transports`",
                     )
                     db.execSQL("DROP TABLE `transports`")
                     db.execSQL("ALTER TABLE `transports_new` RENAME TO `transports`")
@@ -199,7 +187,7 @@ abstract class WanderVaultDatabase : RoomDatabase() {
 
                     db.query("PRAGMA foreign_key_check").use { cursor ->
                         if (cursor.moveToFirst()) {
-                            error("MIGRATION_8_9: foreign key integrity check failed")
+                            error("MIGRATION_7_8: foreign key integrity check failed")
                         }
                     }
                 } finally {
