@@ -27,4 +27,13 @@ interface TransportDao {
             "WHERE d.tripId = :tripId",
     )
     fun getByTripId(tripId: Int): Flow<List<TransportEntity>>
+
+    @Query(
+        "SELECT t.* FROM transports t " +
+            "INNER JOIN destinations prev ON t.destinationId = prev.id " +
+            "INNER JOIN destinations curr ON curr.id = :destinationId " +
+            "WHERE prev.tripId = curr.tripId " +
+            "AND prev.position = curr.position - 1",
+    )
+    fun getArrivalTransportForDestination(destinationId: Int): Flow<TransportEntity?>
 }

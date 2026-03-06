@@ -2,13 +2,14 @@ package cat.company.wandervault.ui.screens
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import cat.company.wandervault.domain.usecase.GetArrivalTransportForDestinationUseCase
 import cat.company.wandervault.domain.usecase.GetDestinationByIdUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 /**
@@ -19,9 +20,11 @@ import kotlinx.coroutines.launch
  * [flatMapLatest], cancelling the previous subscription automatically.
  *
  * @param getDestinationById Use-case that fetches a single destination by ID.
+ * @param getArrivalTransport Use-case that fetches the transport used to arrive at a destination.
  */
 class LocationDetailViewModel(
     private val getDestinationById: GetDestinationByIdUseCase,
+    private val getArrivalTransport: GetArrivalTransportForDestinationUseCase,
 ) : ViewModel() {
 
     private val _destinationId = MutableStateFlow<Int?>(null)
@@ -34,9 +37,12 @@ class LocationDetailViewModel(
             _destinationId
                 .filterNotNull()
                 .flatMapLatest { id ->
-                    getDestinationById(id).map { destination ->
+                    combine(
+                        getDestinationById(id),
+                        getArrivalTransport(id),
+                    ) { destination, arrivalTransport ->
                         if (destination != null) {
-                            LocationDetailUiState.Success(destination)
+                            LocationDetailUiState.Success(destination, arrivalTransport)
                         } else {
                             LocationDetailUiState.Error
                         }
