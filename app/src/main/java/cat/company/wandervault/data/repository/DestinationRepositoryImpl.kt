@@ -33,6 +33,9 @@ class DestinationRepositoryImpl(
             }
         }
 
+    override fun getDestinationByTripAndPosition(tripId: Int, position: Int): Flow<Destination?> =
+        dao.getByTripIdAndPosition(tripId, position).map { entity -> entity?.toDomain(null) }
+
     override fun getDestinationsForTrip(tripId: Int): Flow<List<Destination>> =
         combine(
             dao.getByTripId(tripId),

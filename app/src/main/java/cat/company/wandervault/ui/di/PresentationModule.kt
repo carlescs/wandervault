@@ -26,6 +26,7 @@ val presentationModule = module {
         TransportDetailViewModel(
             getDestinationById = get(),
             getOrCreateTransport = get(),
+            getNextDestination = get(),
             saveTransportLeg = get(),
             updateTransportLeg = get(),
             deleteTransportLeg = get(),

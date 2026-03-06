@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.Flight
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Train
 import androidx.compose.material3.Card
@@ -54,7 +55,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
@@ -100,6 +100,7 @@ fun TransportDetailScreen(
         onAddLeg = viewModel::onAddLeg,
         onRemoveLeg = viewModel::onRemoveLeg,
         onTypeSelected = viewModel::onTypeSelected,
+        onStopNameChange = viewModel::onStopNameChange,
         onCompanyChange = viewModel::onCompanyChange,
         onFlightNumberChange = viewModel::onFlightNumberChange,
         onConfirmationNumberChange = viewModel::onConfirmationNumberChange,
@@ -125,6 +126,7 @@ internal fun TransportDetailContent(
     onAddLeg: () -> Unit,
     onRemoveLeg: (Int) -> Unit,
     onTypeSelected: (Int, String?) -> Unit,
+    onStopNameChange: (Int, String) -> Unit,
     onCompanyChange: (Int, String) -> Unit,
     onFlightNumberChange: (Int, String) -> Unit,
     onConfirmationNumberChange: (Int, String) -> Unit,
@@ -201,6 +203,7 @@ internal fun TransportDetailContent(
                         onAddLeg = onAddLeg,
                         onRemoveLeg = onRemoveLeg,
                         onTypeSelected = onTypeSelected,
+                        onStopNameChange = onStopNameChange,
                         onCompanyChange = onCompanyChange,
                         onFlightNumberChange = onFlightNumberChange,
                         onConfirmationNumberChange = onConfirmationNumberChange,
@@ -230,7 +233,8 @@ private fun TransportDetailBottomBar(
 }
 
 /**
- * Content for the Details tab: shows a summary of the destination transport.
+ * Content for the Details tab: shows a summary of the destination transport including
+ * the origin, each leg's type and stop, and the final destination.
  */
 @Composable
 private fun TransportDetailsTabContent(
@@ -242,32 +246,141 @@ private fun TransportDetailsTabContent(
         modifier = modifier
             .fillMaxSize()
             .padding(innerPadding)
+            .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text(
-            text = uiState.destinationName,
-            style = MaterialTheme.typography.headlineMedium,
-        )
-        Text(
-            text = transportSummaryLabel(uiState.legs),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        // Origin / destination header
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Top,
+        ) {
+            Column(horizontalAlignment = Alignment.Start, modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.transport_detail_origin_label),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = uiState.originName,
+                    style = MaterialTheme.typography.titleMedium,
+                )
+            }
+            Column(horizontalAlignment = Alignment.End, modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.transport_detail_destination_label),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = uiState.nextDestinationName ?: stringResource(R.string.transport_detail_no_destination),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+            }
+        }
+
+        if (uiState.legs.isNotEmpty()) {
+            HorizontalDivider()
+
+            // Journey summary: list each leg with its type and stop
+            TransportJourneySummary(
+                originName = uiState.originName,
+                nextDestinationName = uiState.nextDestinationName,
+                legs = uiState.legs,
+            )
+        } else {
+            Text(
+                text = stringResource(R.string.transport_none),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
-/** Returns a localised summary label for the given list of legs shown on the Details tab. */
+/**
+ * Renders the full journey chain: origin → leg1 type → leg1 stop → … → final destination.
+ *
+ * Each leg is represented by its transport type icon and label.  The stop name (where that leg
+ * ends) is shown after each leg arrow when [TransportLegEditState.stopName] is set.  The final
+ * destination ([nextDestinationName]) is always shown at the bottom of the chain when available.
+ */
 @Composable
-private fun transportSummaryLabel(legs: List<TransportLegEditState>): String {
-    return when (legs.size) {
-        0 -> stringResource(R.string.transport_none)
-        1 -> {
-            val type = legs.first().typeName
-                ?.let { runCatching { TransportType.valueOf(it) }.getOrNull() }
-            if (type != null) stringResource(type.detailLabelRes) else stringResource(R.string.transport_none)
+private fun TransportJourneySummary(
+    originName: String,
+    nextDestinationName: String?,
+    legs: List<TransportLegEditState>,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        // Origin stop
+        JourneyStop(name = originName, isOrigin = true)
+
+        legs.forEachIndexed { index, leg ->
+            val type = leg.typeName?.let { runCatching { TransportType.valueOf(it) }.getOrNull() }
+
+            // Leg arrow with type label
+            Row(
+                modifier = Modifier.padding(start = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                if (type != null) {
+                    Icon(
+                        imageVector = type.detailIcon,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                    Text(
+                        text = stringResource(type.detailLabelRes),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                } else {
+                    Text(
+                        text = stringResource(R.string.transport_detail_leg_number, index + 1),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            // Intermediate stop where this leg ends (only shown when stopName is set and
+            // it is not the last leg, or when it differs from nextDestinationName).
+            if (leg.stopName.isNotBlank() && (index < legs.lastIndex || leg.stopName != nextDestinationName)) {
+                JourneyStop(name = leg.stopName, isOrigin = false)
+            }
         }
-        else -> pluralStringResource(R.plurals.transport_detail_legs_count, legs.size, legs.size)
+
+        // Always show the overall final destination at the bottom of the chain.
+        if (nextDestinationName != null) {
+            JourneyStop(name = nextDestinationName, isOrigin = false)
+        }
+    }
+}
+
+@Composable
+private fun JourneyStop(name: String, isOrigin: Boolean, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier,
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Icon(
+            imageVector = Icons.Default.LocationOn,
+            contentDescription = null,
+            modifier = Modifier.size(20.dp),
+            tint = if (isOrigin) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary,
+        )
+        Text(
+            text = name,
+            style = MaterialTheme.typography.bodyMedium,
+        )
     }
 }
 
@@ -280,6 +393,7 @@ private fun TransportLegsTabContent(
     onAddLeg: () -> Unit,
     onRemoveLeg: (Int) -> Unit,
     onTypeSelected: (Int, String?) -> Unit,
+    onStopNameChange: (Int, String) -> Unit,
     onCompanyChange: (Int, String) -> Unit,
     onFlightNumberChange: (Int, String) -> Unit,
     onConfirmationNumberChange: (Int, String) -> Unit,
@@ -321,6 +435,7 @@ private fun TransportLegsTabContent(
                         leg = leg,
                         onRemove = { onRemoveLeg(index) },
                         onTypeSelected = { typeName -> onTypeSelected(index, typeName) },
+                        onStopNameChange = { value -> onStopNameChange(index, value) },
                         onCompanyChange = { value -> onCompanyChange(index, value) },
                         onFlightNumberChange = { value -> onFlightNumberChange(index, value) },
                         onConfirmationNumberChange = { value -> onConfirmationNumberChange(index, value) },
@@ -357,6 +472,7 @@ private fun TransportLegSection(
     leg: TransportLegEditState,
     onRemove: () -> Unit,
     onTypeSelected: (String?) -> Unit,
+    onStopNameChange: (String) -> Unit,
     onCompanyChange: (String) -> Unit,
     onFlightNumberChange: (String) -> Unit,
     onConfirmationNumberChange: (String) -> Unit,
@@ -424,6 +540,14 @@ private fun TransportLegSection(
         if (selectedType != null) {
             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
+            OutlinedTextField(
+                value = leg.stopName,
+                onValueChange = onStopNameChange,
+                label = { Text(stringResource(R.string.transport_detail_stop_name_label)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(modifier = Modifier.height(4.dp))
             OutlinedTextField(
                 value = leg.company,
                 onValueChange = onCompanyChange,
@@ -515,15 +639,19 @@ private fun TransportDetailMultiLegPreview() {
         TransportDetailContent(
             uiState = TransportDetailUiState.Success(
                 destinationName = "Paris",
+                originName = "Paris",
+                nextDestinationName = "Rome",
                 legs = listOf(
                     TransportLegEditState(
                         id = 1,
                         typeName = TransportType.DRIVING.name,
+                        stopName = "CDG Airport",
                         company = "Uber",
                     ),
                     TransportLegEditState(
                         id = 2,
                         typeName = TransportType.FLIGHT.name,
+                        stopName = "FCO Airport",
                         company = "Air France",
                         flightNumber = "AF1234",
                         confirmationNumber = "XYZ123",
@@ -531,7 +659,7 @@ private fun TransportDetailMultiLegPreview() {
                     TransportLegEditState(
                         id = 3,
                         typeName = TransportType.TRAIN.name,
-                        company = "RATP",
+                        company = "Trenitalia",
                     ),
                 ),
             ),
@@ -539,6 +667,7 @@ private fun TransportDetailMultiLegPreview() {
             onAddLeg = {},
             onRemoveLeg = {},
             onTypeSelected = { _, _ -> },
+            onStopNameChange = { _, _ -> },
             onCompanyChange = { _, _ -> },
             onFlightNumberChange = { _, _ -> },
             onConfirmationNumberChange = { _, _ -> },
@@ -554,9 +683,12 @@ private fun TransportDetailSingleLegPreview() {
         TransportDetailContent(
             uiState = TransportDetailUiState.Success(
                 destinationName = "London",
+                originName = "London",
+                nextDestinationName = "Paris",
                 legs = listOf(
                     TransportLegEditState(
                         typeName = TransportType.TRAIN.name,
+                        stopName = "Paris Gare du Nord",
                         company = "Eurostar",
                         flightNumber = "ES9001",
                         confirmationNumber = "TRAIN-456",
@@ -567,6 +699,7 @@ private fun TransportDetailSingleLegPreview() {
             onAddLeg = {},
             onRemoveLeg = {},
             onTypeSelected = { _, _ -> },
+            onStopNameChange = { _, _ -> },
             onCompanyChange = { _, _ -> },
             onFlightNumberChange = { _, _ -> },
             onConfirmationNumberChange = { _, _ -> },
@@ -582,12 +715,15 @@ private fun TransportDetailNoLegsPreview() {
         TransportDetailContent(
             uiState = TransportDetailUiState.Success(
                 destinationName = "Rome",
+                originName = "Rome",
+                nextDestinationName = "Florence",
                 legs = emptyList(),
             ),
             onNavigateUp = {},
             onAddLeg = {},
             onRemoveLeg = {},
             onTypeSelected = { _, _ -> },
+            onStopNameChange = { _, _ -> },
             onCompanyChange = { _, _ -> },
             onFlightNumberChange = { _, _ -> },
             onConfirmationNumberChange = { _, _ -> },
@@ -606,6 +742,7 @@ private fun TransportDetailLoadingPreview() {
             onAddLeg = {},
             onRemoveLeg = {},
             onTypeSelected = { _, _ -> },
+            onStopNameChange = { _, _ -> },
             onCompanyChange = { _, _ -> },
             onFlightNumberChange = { _, _ -> },
             onConfirmationNumberChange = { _, _ -> },
