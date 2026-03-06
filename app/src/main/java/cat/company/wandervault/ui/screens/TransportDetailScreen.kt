@@ -28,6 +28,8 @@ import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.Flight
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Train
@@ -99,6 +101,8 @@ fun TransportDetailScreen(
         onNavigateUp = onNavigateUp,
         onAddLeg = viewModel::onAddLeg,
         onRemoveLeg = viewModel::onRemoveLeg,
+        onMoveLegUp = viewModel::onMoveLegUp,
+        onMoveLegDown = viewModel::onMoveLegDown,
         onTypeSelected = viewModel::onTypeSelected,
         onStopNameChange = viewModel::onStopNameChange,
         onCompanyChange = viewModel::onCompanyChange,
@@ -125,6 +129,8 @@ internal fun TransportDetailContent(
     onNavigateUp: () -> Unit,
     onAddLeg: () -> Unit,
     onRemoveLeg: (Int) -> Unit,
+    onMoveLegUp: (Int) -> Unit,
+    onMoveLegDown: (Int) -> Unit,
     onTypeSelected: (Int, String?) -> Unit,
     onStopNameChange: (Int, String) -> Unit,
     onCompanyChange: (Int, String) -> Unit,
@@ -202,6 +208,8 @@ internal fun TransportDetailContent(
                         uiState = uiState,
                         onAddLeg = onAddLeg,
                         onRemoveLeg = onRemoveLeg,
+                        onMoveLegUp = onMoveLegUp,
+                        onMoveLegDown = onMoveLegDown,
                         onTypeSelected = onTypeSelected,
                         onStopNameChange = onStopNameChange,
                         onCompanyChange = onCompanyChange,
@@ -385,13 +393,16 @@ private fun JourneyStop(name: String, isOrigin: Boolean, modifier: Modifier = Mo
 }
 
 /**
- * Content for the Legs tab: the parent transport card containing all editable leg sections.
+ * Content for the Legs tab: a timeline view showing origin → legs with editable intermediate
+ * stops between them → final destination.  Move-up / move-down buttons allow reordering legs.
  */
 @Composable
 private fun TransportLegsTabContent(
     uiState: TransportDetailUiState.Success,
     onAddLeg: () -> Unit,
     onRemoveLeg: (Int) -> Unit,
+    onMoveLegUp: (Int) -> Unit,
+    onMoveLegDown: (Int) -> Unit,
     onTypeSelected: (Int, String?) -> Unit,
     onStopNameChange: (Int, String) -> Unit,
     onCompanyChange: (Int, String) -> Unit,
@@ -406,62 +417,125 @@ private fun TransportLegsTabContent(
             .padding(innerPadding)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        // Outer card: the "main transport" for this destination.
-        // All legs are children rendered inside it.
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-            ),
-        ) {
-            Column {
-                if (uiState.legs.isEmpty()) {
-                    Text(
-                        text = stringResource(R.string.transport_detail_no_legs),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                    )
-                }
+        // Origin location marker (not editable here)
+        LegTimelineStop(name = uiState.originName, isOrigin = true)
 
-                uiState.legs.forEachIndexed { index, leg ->
-                    if (index > 0) {
-                        HorizontalDivider()
-                    }
-                    TransportLegSection(
-                        index = index,
-                        totalLegs = uiState.legs.size,
-                        leg = leg,
-                        onRemove = { onRemoveLeg(index) },
-                        onTypeSelected = { typeName -> onTypeSelected(index, typeName) },
-                        onStopNameChange = { value -> onStopNameChange(index, value) },
-                        onCompanyChange = { value -> onCompanyChange(index, value) },
-                        onFlightNumberChange = { value -> onFlightNumberChange(index, value) },
-                        onConfirmationNumberChange = { value -> onConfirmationNumberChange(index, value) },
-                    )
-                }
-
-                if (uiState.legs.isNotEmpty()) {
-                    HorizontalDivider()
-                }
-
-                TextButton(
-                    onClick = onAddLeg,
-                    modifier = Modifier
-                        .align(Alignment.CenterHorizontally)
-                        .padding(vertical = 4.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                    )
-                    Spacer(modifier = Modifier.size(4.dp))
-                    Text(stringResource(R.string.transport_detail_add_leg))
-                }
-            }
+        if (uiState.legs.isEmpty()) {
+            Text(
+                text = stringResource(R.string.transport_detail_no_legs),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(vertical = 8.dp),
+            )
         }
+
+        uiState.legs.forEachIndexed { index, leg ->
+            // Leg card: type selector + booking details + move/delete controls
+            TransportLegSection(
+                index = index,
+                totalLegs = uiState.legs.size,
+                leg = leg,
+                onRemove = { onRemoveLeg(index) },
+                onMoveUp = { onMoveLegUp(index) },
+                onMoveDown = { onMoveLegDown(index) },
+                onTypeSelected = { typeName -> onTypeSelected(index, typeName) },
+                onCompanyChange = { value -> onCompanyChange(index, value) },
+                onFlightNumberChange = { value -> onFlightNumberChange(index, value) },
+                onConfirmationNumberChange = { value -> onConfirmationNumberChange(index, value) },
+            )
+
+            // Editable intermediate stop shown after every leg.
+            // For the last leg this is the stop before the final destination (may be blank).
+            IntermediateLegStop(
+                stopName = leg.stopName,
+                onStopNameChange = { value -> onStopNameChange(index, value) },
+            )
+        }
+
+        // Final destination marker (not editable here)
+        LegTimelineStop(
+            name = uiState.nextDestinationName ?: stringResource(R.string.transport_detail_no_destination),
+            isOrigin = false,
+        )
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        TextButton(
+            onClick = onAddLeg,
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+        ) {
+            Icon(
+                imageVector = Icons.Default.Add,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+            )
+            Spacer(modifier = Modifier.size(4.dp))
+            Text(stringResource(R.string.transport_detail_add_leg))
+        }
+    }
+}
+
+/**
+ * A read-only location marker shown at the top (origin) and bottom (final destination) of the
+ * legs timeline.
+ */
+@Composable
+private fun LegTimelineStop(
+    name: String,
+    isOrigin: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier.padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Icon(
+            imageVector = Icons.Default.LocationOn,
+            contentDescription = null,
+            modifier = Modifier.size(20.dp),
+            tint = if (isOrigin) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary,
+        )
+        Text(
+            text = name,
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (isOrigin) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary,
+        )
+    }
+}
+
+/**
+ * An editable intermediate stop shown between two leg cards (or between the last leg card and
+ * the final destination).  When [stopName] is blank the field is shown as a placeholder.
+ */
+@Composable
+private fun IntermediateLegStop(
+    stopName: String,
+    onStopNameChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(start = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Icon(
+            imageVector = Icons.Default.LocationOn,
+            contentDescription = null,
+            modifier = Modifier.size(20.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        OutlinedTextField(
+            value = stopName,
+            onValueChange = onStopNameChange,
+            label = { Text(stringResource(R.string.transport_detail_stop_name_label)) },
+            singleLine = true,
+            modifier = Modifier.weight(1f),
+        )
     }
 }
 
@@ -471,8 +545,9 @@ private fun TransportLegSection(
     totalLegs: Int,
     leg: TransportLegEditState,
     onRemove: () -> Unit,
+    onMoveUp: () -> Unit,
+    onMoveDown: () -> Unit,
     onTypeSelected: (String?) -> Unit,
-    onStopNameChange: (String) -> Unit,
     onCompanyChange: (String) -> Unit,
     onFlightNumberChange: (String) -> Unit,
     onConfirmationNumberChange: (String) -> Unit,
@@ -482,95 +557,117 @@ private fun TransportLegSection(
         runCatching { TransportType.valueOf(name) }.getOrNull()
     }
 
-    Column(
-        modifier = modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+        ),
     ) {
-        // Leg header: leg number + delete button
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            Text(
-                text = if (totalLegs > 1) {
-                    stringResource(R.string.transport_detail_leg_number, index + 1)
-                } else {
-                    stringResource(R.string.transport_detail_type_label)
-                },
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            IconButton(onClick = onRemove) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = stringResource(R.string.transport_detail_remove_leg),
-                    tint = MaterialTheme.colorScheme.error,
-                )
-            }
-        }
-
-        // Transport type grid (rows of 4 icons)
-        TransportType.entries.chunked(4).forEach { rowItems ->
+            // Leg header: leg number + move up/down + delete
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                rowItems.forEach { type ->
-                    TransportDetailOption(
-                        icon = type.detailIcon,
-                        label = stringResource(type.detailLabelRes),
-                        isSelected = type == selectedType,
-                        onClick = { onTypeSelected(type.name) },
+                Text(
+                    text = if (totalLegs > 1) {
+                        stringResource(R.string.transport_detail_leg_number, index + 1)
+                    } else {
+                        stringResource(R.string.transport_detail_type_label)
+                    },
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                )
+                IconButton(onClick = onMoveUp, enabled = index > 0) {
+                    Icon(
+                        imageVector = Icons.Default.KeyboardArrowUp,
+                        contentDescription = stringResource(R.string.transport_detail_move_leg_up),
+                        tint = if (index > 0) {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        } else {
+                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                        },
+                    )
+                }
+                IconButton(onClick = onMoveDown, enabled = index < totalLegs - 1) {
+                    Icon(
+                        imageVector = Icons.Default.KeyboardArrowDown,
+                        contentDescription = stringResource(R.string.transport_detail_move_leg_down),
+                        tint = if (index < totalLegs - 1) {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        } else {
+                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                        },
+                    )
+                }
+                IconButton(onClick = onRemove) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = stringResource(R.string.transport_detail_remove_leg),
+                        tint = MaterialTheme.colorScheme.error,
                     )
                 }
             }
-        }
 
-        // "None" option to clear the transport type for this leg
-        Row(modifier = Modifier.fillMaxWidth()) {
-            TransportDetailOption(
-                icon = Icons.Default.Close,
-                label = stringResource(R.string.transport_none),
-                isSelected = selectedType == null,
-                onClick = { onTypeSelected(null) },
-            )
-        }
+            // Transport type grid (rows of 4 icons)
+            TransportType.entries.chunked(4).forEach { rowItems ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                ) {
+                    rowItems.forEach { type ->
+                        TransportDetailOption(
+                            icon = type.detailIcon,
+                            label = stringResource(type.detailLabelRes),
+                            isSelected = type == selectedType,
+                            onClick = { onTypeSelected(type.name) },
+                        )
+                    }
+                }
+            }
 
-        if (selectedType != null) {
-            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+            // "None" option to clear the transport type for this leg
+            Row(modifier = Modifier.fillMaxWidth()) {
+                TransportDetailOption(
+                    icon = Icons.Default.Close,
+                    label = stringResource(R.string.transport_none),
+                    isSelected = selectedType == null,
+                    onClick = { onTypeSelected(null) },
+                )
+            }
 
-            OutlinedTextField(
-                value = leg.stopName,
-                onValueChange = onStopNameChange,
-                label = { Text(stringResource(R.string.transport_detail_stop_name_label)) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            OutlinedTextField(
-                value = leg.company,
-                onValueChange = onCompanyChange,
-                label = { Text(stringResource(R.string.transport_company_label)) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            OutlinedTextField(
-                value = leg.flightNumber,
-                onValueChange = onFlightNumberChange,
-                label = { Text(stringResource(R.string.transport_flight_number_label)) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            OutlinedTextField(
-                value = leg.confirmationNumber,
-                onValueChange = onConfirmationNumberChange,
-                label = { Text(stringResource(R.string.transport_confirmation_label)) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
+            if (selectedType != null) {
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                OutlinedTextField(
+                    value = leg.company,
+                    onValueChange = onCompanyChange,
+                    label = { Text(stringResource(R.string.transport_company_label)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                OutlinedTextField(
+                    value = leg.flightNumber,
+                    onValueChange = onFlightNumberChange,
+                    label = { Text(stringResource(R.string.transport_flight_number_label)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                OutlinedTextField(
+                    value = leg.confirmationNumber,
+                    onValueChange = onConfirmationNumberChange,
+                    label = { Text(stringResource(R.string.transport_confirmation_label)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
     }
 }
@@ -666,6 +763,8 @@ private fun TransportDetailMultiLegPreview() {
             onNavigateUp = {},
             onAddLeg = {},
             onRemoveLeg = {},
+            onMoveLegUp = {},
+            onMoveLegDown = {},
             onTypeSelected = { _, _ -> },
             onStopNameChange = { _, _ -> },
             onCompanyChange = { _, _ -> },
@@ -698,6 +797,8 @@ private fun TransportDetailSingleLegPreview() {
             onNavigateUp = {},
             onAddLeg = {},
             onRemoveLeg = {},
+            onMoveLegUp = {},
+            onMoveLegDown = {},
             onTypeSelected = { _, _ -> },
             onStopNameChange = { _, _ -> },
             onCompanyChange = { _, _ -> },
@@ -722,6 +823,8 @@ private fun TransportDetailNoLegsPreview() {
             onNavigateUp = {},
             onAddLeg = {},
             onRemoveLeg = {},
+            onMoveLegUp = {},
+            onMoveLegDown = {},
             onTypeSelected = { _, _ -> },
             onStopNameChange = { _, _ -> },
             onCompanyChange = { _, _ -> },
@@ -741,6 +844,8 @@ private fun TransportDetailLoadingPreview() {
             onNavigateUp = {},
             onAddLeg = {},
             onRemoveLeg = {},
+            onMoveLegUp = {},
+            onMoveLegDown = {},
             onTypeSelected = { _, _ -> },
             onStopNameChange = { _, _ -> },
             onCompanyChange = { _, _ -> },

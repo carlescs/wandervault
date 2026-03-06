@@ -393,6 +393,28 @@ private fun DestinationTimelineItem(
             if (!isLast) {
                 // Show transport details for all legs when set
                 destination.transport?.legs?.forEach { leg ->
+                    // Show the type + stop name if a meaningful stop is set for this leg
+                    leg.stopName?.takeIf { it.isNotBlank() }?.let { stopName ->
+                        Row(
+                            modifier = Modifier.padding(top = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Icon(
+                                imageVector = leg.type.icon,
+                                contentDescription = null,
+                                modifier = Modifier.size(12.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Text(
+                                text = stopName,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
                     val details = listOfNotNull(
                         leg.company,
                         leg.flightNumber,
