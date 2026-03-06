@@ -1,0 +1,99 @@
+name: Promote Internal to Beta
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+
+  promote:
+    name: Promote Internal Track to Beta
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install Google API client
+        run: pip install google-api-python-client google-auth
+
+      - name: Promote latest internal release to beta
+        env:
+          SERVICE_ACCOUNT_JSON: ${{ secrets.SERVICE_ACCOUNT_JSON }}
+        run: |
+          python3 - <<'EOF'
+          import os
+          import json
+          from googleapiclient.discovery import build
+          from google.oauth2 import service_account
+
+          service_account_info = json.loads(os.environ['SERVICE_ACCOUNT_JSON'])
+          credentials = service_account.Credentials.from_service_account_info(
+              service_account_info,
+              scopes=['https://www.googleapis.com/auth/androidpublisher']
+          )
+          service = build('androidpublisher', 'v3', credentials=credentials)
+
+          package_name = 'cat.company.wandervault'
+
+          edit = service.edits().insert(body={}, packageName=package_name).execute()
+          edit_id = edit['id']
+
+          internal_track = service.edits().tracks().get(
+              packageName=package_name,
+              editId=edit_id,
+              track='internal'
+          ).execute()
+
+          completed_releases = [
+              r for r in internal_track.get('releases', [])
+              if r.get('status') == 'completed' and r.get('versionCodes')
+          ]
+
+          if not completed_releases:
+              print(
+                  "No completed release with version codes found on the internal track. "
+                  "Ensure at least one release has been fully rolled out to internal testing "
+                  "before promoting to beta."
+              )
+              service.edits().delete(packageName=package_name, editId=edit_id).execute()
+              raise SystemExit(1)
+
+          latest_release = max(
+              completed_releases,
+              key=lambda r: max(int(v) for v in r['versionCodes'])
+          )
+
+          version_codes = latest_release['versionCodes']
+          release_name = latest_release.get('name', '')
+          print(f"Promoting version codes {version_codes} (release '{release_name}') to beta.")
+
+          service.edits().tracks().update(
+              packageName=package_name,
+              editId=edit_id,
+              track='beta',
+              body={
+                  'track': 'beta',
+                  'releases': [
+                      {
+                          'versionCodes': version_codes,
+                          'name': release_name,
+                          'status': 'completed',
+                      }
+                  ]
+              }
+          ).execute()
+
+          try:
+              commit_result = service.edits().commit(
+                  packageName=package_name,
+                  editId=edit_id
+              ).execute()
+              print(f"Promotion committed successfully. Edit id: {commit_result['id']}")
+          except Exception as e:
+              print(f"Failed to commit the promotion edit: {e}")
+              raise SystemExit(1)
+          EOF
