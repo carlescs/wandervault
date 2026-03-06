@@ -1,5 +1,6 @@
 package cat.company.wandervault.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -97,9 +98,17 @@ fun TransportDetailScreen(
         viewModel.loadDestination(destinationId)
     }
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    // Intercept system back so it follows the same save path as the toolbar up button.
+    BackHandler {
+        viewModel.onSave()
+        onNavigateUp()
+    }
     TransportDetailContent(
         uiState = uiState,
-        onNavigateUp = onNavigateUp,
+        onNavigateUp = {
+            viewModel.onSave()
+            onNavigateUp()
+        },
         onAddLeg = viewModel::onAddLeg,
         onRemoveLeg = viewModel::onRemoveLeg,
         onMoveLegUp = viewModel::onMoveLegUp,
