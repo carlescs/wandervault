@@ -446,12 +446,14 @@ private fun TransportLegsTabContent(
                 onConfirmationNumberChange = { value -> onConfirmationNumberChange(index, value) },
             )
 
-            // Editable intermediate stop shown after every leg.
-            // For the last leg this is the stop before the final destination (may be blank).
-            IntermediateLegStop(
-                stopName = leg.stopName,
-                onStopNameChange = { value -> onStopNameChange(index, value) },
-            )
+            // Editable intermediate stop shown only between legs.
+            // The last leg ends at the final destination, which is already displayed below.
+            if (index < uiState.legs.lastIndex) {
+                IntermediateLegStop(
+                    stopName = leg.stopName,
+                    onStopNameChange = { value -> onStopNameChange(index, value) },
+                )
+            }
         }
 
         // Final destination marker (not editable here)
