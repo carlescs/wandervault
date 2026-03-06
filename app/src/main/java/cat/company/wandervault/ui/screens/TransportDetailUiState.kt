@@ -4,6 +4,9 @@ package cat.company.wandervault.ui.screens
  * Represents the editing state for a single transport leg.
  *
  * @param id Database ID of the existing transport record, or 0 if this leg is not yet persisted.
+ * @param clientKey A stable identifier used as a Compose key for this item in the reorderable
+ *   leg list.  For persisted legs this equals [id]; for new (unsaved) legs the ViewModel assigns
+ *   a unique negative value so that Compose can distinguish items after reordering or deletion.
  * @param typeName The [cat.company.wandervault.domain.model.TransportType] name, or `null` if no
  *   transport type has been selected for this leg.
  * @param stopName The name of the stop or place where this leg ends (e.g. an intermediate city).
@@ -13,6 +16,7 @@ package cat.company.wandervault.ui.screens
  */
 data class TransportLegEditState(
     val id: Int = 0,
+    val clientKey: Int = id,
     val typeName: String? = null,
     val stopName: String = "",
     val company: String = "",
