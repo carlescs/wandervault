@@ -94,7 +94,8 @@
     <string name="location_detail_navigate_up">Navigate up</string>
     <string name="location_detail_arrival">Arrival</string>
     <string name="location_detail_departure">Departure</string>
-    <string name="location_detail_transport">Transport</string>
+    <string name="location_detail_arrival_transport">Arrival Transport</string>
+    <string name="location_detail_transport">Departure Transport</string>
     <string name="location_detail_not_found">Destination not found</string>
     <string name="transport_company_label">Company</string>
     <string name="transport_flight_number_label">Flight / Reference No.</string>
