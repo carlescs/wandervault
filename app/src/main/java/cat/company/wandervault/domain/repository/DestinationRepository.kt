@@ -13,11 +13,11 @@ interface DestinationRepository {
     fun getDestinationsForTrip(tripId: Int): Flow<List<Destination>>
 
     /**
-     * Returns a [Flow] emitting the list of [Transport] legs used to travel to the destination
-     * with the given [destinationId] (i.e. the transports of the preceding destination in the same
-     * trip), or an empty list if there is no preceding destination or no transports assigned to it.
+     * Returns a [Flow] emitting the [Transport] (with its legs) used to travel to the destination
+     * with the given [destinationId] (i.e. the transport of the preceding destination in the same
+     * trip), or `null` if there is no preceding destination or no transport assigned to it.
      */
-    fun getArrivalTransportForDestination(destinationId: Int): Flow<List<Transport>>
+    fun getArrivalTransportForDestination(destinationId: Int): Flow<Transport?>
 
     /** Persists a new [destination] to the data store. */
     suspend fun saveDestination(destination: Destination)

@@ -6,12 +6,13 @@ import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [TripEntity::class, DestinationEntity::class, TransportEntity::class], version = 8)
+@Database(entities = [TripEntity::class, DestinationEntity::class, TransportEntity::class, TransportLegEntity::class], version = 9)
 @TypeConverters(DateConverters::class)
 abstract class WanderVaultDatabase : RoomDatabase() {
     abstract fun tripDao(): TripDao
     abstract fun destinationDao(): DestinationDao
     abstract fun transportDao(): TransportDao
+    abstract fun transportLegDao(): TransportLegDao
 
     companion object {
         const val DATABASE_NAME = "wandervault.db"
@@ -135,6 +136,75 @@ abstract class WanderVaultDatabase : RoomDatabase() {
                 // Remove the unique constraint on destinationId to allow multiple legs.
                 db.execSQL("DROP INDEX IF EXISTS `index_transports_destinationId`")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_transports_destinationId` ON `transports`(`destinationId`)")
+            }
+        }
+
+        val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("PRAGMA foreign_keys=OFF")
+                try {
+                    // 1. Create the transport_legs table.
+                    //    transportId values are populated from transports.id (see step 3).
+                    db.execSQL(
+                        """
+                        CREATE TABLE IF NOT EXISTS `transport_legs` (
+                            `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                            `transportId` INTEGER NOT NULL,
+                            `type` TEXT NOT NULL,
+                            `position` INTEGER NOT NULL DEFAULT 0,
+                            `company` TEXT,
+                            `flightNumber` TEXT,
+                            `reservationConfirmationNumber` TEXT,
+                            FOREIGN KEY(`transportId`) REFERENCES `transports`(`id`)
+                                ON UPDATE NO ACTION ON DELETE CASCADE
+                        )
+                        """.trimIndent(),
+                    )
+                    db.execSQL(
+                        "CREATE INDEX IF NOT EXISTS `index_transport_legs_transportId` ON `transport_legs` (`transportId`)",
+                    )
+
+                    // 2. Migrate existing transport legs from the old transports table.
+                    //    For each destinationId, MIN(id) becomes the parent transport record.
+                    //    All rows for that destination become legs pointing to MIN(id).
+                    db.execSQL(
+                        """
+                        INSERT INTO `transport_legs` (`transportId`, `type`, `position`, `company`, `flightNumber`, `reservationConfirmationNumber`)
+                        SELECT
+                            (SELECT MIN(id) FROM transports t2 WHERE t2.destinationId = t1.destinationId),
+                            t1.type, t1.position, t1.company, t1.flightNumber, t1.reservationConfirmationNumber
+                        FROM transports t1
+                        """.trimIndent(),
+                    )
+
+                    // 3. Rebuild transports as a parent-only table (id, destinationId).
+                    db.execSQL(
+                        """
+                        CREATE TABLE `transports_new` (
+                            `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                            `destinationId` INTEGER NOT NULL,
+                            FOREIGN KEY(`destinationId`) REFERENCES `destinations`(`id`)
+                                ON UPDATE NO ACTION ON DELETE CASCADE
+                        )
+                        """.trimIndent(),
+                    )
+                    db.execSQL(
+                        "INSERT INTO `transports_new` (`id`, `destinationId`) SELECT MIN(id), destinationId FROM transports GROUP BY destinationId",
+                    )
+                    db.execSQL("DROP TABLE `transports`")
+                    db.execSQL("ALTER TABLE `transports_new` RENAME TO `transports`")
+                    db.execSQL(
+                        "CREATE INDEX IF NOT EXISTS `index_transports_destinationId` ON `transports` (`destinationId`)",
+                    )
+
+                    db.query("PRAGMA foreign_key_check").use { cursor ->
+                        if (cursor.moveToFirst()) {
+                            error("MIGRATION_8_9: foreign key integrity check failed")
+                        }
+                    }
+                } finally {
+                    db.execSQL("PRAGMA foreign_keys=ON")
+                }
             }
         }
     }

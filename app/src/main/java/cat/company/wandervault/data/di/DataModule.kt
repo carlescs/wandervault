@@ -27,13 +27,15 @@ val dataModule = module {
             WanderVaultDatabase.MIGRATION_5_6,
             WanderVaultDatabase.MIGRATION_6_7,
             WanderVaultDatabase.MIGRATION_7_8,
+            WanderVaultDatabase.MIGRATION_8_9,
         ).build()
     }
     single { get<WanderVaultDatabase>().tripDao() }
     single { get<WanderVaultDatabase>().destinationDao() }
     single { get<WanderVaultDatabase>().transportDao() }
+    single { get<WanderVaultDatabase>().transportLegDao() }
     single<TripRepository> { TripRepositoryImpl(get(), get()) }
-    single<DestinationRepository> { DestinationRepositoryImpl(get(), get()) }
-    single<TransportRepository> { TransportRepositoryImpl(get()) }
+    single<DestinationRepository> { DestinationRepositoryImpl(get(), get(), get()) }
+    single<TransportRepository> { TransportRepositoryImpl(get(), get()) }
     single<ImageRepository> { ImageRepositoryImpl(androidContext()) }
 }

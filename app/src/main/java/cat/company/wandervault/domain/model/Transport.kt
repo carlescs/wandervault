@@ -1,25 +1,18 @@
 package cat.company.wandervault.domain.model
 
 /**
- * Represents a single transport leg within the journey from one itinerary stop to the next.
+ * Represents the transport for a single itinerary stop.
  *
- * A destination may have several ordered legs (e.g. taxi → flight → train). Each leg is stored
- * as a separate entity so that booking references and other metadata can be managed independently.
+ * A transport is the parent record that owns one or more ordered [TransportLeg] records
+ * (the individual segments, e.g. taxi → flight → train) that carry the traveller from this
+ * itinerary stop to the next one.
  *
  * @param id Unique database ID (0 means not yet persisted).
  * @param destinationId The [Destination.id] this transport departs **from**.
- * @param type The mode of transport used for this leg.
- * @param position Zero-based order of this leg among all legs for the same destination.
- * @param company The carrier or company name (e.g. airline, bus operator).
- * @param flightNumber The flight, train, or route number for this leg.
- * @param reservationConfirmationNumber The booking or reservation confirmation code.
+ * @param legs The ordered list of transport legs for this journey segment.
  */
 data class Transport(
     val id: Int = 0,
     val destinationId: Int,
-    val type: TransportType,
-    val position: Int = 0,
-    val company: String? = null,
-    val flightNumber: String? = null,
-    val reservationConfirmationNumber: String? = null,
+    val legs: List<TransportLeg> = emptyList(),
 )

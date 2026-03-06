@@ -3,12 +3,14 @@ package cat.company.wandervault.ui.screens
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import cat.company.wandervault.domain.model.Destination
-import cat.company.wandervault.domain.model.Transport
+import cat.company.wandervault.domain.model.TransportLeg
 import cat.company.wandervault.domain.model.TransportType
 import cat.company.wandervault.domain.usecase.DeleteTransportUseCase
+import cat.company.wandervault.domain.usecase.DeleteTransportLegUseCase
 import cat.company.wandervault.domain.usecase.GetDestinationByIdUseCase
-import cat.company.wandervault.domain.usecase.SaveTransportUseCase
-import cat.company.wandervault.domain.usecase.UpdateTransportUseCase
+import cat.company.wandervault.domain.usecase.GetOrCreateTransportForDestinationUseCase
+import cat.company.wandervault.domain.usecase.SaveTransportLegUseCase
+import cat.company.wandervault.domain.usecase.UpdateTransportLegUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -24,14 +26,18 @@ import kotlinx.coroutines.launch
  * Call [loadDestination] to start observing a destination.
  *
  * @param getDestinationById Use-case that fetches a destination by ID.
- * @param saveTransport Use-case that persists a new transport leg.
- * @param updateTransport Use-case that updates an existing transport leg.
- * @param deleteTransport Use-case that removes a transport leg.
+ * @param getOrCreateTransport Use-case that gets or creates the parent transport for a destination.
+ * @param saveTransportLeg Use-case that persists a new transport leg.
+ * @param updateTransportLeg Use-case that updates an existing transport leg.
+ * @param deleteTransportLeg Use-case that removes a transport leg.
+ * @param deleteTransport Use-case that removes the parent transport (and all legs via CASCADE).
  */
 class TransportDetailViewModel(
     private val getDestinationById: GetDestinationByIdUseCase,
-    private val saveTransport: SaveTransportUseCase,
-    private val updateTransport: UpdateTransportUseCase,
+    private val getOrCreateTransport: GetOrCreateTransportForDestinationUseCase,
+    private val saveTransportLeg: SaveTransportLegUseCase,
+    private val updateTransportLeg: UpdateTransportLegUseCase,
+    private val deleteTransportLeg: DeleteTransportLegUseCase,
     private val deleteTransport: DeleteTransportUseCase,
 ) : ViewModel() {
 
@@ -65,7 +71,7 @@ class TransportDetailViewModel(
                         val legs = if (_hasUnsavedEdits && _uiState.value is TransportDetailUiState.Success) {
                             (_uiState.value as TransportDetailUiState.Success).legs
                         } else {
-                            destination.transports.map { it.toEditState() }
+                            destination.transport?.legs?.map { it.toEditState() } ?: emptyList()
                         }
                         _uiState.value = TransportDetailUiState.Success(
                             destinationName = destination.name,
@@ -134,9 +140,9 @@ class TransportDetailViewModel(
     /**
      * Persists the current list of legs to the database.
      *
-     * - New legs (id == 0 and a type selected) are inserted.
-     * - Existing legs (id > 0) are updated.
-     * - Legs that were present in [_lastDestination] but are no longer in the edit list are deleted.
+     * - If all legs are empty/cleared, the parent transport is deleted (which cascade-deletes legs).
+     * - Otherwise, the parent transport is created if it doesn't exist yet, and legs are
+     *   inserted, updated, or deleted as required.
      * - Legs with no transport type selected are skipped (treated as empty).
      */
     fun onSave() {
@@ -146,7 +152,20 @@ class TransportDetailViewModel(
         // the real persisted IDs, preventing duplicate inserts on a second save.
         _hasUnsavedEdits = false
         viewModelScope.launch {
-            val existingById = destination.transports.associateBy { it.id }
+            val validLegs = state.legs.filter { leg ->
+                leg.typeName?.let { runCatching { TransportType.valueOf(it) }.getOrNull() } != null
+            }
+
+            if (validLegs.isEmpty()) {
+                // No valid legs left – delete the parent transport if it exists.
+                destination.transport?.let { deleteTransport(it) }
+                return@launch
+            }
+
+            // Get or create the parent transport for this destination.
+            val transportId = getOrCreateTransport(destination.id)
+
+            val existingLegsById = destination.transport?.legs?.associateBy { it.id } ?: emptyMap()
             val editedIds = mutableSetOf<Int>()
 
             state.legs.forEachIndexed { position, leg ->
@@ -156,9 +175,9 @@ class TransportDetailViewModel(
 
                 if (leg.id > 0) {
                     editedIds.add(leg.id)
-                    val existing = existingById[leg.id]
+                    val existing = existingLegsById[leg.id]
                     if (existing != null) {
-                        updateTransport(
+                        updateTransportLeg(
                             existing.copy(
                                 type = selectedType,
                                 position = position,
@@ -169,10 +188,10 @@ class TransportDetailViewModel(
                         )
                     }
                 } else {
-                    saveTransport(
-                        Transport(
+                    saveTransportLeg(
+                        TransportLeg(
                             id = 0,
-                            destinationId = destination.id,
+                            transportId = transportId,
                             type = selectedType,
                             position = position,
                             company = leg.company.trim().takeIf { it.isNotBlank() },
@@ -184,9 +203,9 @@ class TransportDetailViewModel(
             }
 
             // Delete any existing legs that were removed from the edit list.
-            destination.transports
-                .filter { it.id !in editedIds }
-                .forEach { deleteTransport(it) }
+            destination.transport?.legs
+                ?.filter { it.id !in editedIds }
+                ?.forEach { deleteTransportLeg(it) }
         }
     }
 
@@ -204,7 +223,7 @@ class TransportDetailViewModel(
     }
 }
 
-private fun Transport.toEditState() = TransportLegEditState(
+private fun TransportLeg.toEditState() = TransportLegEditState(
     id = id,
     typeName = type.name,
     company = company ?: "",
