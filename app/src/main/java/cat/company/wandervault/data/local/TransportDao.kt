@@ -18,13 +18,14 @@ interface TransportDao {
     @Delete
     suspend fun delete(transport: TransportEntity)
 
-    @Query("SELECT * FROM transports WHERE destinationId = :destinationId LIMIT 1")
-    fun getByDestinationId(destinationId: Int): Flow<TransportEntity?>
+    @Query("SELECT * FROM transports WHERE destinationId = :destinationId ORDER BY position ASC")
+    fun getByDestinationId(destinationId: Int): Flow<List<TransportEntity>>
 
     @Query(
         "SELECT t.* FROM transports t " +
             "INNER JOIN destinations d ON t.destinationId = d.id " +
-            "WHERE d.tripId = :tripId",
+            "WHERE d.tripId = :tripId " +
+            "ORDER BY t.position ASC",
     )
     fun getByTripId(tripId: Int): Flow<List<TransportEntity>>
 
@@ -33,7 +34,8 @@ interface TransportDao {
             "INNER JOIN destinations prev ON t.destinationId = prev.id " +
             "INNER JOIN destinations curr ON curr.id = :destinationId " +
             "WHERE prev.tripId = curr.tripId " +
-            "AND prev.position = curr.position - 1",
+            "AND prev.position = curr.position - 1 " +
+            "ORDER BY t.position ASC",
     )
-    fun getArrivalTransportForDestination(destinationId: Int): Flow<TransportEntity?>
+    fun getArrivalTransportForDestination(destinationId: Int): Flow<List<TransportEntity>>
 }

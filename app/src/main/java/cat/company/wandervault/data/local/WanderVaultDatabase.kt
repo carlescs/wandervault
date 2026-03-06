@@ -6,7 +6,7 @@ import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [TripEntity::class, DestinationEntity::class, TransportEntity::class], version = 7)
+@Database(entities = [TripEntity::class, DestinationEntity::class, TransportEntity::class], version = 8)
 @TypeConverters(DateConverters::class)
 abstract class WanderVaultDatabase : RoomDatabase() {
     abstract fun tripDao(): TripDao
@@ -126,6 +126,15 @@ abstract class WanderVaultDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE transports ADD COLUMN `company` TEXT")
                 db.execSQL("ALTER TABLE transports ADD COLUMN `flightNumber` TEXT")
                 db.execSQL("ALTER TABLE transports ADD COLUMN `reservationConfirmationNumber` TEXT")
+            }
+        }
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Add position column to allow multiple ordered legs per destination.
+                db.execSQL("ALTER TABLE transports ADD COLUMN `position` INTEGER NOT NULL DEFAULT 0")
+                // Remove the unique constraint on destinationId to allow multiple legs.
+                db.execSQL("DROP INDEX IF EXISTS `index_transports_destinationId`")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_transports_destinationId` ON `transports`(`destinationId`)")
             }
         }
     }

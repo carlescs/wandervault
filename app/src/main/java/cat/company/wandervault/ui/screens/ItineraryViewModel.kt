@@ -108,13 +108,17 @@ class ItineraryViewModel(
 
     fun onUpdateTransport(destination: Destination, transport: Transport?) {
         viewModelScope.launch {
-            val existing = destination.transport
+            val existing = destination.transports
             when {
-                transport == null && existing != null -> deleteTransport(existing)
-                transport != null && existing != null -> updateTransport(
-                    transport.copy(id = existing.id, destinationId = destination.id),
-                )
-                transport != null -> saveTransport(
+                transport == null -> existing.forEach { deleteTransport(it) }
+                existing.isNotEmpty() -> {
+                    // Replace all existing legs with a single transport.
+                    existing.drop(1).forEach { deleteTransport(it) }
+                    updateTransport(
+                        transport.copy(id = existing.first().id, destinationId = destination.id),
+                    )
+                }
+                else -> saveTransport(
                     transport.copy(id = 0, destinationId = destination.id),
                 )
             }
@@ -146,7 +150,7 @@ class ItineraryViewModel(
                             departureDateTime = if (isSwapWithNowLast) null else swapWith.departureDateTime,
                         ),
                     )
-                    if (isSwapWithNowLast) swapWith.transport?.let { deleteTransport(it) }
+                    if (isSwapWithNowLast) swapWith.transports.forEach { deleteTransport(it) }
                 },
             )
         }
@@ -169,7 +173,7 @@ class ItineraryViewModel(
                             departureDateTime = if (isDestinationNowLast) null else destination.departureDateTime,
                         ),
                     )
-                    if (isDestinationNowLast) destination.transport?.let { deleteTransport(it) }
+                    if (isDestinationNowLast) destination.transports.forEach { deleteTransport(it) }
                 },
                 async {
                     updateDestination(
@@ -212,7 +216,7 @@ class ItineraryViewModel(
                 val needsReindex = dest.position != index
                 val needsArrivalClear = isNowFirst && dest.arrivalDateTime != null
                 val needsDepartureClear = isNowLast && dest.departureDateTime != null
-                val needsTransportDelete = isNowLast && dest.transport != null
+                val needsTransportDelete = isNowLast && dest.transports.isNotEmpty()
                 if (needsReindex || needsArrivalClear || needsDepartureClear || needsTransportDelete) {
                     index to dest
                 } else null
@@ -227,7 +231,7 @@ class ItineraryViewModel(
                             departureDateTime = if (isNowLast) null else dest.departureDateTime,
                         ),
                     )
-                    if (isNowLast) dest.transport?.let { deleteTransport(it) }
+                    if (isNowLast) dest.transports.forEach { deleteTransport(it) }
                 }
             }.awaitAll()
         }

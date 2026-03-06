@@ -128,7 +128,7 @@ internal fun LocationDetailContent(
             }
             is LocationDetailUiState.Success -> {
                 val destination = uiState.destination
-                val arrivalTransport = uiState.arrivalTransport
+                val arrivalTransports = uiState.arrivalTransports
                 val locale = LocalConfiguration.current.locales[0]
                 val dateTimeFormatter = remember(locale) {
                     DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
@@ -152,10 +152,10 @@ internal fun LocationDetailContent(
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
                             }
-                            arrivalTransport?.let { transport ->
-                                TransportInfoSection(
+                            if (arrivalTransports.isNotEmpty()) {
+                                TransportsInfoSection(
                                     label = stringResource(R.string.location_detail_arrival_transport),
-                                    transport = transport,
+                                    transports = arrivalTransports,
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
                             }
@@ -166,13 +166,13 @@ internal fun LocationDetailContent(
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
                             }
-                            destination.transport?.let { transport ->
-                                TransportInfoSection(
+                            if (destination.transports.isNotEmpty()) {
+                                TransportsInfoSection(
                                     label = stringResource(R.string.location_detail_transport),
-                                    transport = transport,
+                                    transports = destination.transports,
                                     modifier = Modifier.clickable(role = Role.Button) { onTransportClick(destination.id) },
                                 )
-                            } ?: run {
+                            } else {
                                 LabeledInfoRow(
                                     label = stringResource(R.string.location_detail_transport),
                                     value = stringResource(R.string.transport_none),
@@ -188,7 +188,25 @@ internal fun LocationDetailContent(
 }
 
 @Composable
-private fun TransportInfoSection(
+private fun TransportsInfoSection(
+    label: String,
+    transports: List<Transport>,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier) {
+        transports.forEachIndexed { index, transport ->
+            val legLabel = if (transports.size > 1) {
+                "$label ${index + 1}"
+            } else {
+                label
+            }
+            if (index > 0) {
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+            TransportInfoSection(label = legLabel, transport = transport)
+        }
+    }
+}
     label: String,
     transport: Transport,
     modifier: Modifier = Modifier,
@@ -274,19 +292,24 @@ private fun LocationDetailPreview() {
         position = 0,
         arrivalDateTime = LocalDateTime.of(2024, 6, 3, 10, 30),
         departureDateTime = LocalDateTime.of(2024, 6, 7, 14, 0),
-        transport = Transport(destinationId = 1, type = TransportType.FLIGHT),
+        transports = listOf(
+            Transport(destinationId = 1, type = TransportType.FLIGHT, company = "Air France", flightNumber = "AF1234"),
+            Transport(destinationId = 1, type = TransportType.TRAIN, position = 1, company = "RATP"),
+        ),
     )
-    val arrivalTransport = Transport(
-        destinationId = 0,
-        type = TransportType.TRAIN,
-        company = "Eurostar",
-        flightNumber = "ES9024",
+    val arrivalTransports = listOf(
+        Transport(
+            destinationId = 0,
+            type = TransportType.TRAIN,
+            company = "Eurostar",
+            flightNumber = "ES9024",
+        ),
     )
     WanderVaultTheme {
         LocationDetailContent(
             uiState = LocationDetailUiState.Success(
                 destination = destination,
-                arrivalTransport = arrivalTransport,
+                arrivalTransports = arrivalTransports,
             ),
             onNavigateUp = {},
         )

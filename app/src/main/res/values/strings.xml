@@ -106,4 +106,8 @@
     <string name="transport_detail_navigate_up">Navigate up</string>
     <string name="transport_detail_not_found">Destination not found</string>
     <string name="transport_detail_type_label">Transport type</string>
+    <string name="transport_detail_add_leg">Add leg</string>
+    <string name="transport_detail_remove_leg">Remove leg</string>
+    <string name="transport_detail_no_legs">No transport legs added yet. Tap \"Add leg\" to get started.</string>
+    <string name="transport_detail_leg_number">Leg %d</string>
 </resources>

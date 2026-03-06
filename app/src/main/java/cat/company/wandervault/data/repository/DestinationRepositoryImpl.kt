@@ -19,8 +19,8 @@ class DestinationRepositoryImpl(
         combine(
             dao.getById(id),
             transportDao.getByDestinationId(id),
-        ) { entity, transport ->
-            entity?.toDomain(transport?.toDomain())
+        ) { entity, transports ->
+            entity?.toDomain(transports.map { it.toDomain() })
         }
 
     override fun getDestinationsForTrip(tripId: Int): Flow<List<Destination>> =
@@ -28,8 +28,8 @@ class DestinationRepositoryImpl(
             dao.getByTripId(tripId),
             transportDao.getByTripId(tripId),
         ) { destinations, transports ->
-            val transportByDestId = transports.associateBy { it.destinationId }
-            destinations.map { it.toDomain(transportByDestId[it.id]?.toDomain()) }
+            val transportsByDestId = transports.groupBy { it.destinationId }
+            destinations.map { it.toDomain(transportsByDestId[it.id]?.map { t -> t.toDomain() } ?: emptyList()) }
         }
 
     override suspend fun saveDestination(destination: Destination) {
@@ -44,18 +44,20 @@ class DestinationRepositoryImpl(
         dao.delete(destination.toEntity())
     }
 
-    override fun getArrivalTransportForDestination(destinationId: Int): Flow<Transport?> =
-        transportDao.getArrivalTransportForDestination(destinationId).map { it?.toDomain() }
+    override fun getArrivalTransportForDestination(destinationId: Int): Flow<List<Transport>> =
+        transportDao.getArrivalTransportForDestination(destinationId).map { entities ->
+            entities.map { it.toDomain() }
+        }
 }
 
-private fun DestinationEntity.toDomain(transport: Transport?) = Destination(
+private fun DestinationEntity.toDomain(transports: List<Transport>) = Destination(
     id = id,
     tripId = tripId,
     name = name,
     position = position,
     arrivalDateTime = arrivalDateTime,
     departureDateTime = departureDateTime,
-    transport = transport,
+    transports = transports,
 )
 
 private fun Destination.toEntity() = DestinationEntity(

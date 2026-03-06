@@ -40,9 +40,9 @@ class LocationDetailViewModel(
                     combine(
                         getDestinationById(id),
                         getArrivalTransport(id),
-                    ) { destination, arrivalTransport ->
+                    ) { destination, arrivalTransports ->
                         if (destination != null) {
-                            LocationDetailUiState.Success(destination, arrivalTransport)
+                            LocationDetailUiState.Success(destination, arrivalTransports)
                         } else {
                             LocationDetailUiState.Error
                         }
