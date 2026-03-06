@@ -170,6 +170,13 @@ internal fun LocationDetailContent(
                                 TransportInfoSection(
                                     label = stringResource(R.string.location_detail_transport),
                                     transport = transport,
+                                    onClick = { onTransportClick(destination.id) },
+                                )
+                            } ?: run {
+                                LabeledInfoRow(
+                                    label = stringResource(R.string.location_detail_transport),
+                                    value = stringResource(R.string.transport_none),
+                                    onClick = { onTransportClick(destination.id) },
                                 )
                             }
                         }
@@ -184,21 +191,17 @@ internal fun LocationDetailContent(
 private fun TransportInfoSection(
     label: String,
     transport: Transport,
+    onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val detailSpacing = 4.dp
     Column(modifier = modifier) {
         LabeledInfoRow(
-            label = label,value = stringResource(transport.type.labelRes),
-                                    onClick = { onTransportClick(destination.id) },
-                                )
-                            } ?: run {
-                                LabeledInfoRow(
-                                    label = stringResource(R.string.location_detail_transport),
-                                    value = stringResource(R.string.transport_none),
-                                    onClick = { onTransportClick(destination.id) },
-                                )
-                            transport.company?.let { company ->
+            label = label,
+            value = stringResource(transport.type.labelRes),
+            onClick = onClick,
+        )
+        transport.company?.let { company ->
             Spacer(modifier = Modifier.height(detailSpacing))
             LabeledInfoRow(
                 label = stringResource(R.string.transport_company_label),
