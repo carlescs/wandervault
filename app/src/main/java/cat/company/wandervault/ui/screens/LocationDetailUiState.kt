@@ -13,7 +13,7 @@ sealed class LocationDetailUiState {
     /** The destination was loaded successfully. */
     data class Success(
         val destination: Destination,
-        /** The transport used to arrive at this destination (from the preceding stop), or `null`. */
+        /** The transport (with its legs) used to arrive at this destination (from the preceding stop). */
         val arrivalTransport: Transport? = null,
     ) : LocationDetailUiState()
 

@@ -18,8 +18,6 @@ val presentationModule = module {
             saveDestination = get(),
             updateDestination = get(),
             deleteDestination = get(),
-            saveTransport = get(),
-            updateTransport = get(),
             deleteTransport = get(),
         )
     }
@@ -27,8 +25,10 @@ val presentationModule = module {
     viewModel {
         TransportDetailViewModel(
             getDestinationById = get(),
-            saveTransport = get(),
-            updateTransport = get(),
+            getOrCreateTransport = get(),
+            saveTransportLeg = get(),
+            updateTransportLeg = get(),
+            deleteTransportLeg = get(),
             deleteTransport = get(),
         )
     }

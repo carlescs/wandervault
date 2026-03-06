@@ -70,6 +70,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cat.company.wandervault.R
 import cat.company.wandervault.domain.model.Destination
 import cat.company.wandervault.domain.model.Transport
+import cat.company.wandervault.domain.model.TransportLeg
 import cat.company.wandervault.domain.model.TransportType
 import cat.company.wandervault.ui.theme.WanderVaultTheme
 import org.koin.androidx.compose.koinViewModel
@@ -261,7 +262,7 @@ private fun DestinationTimelineItem(
             )
             if (!isLast) {
                 // Bottom line with transport circle overlaid at the centre
-                val hasTransport = destination.transport != null
+                val hasTransport = destination.transport != null && destination.transport.legs.isNotEmpty()
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -274,7 +275,7 @@ private fun DestinationTimelineItem(
                             .fillMaxHeight()
                             .background(MaterialTheme.colorScheme.primary),
                     )
-                    // Transport circle: filled when a transport is set, dimmed outline otherwise
+                    // Transport circle: filled when transport legs are set, dimmed outline otherwise
                     Box(
                         modifier = Modifier
                             .size(32.dp)
@@ -297,7 +298,7 @@ private fun DestinationTimelineItem(
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
-                            imageVector = destination.transport?.type?.icon ?: Icons.Default.Add,
+                            imageVector = destination.transport?.legs?.firstOrNull()?.type?.icon ?: Icons.Default.Add,
                             contentDescription = stringResource(
                                 if (hasTransport) R.string.itinerary_change_transport
                                 else R.string.itinerary_add_transport,
@@ -390,13 +391,12 @@ private fun DestinationTimelineItem(
             }
 
             if (!isLast) {
-                // Show transport details (company, flight/reference number, confirmation) when set
-                val transport = destination.transport
-                if (transport != null) {
+                // Show transport details for all legs when set
+                destination.transport?.legs?.forEach { leg ->
                     val details = listOfNotNull(
-                        transport.company,
-                        transport.flightNumber,
-                        transport.reservationConfirmationNumber,
+                        leg.company,
+                        leg.flightNumber,
+                        leg.reservationConfirmationNumber,
                     )
                     if (details.isNotEmpty()) {
                         Text(
@@ -718,7 +718,7 @@ private fun ItineraryEmptyPreview() {
 @Composable
 private fun ItineraryWithDestinationsPreview() {
     val destinations = listOf(
-        Destination(1, 1, "London", 0, departureDateTime = LocalDateTime.of(2024, 6, 1, 9, 0), transport = Transport(destinationId = 1, type = TransportType.FLIGHT)),
+        Destination(1, 1, "London", 0, departureDateTime = LocalDateTime.of(2024, 6, 1, 9, 0), transport = Transport(id = 1, destinationId = 1, legs = listOf(TransportLeg(transportId = 1, type = TransportType.FLIGHT)))),
         Destination(
             2,
             1,
@@ -726,7 +726,7 @@ private fun ItineraryWithDestinationsPreview() {
             1,
             arrivalDateTime = LocalDateTime.of(2024, 6, 1, 12, 30),
             departureDateTime = LocalDateTime.of(2024, 6, 3, 10, 0),
-            transport = Transport(destinationId = 2, type = TransportType.TRAIN),
+            transport = Transport(id = 2, destinationId = 2, legs = listOf(TransportLeg(transportId = 2, type = TransportType.TRAIN))),
         ),
         Destination(3, 1, "Rome", 2, arrivalDateTime = LocalDateTime.of(2024, 6, 3, 14, 0)),
     )

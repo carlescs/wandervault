@@ -34,6 +34,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cat.company.wandervault.R
 import cat.company.wandervault.domain.model.Destination
 import cat.company.wandervault.domain.model.Transport
+import cat.company.wandervault.domain.model.TransportLeg
 import cat.company.wandervault.domain.model.TransportType
 import cat.company.wandervault.ui.theme.WanderVaultTheme
 import org.koin.androidx.compose.koinViewModel
@@ -152,10 +153,10 @@ internal fun LocationDetailContent(
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
                             }
-                            arrivalTransport?.let { transport ->
-                                TransportInfoSection(
+                            if (arrivalTransport != null) {
+                                TransportsInfoSection(
                                     label = stringResource(R.string.location_detail_arrival_transport),
-                                    transport = transport,
+                                    transport = arrivalTransport,
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
                             }
@@ -166,13 +167,13 @@ internal fun LocationDetailContent(
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
                             }
-                            destination.transport?.let { transport ->
-                                TransportInfoSection(
+                            if (destination.transport != null) {
+                                TransportsInfoSection(
                                     label = stringResource(R.string.location_detail_transport),
-                                    transport = transport,
+                                    transport = destination.transport,
                                     modifier = Modifier.clickable(role = Role.Button) { onTransportClick(destination.id) },
                                 )
-                            } ?: run {
+                            } else {
                                 LabeledInfoRow(
                                     label = stringResource(R.string.location_detail_transport),
                                     value = stringResource(R.string.transport_none),
@@ -188,32 +189,53 @@ internal fun LocationDetailContent(
 }
 
 @Composable
-private fun TransportInfoSection(
+private fun TransportsInfoSection(
     label: String,
     transport: Transport,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier) {
+        transport.legs.forEachIndexed { index, leg ->
+            val legLabel = if (transport.legs.size > 1) {
+                stringResource(R.string.transport_leg_label, label, index + 1)
+            } else {
+                label
+            }
+            if (index > 0) {
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+            TransportInfoSection(label = legLabel, leg = leg)
+        }
+    }
+}
+
+@Composable
+private fun TransportInfoSection(
+    label: String,
+    leg: TransportLeg,
     modifier: Modifier = Modifier,
 ) {
     val detailSpacing = 4.dp
     Column(modifier = modifier) {
         LabeledInfoRow(
             label = label,
-            value = stringResource(transport.type.labelRes),
+            value = stringResource(leg.type.labelRes),
         )
-        transport.company?.let { company ->
+        leg.company?.let { company ->
             Spacer(modifier = Modifier.height(detailSpacing))
             LabeledInfoRow(
                 label = stringResource(R.string.transport_company_label),
                 value = company,
             )
         }
-        transport.flightNumber?.let { flightNumber ->
+        leg.flightNumber?.let { flightNumber ->
             Spacer(modifier = Modifier.height(detailSpacing))
             LabeledInfoRow(
                 label = stringResource(R.string.transport_flight_number_label),
                 value = flightNumber,
             )
         }
-        transport.reservationConfirmationNumber?.let { confirmation ->
+        leg.reservationConfirmationNumber?.let { confirmation ->
             Spacer(modifier = Modifier.height(detailSpacing))
             LabeledInfoRow(
                 label = stringResource(R.string.transport_confirmation_label),
@@ -274,13 +296,21 @@ private fun LocationDetailPreview() {
         position = 0,
         arrivalDateTime = LocalDateTime.of(2024, 6, 3, 10, 30),
         departureDateTime = LocalDateTime.of(2024, 6, 7, 14, 0),
-        transport = Transport(destinationId = 1, type = TransportType.FLIGHT),
+        transport = Transport(
+            id = 1,
+            destinationId = 1,
+            legs = listOf(
+                TransportLeg(transportId = 1, type = TransportType.FLIGHT, company = "Air France", flightNumber = "AF1234"),
+                TransportLeg(transportId = 1, type = TransportType.TRAIN, position = 1, company = "RATP"),
+            ),
+        ),
     )
     val arrivalTransport = Transport(
+        id = 2,
         destinationId = 0,
-        type = TransportType.TRAIN,
-        company = "Eurostar",
-        flightNumber = "ES9024",
+        legs = listOf(
+            TransportLeg(transportId = 2, type = TransportType.TRAIN, company = "Eurostar", flightNumber = "ES9024"),
+        ),
     )
     WanderVaultTheme {
         LocationDetailContent(

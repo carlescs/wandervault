@@ -13,9 +13,9 @@ interface DestinationRepository {
     fun getDestinationsForTrip(tripId: Int): Flow<List<Destination>>
 
     /**
-     * Returns a [Flow] emitting the [Transport] used to travel to the destination with the given
-     * [destinationId] (i.e. the transport of the preceding destination in the same trip), or
-     * `null` if there is no preceding destination or no transport assigned to it.
+     * Returns a [Flow] emitting the [Transport] (with its legs) used to travel to the destination
+     * with the given [destinationId] (i.e. the transport of the preceding destination in the same
+     * trip), or `null` if there is no preceding destination or no transport assigned to it.
      */
     fun getArrivalTransportForDestination(destinationId: Int): Flow<Transport?>
 

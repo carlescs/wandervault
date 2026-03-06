@@ -1,8 +1,10 @@
 package cat.company.wandervault.ui.screens
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,21 +17,29 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AltRoute
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DirectionsBike
 import androidx.compose.material.icons.filled.DirectionsBoat
 import androidx.compose.material.icons.filled.DirectionsBus
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.Flight
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Train
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -38,9 +48,13 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
@@ -51,13 +65,19 @@ import cat.company.wandervault.domain.model.TransportType
 import cat.company.wandervault.ui.theme.WanderVaultTheme
 import org.koin.androidx.compose.koinViewModel
 
+/** Tabs shown in the Transport Detail bottom navigation bar. */
+private enum class TransportDetailTab(@StringRes val labelRes: Int, val icon: ImageVector) {
+    DETAILS(R.string.transport_detail_tab_details, Icons.Default.Info),
+    LEGS(R.string.transport_detail_tab_legs, Icons.Default.AltRoute),
+}
+
 /**
  * Transport Detail screen entry point.
  *
  * Loads the destination from the repository by [destinationId] and allows inline editing of its
- * transport leg.
+ * transport legs. Multiple legs can be added, edited, and removed.
  *
- * @param destinationId The ID of the destination whose transport is displayed and edited.
+ * @param destinationId The ID of the destination whose transport legs are displayed and edited.
  * @param onNavigateUp Called when the user taps the back/up button.
  * @param modifier Optional [Modifier].
  */
@@ -77,6 +97,8 @@ fun TransportDetailScreen(
     TransportDetailContent(
         uiState = uiState,
         onNavigateUp = onNavigateUp,
+        onAddLeg = viewModel::onAddLeg,
+        onRemoveLeg = viewModel::onRemoveLeg,
         onTypeSelected = viewModel::onTypeSelected,
         onCompanyChange = viewModel::onCompanyChange,
         onFlightNumberChange = viewModel::onFlightNumberChange,
@@ -100,13 +122,17 @@ fun TransportDetailScreen(
 internal fun TransportDetailContent(
     uiState: TransportDetailUiState,
     onNavigateUp: () -> Unit,
-    onTypeSelected: (String?) -> Unit,
-    onCompanyChange: (String) -> Unit,
-    onFlightNumberChange: (String) -> Unit,
-    onConfirmationNumberChange: (String) -> Unit,
+    onAddLeg: () -> Unit,
+    onRemoveLeg: (Int) -> Unit,
+    onTypeSelected: (Int, String?) -> Unit,
+    onCompanyChange: (Int, String) -> Unit,
+    onFlightNumberChange: (Int, String) -> Unit,
+    onConfirmationNumberChange: (Int, String) -> Unit,
     onSave: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var selectedTab by rememberSaveable { mutableStateOf(TransportDetailTab.DETAILS) }
+
     val title = when (uiState) {
         is TransportDetailUiState.Success -> uiState.destinationName
         else -> ""
@@ -134,6 +160,12 @@ internal fun TransportDetailContent(
                 },
             )
         },
+        bottomBar = {
+            TransportDetailBottomBar(
+                selectedTab = selectedTab,
+                onTabSelected = { selectedTab = it },
+            )
+        },
     ) { innerPadding ->
         when (uiState) {
             is TransportDetailUiState.Loading -> {
@@ -159,83 +191,262 @@ internal fun TransportDetailContent(
             }
 
             is TransportDetailUiState.Success -> {
-                val editState = uiState.editState
-                val selectedType = editState.typeName?.let { name ->
-                    runCatching { TransportType.valueOf(name) }.getOrNull()
-                }
-
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding)
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    Text(
-                        text = stringResource(R.string.transport_detail_type_label),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 8.dp),
+                when (selectedTab) {
+                    TransportDetailTab.DETAILS -> TransportDetailsTabContent(
+                        uiState = uiState,
+                        innerPadding = innerPadding,
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    // Transport type grid (rows of 4 icons)
-                    TransportType.entries.chunked(4).forEach { rowItems ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceEvenly,
-                        ) {
-                            rowItems.forEach { type ->
-                                TransportDetailOption(
-                                    icon = type.detailIcon,
-                                    label = stringResource(type.detailLabelRes),
-                                    isSelected = type == selectedType,
-                                    onClick = { onTypeSelected(type.name) },
-                                )
-                            }
-                        }
-                    }
-
-                    // "None" option to clear the transport
-                    Row(modifier = Modifier.fillMaxWidth()) {
-                        TransportDetailOption(
-                            icon = Icons.Default.Close,
-                            label = stringResource(R.string.transport_none),
-                            isSelected = selectedType == null,
-                            onClick = { onTypeSelected(null) },
-                        )
-                    }
-
-                    if (selectedType != null) {
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-                        OutlinedTextField(
-                            value = editState.company,
-                            onValueChange = onCompanyChange,
-                            label = { Text(stringResource(R.string.transport_company_label)) },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        OutlinedTextField(
-                            value = editState.flightNumber,
-                            onValueChange = onFlightNumberChange,
-                            label = { Text(stringResource(R.string.transport_flight_number_label)) },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        OutlinedTextField(
-                            value = editState.confirmationNumber,
-                            onValueChange = onConfirmationNumberChange,
-                            label = { Text(stringResource(R.string.transport_confirmation_label)) },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
+                    TransportDetailTab.LEGS -> TransportLegsTabContent(
+                        uiState = uiState,
+                        onAddLeg = onAddLeg,
+                        onRemoveLeg = onRemoveLeg,
+                        onTypeSelected = onTypeSelected,
+                        onCompanyChange = onCompanyChange,
+                        onFlightNumberChange = onFlightNumberChange,
+                        onConfirmationNumberChange = onConfirmationNumberChange,
+                        innerPadding = innerPadding,
+                    )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun TransportDetailBottomBar(
+    selectedTab: TransportDetailTab,
+    onTabSelected: (TransportDetailTab) -> Unit,
+) {
+    NavigationBar {
+        TransportDetailTab.entries.forEach { tab ->
+            NavigationBarItem(
+                selected = tab == selectedTab,
+                onClick = { onTabSelected(tab) },
+                icon = { Icon(tab.icon, contentDescription = null) },
+                label = { Text(stringResource(tab.labelRes)) },
+            )
+        }
+    }
+}
+
+/**
+ * Content for the Details tab: shows a summary of the destination transport.
+ */
+@Composable
+private fun TransportDetailsTabContent(
+    uiState: TransportDetailUiState.Success,
+    innerPadding: PaddingValues,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(innerPadding)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            text = uiState.destinationName,
+            style = MaterialTheme.typography.headlineMedium,
+        )
+        Text(
+            text = transportSummaryLabel(uiState.legs),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/** Returns a localised summary label for the given list of legs shown on the Details tab. */
+@Composable
+private fun transportSummaryLabel(legs: List<TransportLegEditState>): String {
+    return when (legs.size) {
+        0 -> stringResource(R.string.transport_none)
+        1 -> {
+            val type = legs.first().typeName
+                ?.let { runCatching { TransportType.valueOf(it) }.getOrNull() }
+            if (type != null) stringResource(type.detailLabelRes) else stringResource(R.string.transport_none)
+        }
+        else -> pluralStringResource(R.plurals.transport_detail_legs_count, legs.size, legs.size)
+    }
+}
+
+/**
+ * Content for the Legs tab: the parent transport card containing all editable leg sections.
+ */
+@Composable
+private fun TransportLegsTabContent(
+    uiState: TransportDetailUiState.Success,
+    onAddLeg: () -> Unit,
+    onRemoveLeg: (Int) -> Unit,
+    onTypeSelected: (Int, String?) -> Unit,
+    onCompanyChange: (Int, String) -> Unit,
+    onFlightNumberChange: (Int, String) -> Unit,
+    onConfirmationNumberChange: (Int, String) -> Unit,
+    innerPadding: PaddingValues,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(innerPadding)
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+    ) {
+        // Outer card: the "main transport" for this destination.
+        // All legs are children rendered inside it.
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+            ),
+        ) {
+            Column {
+                if (uiState.legs.isEmpty()) {
+                    Text(
+                        text = stringResource(R.string.transport_detail_no_legs),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                    )
+                }
+
+                uiState.legs.forEachIndexed { index, leg ->
+                    if (index > 0) {
+                        HorizontalDivider()
+                    }
+                    TransportLegSection(
+                        index = index,
+                        totalLegs = uiState.legs.size,
+                        leg = leg,
+                        onRemove = { onRemoveLeg(index) },
+                        onTypeSelected = { typeName -> onTypeSelected(index, typeName) },
+                        onCompanyChange = { value -> onCompanyChange(index, value) },
+                        onFlightNumberChange = { value -> onFlightNumberChange(index, value) },
+                        onConfirmationNumberChange = { value -> onConfirmationNumberChange(index, value) },
+                    )
+                }
+
+                if (uiState.legs.isNotEmpty()) {
+                    HorizontalDivider()
+                }
+
+                TextButton(
+                    onClick = onAddLeg,
+                    modifier = Modifier
+                        .align(Alignment.CenterHorizontally)
+                        .padding(vertical = 4.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(modifier = Modifier.size(4.dp))
+                    Text(stringResource(R.string.transport_detail_add_leg))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TransportLegSection(
+    index: Int,
+    totalLegs: Int,
+    leg: TransportLegEditState,
+    onRemove: () -> Unit,
+    onTypeSelected: (String?) -> Unit,
+    onCompanyChange: (String) -> Unit,
+    onFlightNumberChange: (String) -> Unit,
+    onConfirmationNumberChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val selectedType = leg.typeName?.let { name ->
+        runCatching { TransportType.valueOf(name) }.getOrNull()
+    }
+
+    Column(
+        modifier = modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        // Leg header: leg number + delete button
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                text = if (totalLegs > 1) {
+                    stringResource(R.string.transport_detail_leg_number, index + 1)
+                } else {
+                    stringResource(R.string.transport_detail_type_label)
+                },
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            IconButton(onClick = onRemove) {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = stringResource(R.string.transport_detail_remove_leg),
+                    tint = MaterialTheme.colorScheme.error,
+                )
+            }
+        }
+
+        // Transport type grid (rows of 4 icons)
+        TransportType.entries.chunked(4).forEach { rowItems ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+            ) {
+                rowItems.forEach { type ->
+                    TransportDetailOption(
+                        icon = type.detailIcon,
+                        label = stringResource(type.detailLabelRes),
+                        isSelected = type == selectedType,
+                        onClick = { onTypeSelected(type.name) },
+                    )
+                }
+            }
+        }
+
+        // "None" option to clear the transport type for this leg
+        Row(modifier = Modifier.fillMaxWidth()) {
+            TransportDetailOption(
+                icon = Icons.Default.Close,
+                label = stringResource(R.string.transport_none),
+                isSelected = selectedType == null,
+                onClick = { onTypeSelected(null) },
+            )
+        }
+
+        if (selectedType != null) {
+            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+            OutlinedTextField(
+                value = leg.company,
+                onValueChange = onCompanyChange,
+                label = { Text(stringResource(R.string.transport_company_label)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            OutlinedTextField(
+                value = leg.flightNumber,
+                onValueChange = onFlightNumberChange,
+                label = { Text(stringResource(R.string.transport_flight_number_label)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            OutlinedTextField(
+                value = leg.confirmationNumber,
+                onValueChange = onConfirmationNumberChange,
+                label = { Text(stringResource(R.string.transport_confirmation_label)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
     }
 }
@@ -299,23 +510,38 @@ private val TransportType.detailLabelRes: Int
 
 @Preview(showBackground = true)
 @Composable
-private fun TransportDetailFlightPreview() {
+private fun TransportDetailMultiLegPreview() {
     WanderVaultTheme {
         TransportDetailContent(
             uiState = TransportDetailUiState.Success(
                 destinationName = "Paris",
-                editState = TransportDetailEditState(
-                    typeName = TransportType.FLIGHT.name,
-                    company = "Air France",
-                    flightNumber = "AF1234",
-                    confirmationNumber = "XYZ123",
+                legs = listOf(
+                    TransportLegEditState(
+                        id = 1,
+                        typeName = TransportType.DRIVING.name,
+                        company = "Uber",
+                    ),
+                    TransportLegEditState(
+                        id = 2,
+                        typeName = TransportType.FLIGHT.name,
+                        company = "Air France",
+                        flightNumber = "AF1234",
+                        confirmationNumber = "XYZ123",
+                    ),
+                    TransportLegEditState(
+                        id = 3,
+                        typeName = TransportType.TRAIN.name,
+                        company = "RATP",
+                    ),
                 ),
             ),
             onNavigateUp = {},
-            onTypeSelected = {},
-            onCompanyChange = {},
-            onFlightNumberChange = {},
-            onConfirmationNumberChange = {},
+            onAddLeg = {},
+            onRemoveLeg = {},
+            onTypeSelected = { _, _ -> },
+            onCompanyChange = { _, _ -> },
+            onFlightNumberChange = { _, _ -> },
+            onConfirmationNumberChange = { _, _ -> },
             onSave = {},
         )
     }
@@ -323,18 +549,48 @@ private fun TransportDetailFlightPreview() {
 
 @Preview(showBackground = true)
 @Composable
-private fun TransportDetailNoTransportPreview() {
+private fun TransportDetailSingleLegPreview() {
+    WanderVaultTheme {
+        TransportDetailContent(
+            uiState = TransportDetailUiState.Success(
+                destinationName = "London",
+                legs = listOf(
+                    TransportLegEditState(
+                        typeName = TransportType.TRAIN.name,
+                        company = "Eurostar",
+                        flightNumber = "ES9001",
+                        confirmationNumber = "TRAIN-456",
+                    ),
+                ),
+            ),
+            onNavigateUp = {},
+            onAddLeg = {},
+            onRemoveLeg = {},
+            onTypeSelected = { _, _ -> },
+            onCompanyChange = { _, _ -> },
+            onFlightNumberChange = { _, _ -> },
+            onConfirmationNumberChange = { _, _ -> },
+            onSave = {},
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun TransportDetailNoLegsPreview() {
     WanderVaultTheme {
         TransportDetailContent(
             uiState = TransportDetailUiState.Success(
                 destinationName = "Rome",
-                editState = TransportDetailEditState(),
+                legs = emptyList(),
             ),
             onNavigateUp = {},
-            onTypeSelected = {},
-            onCompanyChange = {},
-            onFlightNumberChange = {},
-            onConfirmationNumberChange = {},
+            onAddLeg = {},
+            onRemoveLeg = {},
+            onTypeSelected = { _, _ -> },
+            onCompanyChange = { _, _ -> },
+            onFlightNumberChange = { _, _ -> },
+            onConfirmationNumberChange = { _, _ -> },
             onSave = {},
         )
     }
@@ -347,34 +603,12 @@ private fun TransportDetailLoadingPreview() {
         TransportDetailContent(
             uiState = TransportDetailUiState.Loading,
             onNavigateUp = {},
-            onTypeSelected = {},
-            onCompanyChange = {},
-            onFlightNumberChange = {},
-            onConfirmationNumberChange = {},
-            onSave = {},
-        )
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-private fun TransportDetailTrainPreview() {
-    WanderVaultTheme {
-        TransportDetailContent(
-            uiState = TransportDetailUiState.Success(
-                destinationName = "London",
-                editState = TransportDetailEditState(
-                    typeName = TransportType.TRAIN.name,
-                    company = "Eurostar",
-                    flightNumber = "ES9001",
-                    confirmationNumber = "TRAIN-456",
-                ),
-            ),
-            onNavigateUp = {},
-            onTypeSelected = {},
-            onCompanyChange = {},
-            onFlightNumberChange = {},
-            onConfirmationNumberChange = {},
+            onAddLeg = {},
+            onRemoveLeg = {},
+            onTypeSelected = { _, _ -> },
+            onCompanyChange = { _, _ -> },
+            onFlightNumberChange = { _, _ -> },
+            onConfirmationNumberChange = { _, _ -> },
             onSave = {},
         )
     }

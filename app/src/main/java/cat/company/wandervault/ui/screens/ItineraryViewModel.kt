@@ -3,14 +3,11 @@ package cat.company.wandervault.ui.screens
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import cat.company.wandervault.domain.model.Destination
-import cat.company.wandervault.domain.model.Transport
 import cat.company.wandervault.domain.usecase.DeleteDestinationUseCase
 import cat.company.wandervault.domain.usecase.DeleteTransportUseCase
 import cat.company.wandervault.domain.usecase.GetDestinationsForTripUseCase
 import cat.company.wandervault.domain.usecase.SaveDestinationUseCase
-import cat.company.wandervault.domain.usecase.SaveTransportUseCase
 import cat.company.wandervault.domain.usecase.UpdateDestinationUseCase
-import cat.company.wandervault.domain.usecase.UpdateTransportUseCase
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,9 +28,7 @@ import java.time.LocalDateTime
  * @param saveDestination Use-case that persists a new destination.
  * @param updateDestination Use-case that updates an existing destination.
  * @param deleteDestination Use-case that removes a destination.
- * @param saveTransport Use-case that persists a new transport leg.
- * @param updateTransport Use-case that updates an existing transport leg.
- * @param deleteTransport Use-case that removes a transport leg.
+ * @param deleteTransport Use-case that removes a transport (and all its legs via CASCADE).
  */
 class ItineraryViewModel(
     private val tripId: Int,
@@ -41,8 +36,6 @@ class ItineraryViewModel(
     private val saveDestination: SaveDestinationUseCase,
     private val updateDestination: UpdateDestinationUseCase,
     private val deleteDestination: DeleteDestinationUseCase,
-    private val saveTransport: SaveTransportUseCase,
-    private val updateTransport: UpdateTransportUseCase,
     private val deleteTransport: DeleteTransportUseCase,
 ) : ViewModel() {
 
@@ -106,18 +99,9 @@ class ItineraryViewModel(
         }
     }
 
-    fun onUpdateTransport(destination: Destination, transport: Transport?) {
+    fun onUpdateTransport(destination: Destination) {
         viewModelScope.launch {
-            val existing = destination.transport
-            when {
-                transport == null && existing != null -> deleteTransport(existing)
-                transport != null && existing != null -> updateTransport(
-                    transport.copy(id = existing.id, destinationId = destination.id),
-                )
-                transport != null -> saveTransport(
-                    transport.copy(id = 0, destinationId = destination.id),
-                )
-            }
+            destination.transport?.let { deleteTransport(it) }
         }
     }
 

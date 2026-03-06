@@ -3,12 +3,14 @@ package cat.company.wandervault.ui.screens
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import cat.company.wandervault.domain.model.Destination
-import cat.company.wandervault.domain.model.Transport
+import cat.company.wandervault.domain.model.TransportLeg
 import cat.company.wandervault.domain.model.TransportType
 import cat.company.wandervault.domain.usecase.DeleteTransportUseCase
+import cat.company.wandervault.domain.usecase.DeleteTransportLegUseCase
 import cat.company.wandervault.domain.usecase.GetDestinationByIdUseCase
-import cat.company.wandervault.domain.usecase.SaveTransportUseCase
-import cat.company.wandervault.domain.usecase.UpdateTransportUseCase
+import cat.company.wandervault.domain.usecase.GetOrCreateTransportForDestinationUseCase
+import cat.company.wandervault.domain.usecase.SaveTransportLegUseCase
+import cat.company.wandervault.domain.usecase.UpdateTransportLegUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -19,18 +21,23 @@ import kotlinx.coroutines.launch
 /**
  * ViewModel for the Transport Detail screen.
  *
- * Loads the destination by ID and manages inline editing of the transport leg.
+ * Loads the destination by ID and manages inline editing of its transport legs.
+ * Multiple legs can be added, edited, or removed before saving.
  * Call [loadDestination] to start observing a destination.
  *
  * @param getDestinationById Use-case that fetches a destination by ID.
- * @param saveTransport Use-case that persists a new transport leg.
- * @param updateTransport Use-case that updates an existing transport leg.
- * @param deleteTransport Use-case that removes a transport leg.
+ * @param getOrCreateTransport Use-case that gets or creates the parent transport for a destination.
+ * @param saveTransportLeg Use-case that persists a new transport leg.
+ * @param updateTransportLeg Use-case that updates an existing transport leg.
+ * @param deleteTransportLeg Use-case that removes a transport leg.
+ * @param deleteTransport Use-case that removes the parent transport (and all legs via CASCADE).
  */
 class TransportDetailViewModel(
     private val getDestinationById: GetDestinationByIdUseCase,
-    private val saveTransport: SaveTransportUseCase,
-    private val updateTransport: UpdateTransportUseCase,
+    private val getOrCreateTransport: GetOrCreateTransportForDestinationUseCase,
+    private val saveTransportLeg: SaveTransportLegUseCase,
+    private val updateTransportLeg: UpdateTransportLegUseCase,
+    private val deleteTransportLeg: DeleteTransportLegUseCase,
     private val deleteTransport: DeleteTransportUseCase,
 ) : ViewModel() {
 
@@ -38,6 +45,14 @@ class TransportDetailViewModel(
 
     /** The last destination snapshot received from the database (used in [onSave]). */
     private var _lastDestination: Destination? = null
+
+    /**
+     * True when the user has made unsaved edits.  While true, incoming DB emissions do not
+     * overwrite the edit state so in-progress work is preserved.  Reset to false after
+     * [onSave] so that the next DB emission refreshes the legs with the real persisted IDs,
+     * preventing duplicate inserts on a second save.
+     */
+    private var _hasUnsavedEdits = false
 
     private val _uiState = MutableStateFlow<TransportDetailUiState>(TransportDetailUiState.Loading)
     val uiState: StateFlow<TransportDetailUiState> = _uiState.asStateFlow()
@@ -52,21 +67,15 @@ class TransportDetailViewModel(
                         _uiState.value = TransportDetailUiState.Error
                     } else {
                         _lastDestination = destination
-                        val current = _uiState.value
-                        // Preserve any in-progress edits already made by the user.
-                        val editState = if (current is TransportDetailUiState.Success) {
-                            current.editState
+                        // Preserve in-progress edits; only remap from the DB when there are none.
+                        val legs = if (_hasUnsavedEdits && _uiState.value is TransportDetailUiState.Success) {
+                            (_uiState.value as TransportDetailUiState.Success).legs
                         } else {
-                            TransportDetailEditState(
-                                typeName = destination.transport?.type?.name,
-                                company = destination.transport?.company ?: "",
-                                flightNumber = destination.transport?.flightNumber ?: "",
-                                confirmationNumber = destination.transport?.reservationConfirmationNumber ?: "",
-                            )
+                            destination.transport?.legs?.map { it.toEditState() } ?: emptyList()
                         }
                         _uiState.value = TransportDetailUiState.Success(
                             destinationName = destination.name,
-                            editState = editState,
+                            legs = legs,
                         )
                     }
                 }
@@ -77,72 +86,147 @@ class TransportDetailViewModel(
     fun loadDestination(id: Int) {
         _uiState.value = TransportDetailUiState.Loading
         _lastDestination = null
+        _hasUnsavedEdits = false
         // Force a new emission even if the same ID is loaded again (StateFlow deduplicates equal values).
         _destinationId.value = null
         _destinationId.value = id
     }
 
-    /** Updates the selected transport type. */
-    fun onTypeSelected(typeName: String?) {
-        updateEditState { copy(typeName = typeName) }
+    /** Adds a new empty leg to the end of the list. */
+    fun onAddLeg() {
+        _hasUnsavedEdits = true
+        updateLegs { this + TransportLegEditState() }
     }
 
-    /** Updates the company/carrier name field. */
-    fun onCompanyChange(value: String) {
-        updateEditState { copy(company = value) }
-    }
-
-    /** Updates the flight/reference number field. */
-    fun onFlightNumberChange(value: String) {
-        updateEditState { copy(flightNumber = value) }
-    }
-
-    /** Updates the reservation confirmation number field. */
-    fun onConfirmationNumberChange(value: String) {
-        updateEditState { copy(confirmationNumber = value) }
-    }
-
-    /**
-     * Persists the current editing state to the database.
-     *
-     * - If a type is selected, the transport is saved or updated.
-     * - If no type is selected and a transport exists, it is deleted.
-     */
-    fun onSave() {
-        val destination = _lastDestination ?: return
-        val state = _uiState.value as? TransportDetailUiState.Success ?: return
-        val editState = state.editState
-        val selectedType = editState.typeName?.let { name ->
-            runCatching { TransportType.valueOf(name) }.getOrNull()
-        }
-        val existing: Transport? = destination.transport
-        viewModelScope.launch {
-            when {
-                selectedType == null && existing != null -> deleteTransport(existing)
-                selectedType != null && existing != null -> updateTransport(
-                    existing.copy(
-                        type = selectedType,
-                        company = editState.company.trim().takeIf { it.isNotBlank() },
-                        flightNumber = editState.flightNumber.trim().takeIf { it.isNotBlank() },
-                        reservationConfirmationNumber = editState.confirmationNumber.trim().takeIf { it.isNotBlank() },
-                    ),
-                )
-                selectedType != null -> saveTransport(
-                    Transport(
-                        id = 0,
-                        destinationId = destination.id,
-                        type = selectedType,
-                        company = editState.company.trim().takeIf { it.isNotBlank() },
-                        flightNumber = editState.flightNumber.trim().takeIf { it.isNotBlank() },
-                        reservationConfirmationNumber = editState.confirmationNumber.trim().takeIf { it.isNotBlank() },
-                    ),
-                )
+    /** Removes the leg at the given [index]. */
+    fun onRemoveLeg(index: Int) {
+        updateLegs {
+            val mutable = toMutableList()
+            if (index in mutable.indices) {
+                // Only mark dirty if the list actually changes (no-op for out-of-range indices).
+                _hasUnsavedEdits = true
+                mutable.removeAt(index)
+                mutable
+            } else {
+                this
             }
         }
     }
 
-    private inline fun updateEditState(update: TransportDetailEditState.() -> TransportDetailEditState) {
+    /** Updates the selected transport type for the leg at [index]. */
+    fun onTypeSelected(index: Int, typeName: String?) {
+        _hasUnsavedEdits = true
+        updateLeg(index) { copy(typeName = typeName) }
+    }
+
+    /** Updates the company/carrier name field for the leg at [index]. */
+    fun onCompanyChange(index: Int, value: String) {
+        _hasUnsavedEdits = true
+        updateLeg(index) { copy(company = value) }
+    }
+
+    /** Updates the flight/reference number field for the leg at [index]. */
+    fun onFlightNumberChange(index: Int, value: String) {
+        _hasUnsavedEdits = true
+        updateLeg(index) { copy(flightNumber = value) }
+    }
+
+    /** Updates the reservation confirmation number field for the leg at [index]. */
+    fun onConfirmationNumberChange(index: Int, value: String) {
+        _hasUnsavedEdits = true
+        updateLeg(index) { copy(confirmationNumber = value) }
+    }
+
+    /**
+     * Persists the current list of legs to the database.
+     *
+     * - If all legs are empty/cleared, the parent transport is deleted (which cascade-deletes legs).
+     * - Otherwise, the parent transport is created if it doesn't exist yet, and legs are
+     *   inserted, updated, or deleted as required.
+     * - Legs with no transport type selected are skipped (treated as empty).
+     */
+    fun onSave() {
+        val destination = _lastDestination ?: return
+        val state = _uiState.value as? TransportDetailUiState.Success ?: return
+        // Clear the dirty flag before persisting so the next DB emission will remap from
+        // the real persisted IDs, preventing duplicate inserts on a second save.
+        _hasUnsavedEdits = false
+        viewModelScope.launch {
+            val validLegs = state.legs.filter { leg ->
+                leg.typeName?.let { runCatching { TransportType.valueOf(it) }.getOrNull() } != null
+            }
+
+            if (validLegs.isEmpty()) {
+                // No valid legs left – delete the parent transport if it exists.
+                destination.transport?.let { deleteTransport(it) }
+                return@launch
+            }
+
+            // Get or create the parent transport for this destination.
+            val transportId = getOrCreateTransport(destination.id)
+
+            val existingLegsById = destination.transport?.legs?.associateBy { it.id } ?: emptyMap()
+            val editedIds = mutableSetOf<Int>()
+
+            state.legs.forEachIndexed { position, leg ->
+                val selectedType = leg.typeName?.let { name ->
+                    runCatching { TransportType.valueOf(name) }.getOrNull()
+                } ?: return@forEachIndexed
+
+                if (leg.id > 0) {
+                    editedIds.add(leg.id)
+                    val existing = existingLegsById[leg.id]
+                    if (existing != null) {
+                        updateTransportLeg(
+                            existing.copy(
+                                type = selectedType,
+                                position = position,
+                                company = leg.company.trim().takeIf { it.isNotBlank() },
+                                flightNumber = leg.flightNumber.trim().takeIf { it.isNotBlank() },
+                                reservationConfirmationNumber = leg.confirmationNumber.trim().takeIf { it.isNotBlank() },
+                            ),
+                        )
+                    }
+                } else {
+                    saveTransportLeg(
+                        TransportLeg(
+                            id = 0,
+                            transportId = transportId,
+                            type = selectedType,
+                            position = position,
+                            company = leg.company.trim().takeIf { it.isNotBlank() },
+                            flightNumber = leg.flightNumber.trim().takeIf { it.isNotBlank() },
+                            reservationConfirmationNumber = leg.confirmationNumber.trim().takeIf { it.isNotBlank() },
+                        ),
+                    )
+                }
+            }
+
+            // Delete any existing legs that were removed from the edit list.
+            destination.transport?.legs
+                ?.filter { it.id !in editedIds }
+                ?.forEach { deleteTransportLeg(it) }
+        }
+    }
+
+    private inline fun updateLegs(update: List<TransportLegEditState>.() -> List<TransportLegEditState>) {
         val current = _uiState.value as? TransportDetailUiState.Success ?: return
-        _uiState.value = current.copy(editState = current.editState.update())
+        _uiState.value = current.copy(legs = current.legs.update())
+    }
+
+    private inline fun updateLeg(index: Int, update: TransportLegEditState.() -> TransportLegEditState) {
+        val current = _uiState.value as? TransportDetailUiState.Success ?: return
+        if (index !in current.legs.indices) return
+        _uiState.value = current.copy(
+            legs = current.legs.toMutableList().also { it[index] = it[index].update() },
+        )
     }
 }
+
+private fun TransportLeg.toEditState() = TransportLegEditState(
+    id = id,
+    typeName = type.name,
+    company = company ?: "",
+    flightNumber = flightNumber ?: "",
+    confirmationNumber = reservationConfirmationNumber ?: "",
+)

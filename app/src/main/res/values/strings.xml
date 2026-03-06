@@ -106,4 +106,17 @@
     <string name="transport_detail_navigate_up">Navigate up</string>
     <string name="transport_detail_not_found">Destination not found</string>
     <string name="transport_detail_type_label">Transport type</string>
+    <string name="transport_detail_add_leg">Add leg</string>
+    <string name="transport_detail_remove_leg">Remove leg</string>
+    <string name="transport_detail_no_legs">No transport legs added yet. Tap \"Add leg\" to get started.</string>
+    <string name="transport_detail_leg_number">Leg %d</string>
+    <string name="transport_detail_tab_details">Details</string>
+    <string name="transport_detail_tab_legs">Legs</string>
+    <!-- Used in LocationDetailScreen when a destination has multiple transport legs: e.g. "Departure Transport 1" -->
+    <string name="transport_leg_label">%1$s %2$d</string>
+    <!-- Pluralised leg count shown on the Details tab when there are multiple legs -->
+    <plurals name="transport_detail_legs_count">
+        <item quantity="one">%d leg</item>
+        <item quantity="other">%d legs</item>
+    </plurals>
 </resources>

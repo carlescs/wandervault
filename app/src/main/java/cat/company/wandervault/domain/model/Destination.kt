@@ -13,10 +13,9 @@ import java.time.LocalDateTime
  *   `null` for the first (start) destination, which has no arrival.
  * @param departureDateTime When the traveller departs from this destination.
  *   `null` for the last (end) destination, which has no departure.
- * @param transport The transport leg used to travel **from** this destination to the next one.
- *   `null` for the last destination (no onward journey) or when not yet set.
- *   Stored as a separate [Transport] entity so that future properties (booking references,
- *   attached documents, notes) can be added without touching this class.
+ * @param transport The transport used to travel **from** this destination to the next one,
+ *   containing one or more ordered [Transport.legs].  `null` for the last destination (no onward
+ *   journey) or when none is set yet.
  */
 data class Destination(
     val id: Int = 0,
