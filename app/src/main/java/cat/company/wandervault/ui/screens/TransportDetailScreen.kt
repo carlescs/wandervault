@@ -419,12 +419,15 @@ private fun TransportLegsTabContent(
         }
 
         uiState.legs.forEachIndexed { index, leg ->
-            // Leg card: type selector + booking details + move/delete controls
+            val isLastLeg = index == uiState.legs.lastIndex
+            // Leg card: type selector + booking details + move/delete controls.
+            // The delete button is only shown on the last leg; intermediate legs are deleted via
+            // their corresponding IntermediateLegStop delete button below.
             TransportLegSection(
                 index = index,
                 totalLegs = uiState.legs.size,
                 leg = leg,
-                onRemove = { onRemoveLeg(index) },
+                onRemove = if (isLastLeg) { { onRemoveLeg(index) } } else null,
                 onMoveUp = { onMoveLegUp(index) },
                 onMoveDown = { onMoveLegDown(index) },
                 onTypeSelected = { typeName -> onTypeSelected(index, typeName) },
@@ -435,10 +438,13 @@ private fun TransportLegsTabContent(
 
             // Editable intermediate stop shown only between legs.
             // The last leg ends at the final destination, which is already displayed below.
-            if (index < uiState.legs.lastIndex) {
+            // The delete button on the stop deletes the leg that ends there (this leg, at [index]),
+            // which removes both the leg and its destination stop in one action.
+            if (!isLastLeg) {
                 IntermediateLegStop(
                     stopName = leg.stopName,
                     onStopNameChange = { value -> onStopNameChange(index, value) },
+                    onRemove = { onRemoveLeg(index) },
                 )
             }
         }
@@ -496,14 +502,19 @@ private fun LegTimelineStop(
 }
 
 /**
- * An editable intermediate stop shown between two leg cards (or between the last leg card and
- * the final destination).  When [stopName] is blank the [OutlinedTextField] shows only its
- * floating label; the user types directly into the empty field.
+ * An editable intermediate stop shown between two leg cards.  When [stopName] is blank the
+ * [OutlinedTextField] shows only its floating label; the user types directly into the empty
+ * field.
+ *
+ * @param onRemove Called when the user taps the delete button.  Deletes the leg that ends at
+ *   this stop (i.e. the leg immediately before this stop in the timeline), which removes both
+ *   the leg and this destination stop in one action.
  */
 @Composable
 private fun IntermediateLegStop(
     stopName: String,
     onStopNameChange: (String) -> Unit,
+    onRemove: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -526,6 +537,13 @@ private fun IntermediateLegStop(
             singleLine = true,
             modifier = Modifier.weight(1f),
         )
+        IconButton(onClick = onRemove) {
+            Icon(
+                imageVector = Icons.Default.Delete,
+                contentDescription = stringResource(R.string.transport_detail_remove_leg),
+                tint = MaterialTheme.colorScheme.error,
+            )
+        }
     }
 }
 
@@ -534,7 +552,7 @@ private fun TransportLegSection(
     index: Int,
     totalLegs: Int,
     leg: TransportLegEditState,
-    onRemove: () -> Unit,
+    onRemove: (() -> Unit)?,
     onMoveUp: () -> Unit,
     onMoveDown: () -> Unit,
     onTypeSelected: (String?) -> Unit,
@@ -557,7 +575,7 @@ private fun TransportLegSection(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            // Leg header: leg number + move up/down + delete
+            // Leg header: leg number + move up/down + delete (delete shown for last leg only)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -595,12 +613,14 @@ private fun TransportLegSection(
                         },
                     )
                 }
-                IconButton(onClick = onRemove) {
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = stringResource(R.string.transport_detail_remove_leg),
-                        tint = MaterialTheme.colorScheme.error,
-                    )
+                if (onRemove != null) {
+                    IconButton(onClick = onRemove) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = stringResource(R.string.transport_detail_remove_leg),
+                            tint = MaterialTheme.colorScheme.error,
+                        )
+                    }
                 }
             }
 
