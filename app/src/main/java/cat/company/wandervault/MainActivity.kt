@@ -19,6 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -51,6 +52,7 @@ fun WanderVaultApp() {
     var tripDetailId by rememberSaveable { mutableStateOf<Int?>(null) }
     var selectedDestinationId by rememberSaveable { mutableStateOf<Int?>(null) }
     var selectedTransportDestinationId by rememberSaveable { mutableStateOf<Int?>(null) }
+    val saveableStateHolder = rememberSaveableStateHolder()
 
     if (selectedTransportDestinationId != null) {
         BackHandler { selectedTransportDestinationId = null }
@@ -74,13 +76,18 @@ fun WanderVaultApp() {
     } else if (tripDetailId != null) {
         BackHandler { tripDetailId = null }
         tripDetailId?.let { id ->
-            TripDetailScreen(
-                tripId = id,
-                onNavigateUp = { tripDetailId = null },
-                onNavigateToDestination = { selectedDestinationId = it },
-                onNavigateToTransport = { selectedTransportDestinationId = it },
-                modifier = Modifier.fillMaxSize(),
-            )
+            saveableStateHolder.SaveableStateProvider(key = id) {
+                TripDetailScreen(
+                    tripId = id,
+                    onNavigateUp = {
+                        saveableStateHolder.removeState(id)
+                        tripDetailId = null
+                    },
+                    onNavigateToDestination = { selectedDestinationId = it },
+                    onNavigateToTransport = { selectedTransportDestinationId = it },
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
         }
     } else {
         NavigationSuiteScaffold(
