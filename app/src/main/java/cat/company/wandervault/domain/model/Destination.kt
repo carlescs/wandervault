@@ -16,6 +16,8 @@ import java.time.LocalDateTime
  * @param transport The transport used to travel **from** this destination to the next one,
  *   containing one or more ordered [Transport.legs].  `null` for the last destination (no onward
  *   journey) or when none is set yet.
+ * @param notes Free-text notes the traveller can jot down for this stop (e.g. things to see,
+ *   tips, reminders).  `null` means no notes have been added yet.
  */
 data class Destination(
     val id: Int = 0,
@@ -25,4 +27,5 @@ data class Destination(
     val arrivalDateTime: LocalDateTime? = null,
     val departureDateTime: LocalDateTime? = null,
     val transport: Transport? = null,
+    val notes: String? = null,
 )
