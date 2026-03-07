@@ -125,6 +125,14 @@ internal fun LocationDetailContent(
         else -> ""
     }
     var selectedTab by rememberSaveable { mutableStateOf(LocationDetailTab.OVERVIEW) }
+    val hotelTabVisible = uiState is LocationDetailUiState.Success &&
+        (!uiState.isFirst && !uiState.isLast)
+
+    // If the Hotel tab is selected but is no longer visible (destination became first/last),
+    // fall back to the Overview tab.
+    if (!hotelTabVisible && selectedTab == LocationDetailTab.HOTEL) {
+        selectedTab = LocationDetailTab.OVERVIEW
+    }
 
     Scaffold(
         modifier = modifier,
@@ -144,6 +152,7 @@ internal fun LocationDetailContent(
         bottomBar = {
             NavigationBar {
                 LocationDetailTab.entries.forEach { tab ->
+                    if (tab == LocationDetailTab.HOTEL && !hotelTabVisible) return@forEach
                     NavigationBarItem(
                         selected = tab == selectedTab,
                         onClick = { selectedTab = tab },

@@ -141,6 +141,10 @@ class LocationDetailViewModel(
     private suspend fun persistHotel() {
         if (!_hasUnsavedHotelEdits) return
         val state = _uiState.value as? LocationDetailUiState.Success ?: return
+        if (state.isFirst || state.isLast) {
+            _hasUnsavedHotelEdits = false
+            return
+        }
         val destinationId = state.destination.id
         val edit = state.hotelEditState
         _hasUnsavedHotelEdits = false
