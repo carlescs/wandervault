@@ -49,6 +49,7 @@ class BackupRepositoryImpl(
 
             val databaseWalFile = File("${databaseFile.path}-wal")
             val imagesDir = File(context.filesDir, "images")
+            val documentsDir = File(context.filesDir, "documents")
             val uri = Uri.parse(outputUri)
 
             context.contentResolver.openOutputStream(uri)?.use { outputStream ->
@@ -67,6 +68,14 @@ class BackupRepositoryImpl(
                     if (imagesDir.exists()) {
                         imagesDir.walkTopDown().filter { it.isFile }.forEach { file ->
                             zip.putNextEntry(ZipEntry("images/${file.name}"))
+                            file.inputStream().use { it.copyTo(zip) }
+                            zip.closeEntry()
+                        }
+                    }
+
+                    if (documentsDir.exists()) {
+                        documentsDir.listFiles()?.filter { it.isFile }?.forEach { file ->
+                            zip.putNextEntry(ZipEntry("documents/${file.name}"))
                             file.inputStream().use { it.copyTo(zip) }
                             zip.closeEntry()
                         }
@@ -118,6 +127,15 @@ class BackupRepositoryImpl(
                                             .use { zip.copyTo(it) }
                                     }
                                 }
+                                name.startsWith("documents/") -> {
+                                    val fileName = name.removePrefix("documents/")
+                                    if (fileName.isNotEmpty() && !fileName.contains('/')) {
+                                        val documentsStage = File(stageDir, "documents")
+                                        documentsStage.mkdirs()
+                                        File(documentsStage, fileName).outputStream()
+                                            .use { zip.copyTo(it) }
+                                    }
+                                }
                             }
                         }
                         zip.closeEntry()
@@ -137,6 +155,7 @@ class BackupRepositoryImpl(
             val databaseWalFile = File("${databaseFile.path}-wal")
             val databaseShmFile = File("${databaseFile.path}-shm")
             val imagesDir = File(context.filesDir, "images")
+            val documentsDir = File(context.filesDir, "documents")
 
             database.close()
 
@@ -157,6 +176,13 @@ class BackupRepositoryImpl(
             val imagesStage = File(stageDir, "images")
             if (imagesStage.exists()) {
                 imagesStage.copyRecursively(imagesDir, overwrite = true)
+            }
+
+            // Replace documents: same strategy as images.
+            documentsDir.deleteRecursively()
+            val documentsStage = File(stageDir, "documents")
+            if (documentsStage.exists()) {
+                documentsStage.copyRecursively(documentsDir, overwrite = true)
             }
 
             Result.success(Unit)

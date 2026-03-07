@@ -1,6 +1,7 @@
 package cat.company.wandervault.ui.screens
 
 import cat.company.wandervault.domain.model.Trip
+import cat.company.wandervault.domain.model.TripDocument
 
 /**
  * Represents the UI state for the Trip Detail screen.
@@ -13,6 +14,7 @@ sealed class TripDetailUiState {
     data class Success(
         val trip: Trip,
         val descriptionState: DescriptionState = DescriptionState.None,
+        val documents: List<TripDocument> = emptyList(),
     ) : TripDetailUiState()
 
     /** An error occurred (e.g. trip not found). */

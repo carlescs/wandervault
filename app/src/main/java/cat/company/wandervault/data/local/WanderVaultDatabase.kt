@@ -6,7 +6,7 @@ import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [TripEntity::class, DestinationEntity::class, TransportEntity::class, TransportLegEntity::class, HotelEntity::class], version = 12)
+@Database(entities = [TripEntity::class, DestinationEntity::class, TransportEntity::class, TransportLegEntity::class, HotelEntity::class, TripDocumentEntity::class], version = 13)
 @TypeConverters(DateConverters::class)
 abstract class WanderVaultDatabase : RoomDatabase() {
     abstract fun tripDao(): TripDao
@@ -14,6 +14,7 @@ abstract class WanderVaultDatabase : RoomDatabase() {
     abstract fun transportDao(): TransportDao
     abstract fun transportLegDao(): TransportLegDao
     abstract fun hotelDao(): HotelDao
+    abstract fun tripDocumentDao(): TripDocumentDao
 
     companion object {
         const val DATABASE_NAME = "wandervault.db"
@@ -238,6 +239,29 @@ abstract class WanderVaultDatabase : RoomDatabase() {
         val MIGRATION_11_12 = object : Migration(11, 12) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE `destinations` ADD COLUMN `notes` TEXT")
+            }
+        }
+        val MIGRATION_12_13 = object : Migration(12, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `trip_documents` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `tripId` INTEGER NOT NULL,
+                        `name` TEXT NOT NULL,
+                        `localUri` TEXT NOT NULL,
+                        `mimeType` TEXT NOT NULL,
+                        `folder` TEXT,
+                        `extractedText` TEXT,
+                        `createdAt` TEXT NOT NULL,
+                        FOREIGN KEY(`tripId`) REFERENCES `trips`(`id`)
+                            ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_trip_documents_tripId` ON `trip_documents` (`tripId`)",
+                )
             }
         }
     }

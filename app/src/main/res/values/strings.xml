@@ -182,4 +182,23 @@
         <item quantity="one">%d leg</item>
         <item quantity="other">%d legs</item>
     </plurals>
+
+    <string name="trip_detail_tab_documents">Documents</string>
+    <string name="documents_empty">No documents yet.
+Share a file or email with the app to add one.</string>
+    <string name="documents_folder_general">General</string>
+    <string name="documents_delete_document">Delete document</string>
+    <string name="documents_delete_dialog_title">Delete document?</string>
+    <string name="documents_delete_dialog_message">&quot;%s&quot; will be permanently deleted.</string>
+    <string name="documents_delete_dialog_confirm">Delete</string>
+
+    <string name="share_title">Save to Trip</string>
+    <string name="share_navigate_up">Navigate up</string>
+    <string name="share_processing">Processing shared content…</string>
+    <string name="share_file_label">File</string>
+    <string name="share_extracted_text_label">Extracted text</string>
+    <string name="share_trip_label">Trip</string>
+    <string name="share_no_trips">No trips available. Create a trip first.</string>
+    <string name="share_folder_label">Folder</string>
+    <string name="share_save">Save to Trip</string>
 </resources>

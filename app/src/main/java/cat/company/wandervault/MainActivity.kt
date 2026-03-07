@@ -1,5 +1,6 @@
 package cat.company.wandervault
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -22,7 +23,9 @@ import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffo
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
@@ -32,16 +35,30 @@ import androidx.navigation.compose.rememberNavController
 import cat.company.wandervault.ui.LocalSharedTransitionScope
 import cat.company.wandervault.ui.navigation.AppRoutes
 import cat.company.wandervault.ui.navigation.WanderVaultNavHost
+import cat.company.wandervault.ui.screens.ShareScreen
 import cat.company.wandervault.ui.theme.WanderVaultTheme
 
 class MainActivity : ComponentActivity() {
+
+    private val shareIntentState = mutableStateOf<Intent?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        if (intent?.action == Intent.ACTION_SEND) {
+            shareIntentState.value = intent
+        }
         setContent {
             WanderVaultTheme {
-                WanderVaultApp()
+                WanderVaultApp(shareIntentState = shareIntentState)
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        if (intent.action == Intent.ACTION_SEND) {
+            shareIntentState.value = intent
         }
     }
 }
@@ -49,7 +66,18 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalSharedTransitionApi::class)
 @PreviewScreenSizes
 @Composable
-fun WanderVaultApp() {
+fun WanderVaultApp(shareIntentState: MutableState<Intent?> = mutableStateOf(null)) {
+    val shareIntent by shareIntentState
+
+    if (shareIntent != null) {
+        ShareScreen(
+            shareIntent = shareIntent!!,
+            onNavigateUp = { shareIntentState.value = null },
+            onSaved = { shareIntentState.value = null },
+        )
+        return
+    }
+
     val navController = rememberNavController()
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = currentBackStackEntry?.destination?.route ?: AppRoutes.HOME
@@ -115,3 +143,4 @@ enum class TopLevelDestination(
     FAVORITES(AppRoutes.FAVORITES, R.string.nav_favorites, R.string.nav_favorites_desc, Icons.Default.Favorite),
     PROFILE(AppRoutes.PROFILE, R.string.nav_profile, R.string.nav_profile_desc, Icons.Default.AccountBox),
 }
+

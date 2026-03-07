@@ -5,8 +5,10 @@ import androidx.lifecycle.viewModelScope
 import android.util.Log
 import cat.company.wandervault.domain.model.Destination
 import cat.company.wandervault.domain.model.Trip
+import cat.company.wandervault.domain.usecase.DeleteTripDocumentUseCase
 import cat.company.wandervault.domain.usecase.GenerateTripDescriptionUseCase
 import cat.company.wandervault.domain.usecase.GetDestinationsForTripUseCase
+import cat.company.wandervault.domain.usecase.GetTripDocumentsUseCase
 import cat.company.wandervault.domain.usecase.GetTripUseCase
 import cat.company.wandervault.domain.usecase.SaveTripDescriptionUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,6 +25,8 @@ import kotlinx.coroutines.launch
  * @param getDestinationsForTripUseCase Use-case that returns the ordered destinations for the trip.
  * @param generateTripDescriptionUseCase Use-case that generates a short AI description of the trip.
  * @param saveTripDescriptionUseCase Use-case that persists the AI description (or clears it).
+ * @param getTripDocumentsUseCase Use-case that returns the documents attached to the trip.
+ * @param deleteTripDocumentUseCase Use-case that deletes a document from the trip.
  */
 class TripDetailViewModel(
     private val tripId: Int,
@@ -30,6 +34,8 @@ class TripDetailViewModel(
     private val getDestinationsForTripUseCase: GetDestinationsForTripUseCase,
     private val generateTripDescriptionUseCase: GenerateTripDescriptionUseCase,
     private val saveTripDescriptionUseCase: SaveTripDescriptionUseCase,
+    private val getTripDocumentsUseCase: GetTripDocumentsUseCase,
+    private val deleteTripDocumentUseCase: DeleteTripDocumentUseCase,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<TripDetailUiState>(TripDetailUiState.Loading)
@@ -46,8 +52,9 @@ class TripDetailViewModel(
             combine(
                 getTripUseCase(tripId),
                 getDestinationsForTripUseCase(tripId),
-            ) { trip, destinations -> Pair(trip, destinations) }
-                .collect { (trip, destinations) ->
+                getTripDocumentsUseCase(tripId),
+            ) { trip, destinations, documents -> Triple(trip, destinations, documents) }
+                .collect { (trip, destinations, documents) ->
                     if (trip == null) {
                         _uiState.value = TripDetailUiState.Error
                         return@collect
@@ -73,6 +80,7 @@ class TripDetailViewModel(
                     _uiState.value = TripDetailUiState.Success(
                         trip = trip,
                         descriptionState = descriptionState,
+                        documents = documents,
                     )
                 }
         }
@@ -110,6 +118,19 @@ class TripDetailViewModel(
                 if (latest !is TripDetailUiState.Success) return@launch
                 if (latest.descriptionState !is DescriptionState.None) return@launch
                 _uiState.value = latest.copy(descriptionState = previousDescriptionState)
+            }
+        }
+    }
+
+    /** Deletes a document from the trip. */
+    fun deleteDocument(documentId: Int) {
+        val current = _uiState.value as? TripDetailUiState.Success ?: return
+        val document = current.documents.firstOrNull { it.id == documentId } ?: return
+        viewModelScope.launch {
+            try {
+                deleteTripDocumentUseCase(document)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to delete document", e)
             }
         }
     }
@@ -153,3 +174,4 @@ class TripDetailViewModel(
         private const val TAG = "TripDetailViewModel"
     }
 }
+
