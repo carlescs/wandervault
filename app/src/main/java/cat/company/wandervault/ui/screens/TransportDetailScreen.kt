@@ -711,14 +711,16 @@ private fun EditableLabel(
     label: String,
     modifier: Modifier = Modifier,
 ) {
-    var isEditing by remember { mutableStateOf(false) }
-    var draft by remember { mutableStateOf("") }
+    var isEditing by rememberSaveable { mutableStateOf(false) }
+    var draft by rememberSaveable { mutableStateOf("") }
     val focusRequester = remember { FocusRequester() }
     val editActionLabel = stringResource(R.string.editable_label_edit_action, label)
     val notSetPlaceholder = stringResource(R.string.editable_label_not_set)
     if (isEditing) {
         fun commitEdit() {
-            onValueChange(draft)
+            if (draft != value) {
+                onValueChange(draft)
+            }
             isEditing = false
         }
         fun cancelEdit() {
@@ -742,14 +744,14 @@ private fun EditableLabel(
             IconButton(onClick = { commitEdit() }) {
                 Icon(
                     imageVector = Icons.Default.Check,
-                    contentDescription = stringResource(R.string.editable_label_save),
+                    contentDescription = stringResource(R.string.editable_label_save, label),
                     tint = MaterialTheme.colorScheme.primary,
                 )
             }
             IconButton(onClick = { cancelEdit() }) {
                 Icon(
                     imageVector = Icons.Default.Close,
-                    contentDescription = stringResource(R.string.editable_label_cancel),
+                    contentDescription = stringResource(R.string.editable_label_cancel, label),
                 )
             }
         }
