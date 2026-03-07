@@ -70,7 +70,10 @@ internal fun WanderVaultNavHost(
             route = AppRoutes.TRIP_DETAIL,
             arguments = listOf(navArgument("tripId") { type = NavType.IntType }),
         ) { backStackEntry ->
-            val tripId = backStackEntry.arguments?.getInt("tripId") ?: return@composable
+            val tripId = backStackEntry.arguments?.getInt("tripId")?.takeIf { it > 0 } ?: run {
+                navController.navigateUp()
+                return@composable
+            }
             CompositionLocalProvider(LocalAnimatedVisibilityScope provides this) {
                 TripDetailScreen(
                     tripId = tripId,
@@ -90,7 +93,10 @@ internal fun WanderVaultNavHost(
             route = AppRoutes.LOCATION_DETAIL,
             arguments = listOf(navArgument("destinationId") { type = NavType.IntType }),
         ) { backStackEntry ->
-            val destinationId = backStackEntry.arguments?.getInt("destinationId") ?: return@composable
+            val destinationId = backStackEntry.arguments?.getInt("destinationId")?.takeIf { it > 0 } ?: run {
+                navController.navigateUp()
+                return@composable
+            }
             LocationDetailScreen(
                 destinationId = destinationId,
                 onNavigateUp = { navController.navigateUp() },
@@ -103,7 +109,10 @@ internal fun WanderVaultNavHost(
             route = AppRoutes.TRANSPORT_DETAIL,
             arguments = listOf(navArgument("destinationId") { type = NavType.IntType }),
         ) { backStackEntry ->
-            val destinationId = backStackEntry.arguments?.getInt("destinationId") ?: return@composable
+            val destinationId = backStackEntry.arguments?.getInt("destinationId")?.takeIf { it > 0 } ?: run {
+                navController.navigateUp()
+                return@composable
+            }
             TransportDetailScreen(
                 destinationId = destinationId,
                 onNavigateUp = { navController.navigateUp() },

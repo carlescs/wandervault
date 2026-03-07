@@ -51,7 +51,7 @@ class MainActivity : ComponentActivity() {
 fun WanderVaultApp() {
     val navController = rememberNavController()
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = currentBackStackEntry?.destination?.route
+    val currentRoute = currentBackStackEntry?.destination?.route ?: AppRoutes.HOME
 
     val topLevelRoutes = TopLevelDestination.entries.map { it.route }.toSet()
     val isTopLevel = currentRoute in topLevelRoutes
