@@ -13,7 +13,6 @@ import cat.company.wandervault.domain.usecase.UpdateDestinationUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.filterNotNull
@@ -115,11 +114,14 @@ class LocationDetailViewModel(
                 .collect { state -> _uiState.value = state }
         }
 
-        // Auto-save: persist hotel changes after a short debounce once editing stops.
+        // Auto-save: persist hotel and notes changes after a short debounce once editing stops.
+        // Uses collect (not collectLatest) so that a DB-triggered _uiState emission cannot cancel
+        // an in-flight persistHotel() or persistNotes() call after the unsaved-edits flag is
+        // already cleared.
         viewModelScope.launch {
             _uiState
                 .debounce(AUTO_SAVE_DEBOUNCE_MS)
-                .collectLatest {
+                .collect {
                     persistHotel()
                     persistNotes()
                 }

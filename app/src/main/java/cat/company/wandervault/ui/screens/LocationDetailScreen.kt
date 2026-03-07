@@ -371,7 +371,6 @@ private fun NotesTabContent(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f),
-            maxLines = Int.MAX_VALUE,
         )
     }
 }
