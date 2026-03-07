@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -712,7 +713,12 @@ private fun EditableLabel(
     var isEditing by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
     val editActionLabel = stringResource(R.string.editable_label_edit_action, label)
+    val notSetPlaceholder = stringResource(R.string.editable_label_not_set)
     if (isEditing) {
+        // Track whether focus has been received at least once so that the initial
+        // "unfocused" callback delivered by Compose before requestFocus() takes effect
+        // does not immediately exit edit mode.
+        var hadFocus by remember { mutableStateOf(false) }
         OutlinedTextField(
             value = value,
             onValueChange = onValueChange,
@@ -722,14 +728,22 @@ private fun EditableLabel(
             keyboardActions = KeyboardActions(onDone = { isEditing = false }),
             modifier = modifier
                 .focusRequester(focusRequester)
-                .onFocusChanged { if (!it.isFocused) isEditing = false },
+                .onFocusChanged { focusState ->
+                    if (focusState.isFocused) {
+                        hadFocus = true
+                    } else if (hadFocus) {
+                        isEditing = false
+                    }
+                },
         )
         LaunchedEffect(isEditing) {
             focusRequester.requestFocus()
         }
     } else {
         Column(
+            verticalArrangement = Arrangement.Center,
             modifier = modifier
+                .defaultMinSize(minHeight = 48.dp)
                 .clickable(role = Role.Button, onClickLabel = editActionLabel) { isEditing = true }
                 .padding(vertical = 4.dp),
         ) {
@@ -739,7 +753,7 @@ private fun EditableLabel(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
-                text = value.ifBlank { "—" },
+                text = value.ifBlank { notSetPlaceholder },
                 style = MaterialTheme.typography.bodyMedium,
                 color = if (value.isBlank()) {
                     MaterialTheme.colorScheme.onSurfaceVariant
