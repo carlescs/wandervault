@@ -16,4 +16,5 @@ data class Trip(
     val imageUri: String? = null,
     val startDate: LocalDate? = null,
     val endDate: LocalDate? = null,
+    val aiDescription: String? = null,
 )

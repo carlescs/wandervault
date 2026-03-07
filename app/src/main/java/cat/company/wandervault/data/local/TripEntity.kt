@@ -8,4 +8,5 @@ data class TripEntity(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val title: String,
     val imageUri: String? = null,
+    val aiDescription: String? = null,
 )

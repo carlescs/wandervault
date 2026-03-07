@@ -8,6 +8,7 @@ import cat.company.wandervault.domain.model.Trip
 import cat.company.wandervault.domain.usecase.GenerateTripDescriptionUseCase
 import cat.company.wandervault.domain.usecase.GetDestinationsForTripUseCase
 import cat.company.wandervault.domain.usecase.GetTripUseCase
+import cat.company.wandervault.domain.usecase.SaveTripDescriptionUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -21,21 +22,20 @@ import kotlinx.coroutines.launch
  * @param getTripUseCase Use-case that fetches a single trip by ID.
  * @param getDestinationsForTripUseCase Use-case that returns the ordered destinations for the trip.
  * @param generateTripDescriptionUseCase Use-case that generates a short AI description of the trip.
+ * @param saveTripDescriptionUseCase Use-case that persists the AI description (or clears it).
  */
 class TripDetailViewModel(
     private val tripId: Int,
     private val getTripUseCase: GetTripUseCase,
     private val getDestinationsForTripUseCase: GetDestinationsForTripUseCase,
     private val generateTripDescriptionUseCase: GenerateTripDescriptionUseCase,
+    private val saveTripDescriptionUseCase: SaveTripDescriptionUseCase,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<TripDetailUiState>(TripDetailUiState.Loading)
     val uiState: StateFlow<TripDetailUiState> = _uiState.asStateFlow()
 
-    /** True once description generation has been kicked off, to avoid duplicate requests. */
-    private var descriptionGenerated = false
-
-    /** Cached trip used for on-demand re-generation triggered by the user. */
+    /** Cached trip used for on-demand generation/deletion triggered by the user. */
     private var lastTrip: Trip? = null
 
     /** Cached destinations used for on-demand re-generation triggered by the user. */
@@ -54,24 +54,25 @@ class TripDetailViewModel(
                     }
                     lastTrip = trip
                     lastDestinations = destinations
-                    // Preserve the description state across DB-driven re-emissions
+                    // Preserve in-memory description state (e.g. while loading/generating).
+                    // On first load, derive the initial state from the persisted description.
                     val currentDescription =
                         (_uiState.value as? TripDetailUiState.Success)?.descriptionState
+                    val persistedDescription = if (trip.aiDescription != null) {
+                        DescriptionState.Available(trip.aiDescription)
+                    } else {
+                        DescriptionState.None
+                    }
                     _uiState.value = TripDetailUiState.Success(
                         trip = trip,
-                        descriptionState = currentDescription ?: DescriptionState.Loading,
+                        descriptionState = currentDescription ?: persistedDescription,
                     )
-                    // Generate the description only once per ViewModel lifetime
-                    if (!descriptionGenerated) {
-                        descriptionGenerated = true
-                        generateDescription(trip, destinations)
-                    }
                 }
         }
     }
 
     /**
-     * Re-triggers AI description generation, replacing the current description state.
+     * Triggers AI description generation, replacing the current description state.
      *
      * No-op if generation is already in progress.
      */
@@ -85,18 +86,30 @@ class TripDetailViewModel(
     }
 
     /**
-     * Clears the current AI description, setting the state to [DescriptionState.None].
+     * Clears the current AI description and removes it from the database.
      */
     fun deleteDescription() {
         val current = _uiState.value as? TripDetailUiState.Success ?: return
+        val trip = lastTrip ?: return
         _uiState.value = current.copy(descriptionState = DescriptionState.None)
+        viewModelScope.launch {
+            saveTripDescriptionUseCase(trip, null)
+        }
     }
 
     private fun generateDescription(trip: Trip, destinations: List<Destination>) {
         viewModelScope.launch {
             val newDescriptionState = try {
                 val text = generateTripDescriptionUseCase(trip, destinations)
-                if (text != null) DescriptionState.Available(text) else DescriptionState.Unavailable
+                if (text != null) {
+                    val currentTrip = lastTrip
+                    if (currentTrip != null) {
+                        saveTripDescriptionUseCase(currentTrip, text)
+                    }
+                    DescriptionState.Available(text)
+                } else {
+                    DescriptionState.Unavailable
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to generate trip description", e)
                 DescriptionState.Error
