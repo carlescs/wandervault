@@ -1,5 +1,6 @@
 package cat.company.wandervault.ui.screens
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import cat.company.wandervault.domain.model.Trip
@@ -141,11 +142,27 @@ class HomeViewModel(
     fun onConfirmDeleteTrip() {
         val trip = _uiState.value.tripToDelete ?: return
         _uiState.update { it.copy(tripToDelete = null) }
+        val imageUri = trip.imageUri
         viewModelScope.launch {
-            if (trip.imageUri != null && trip.imageUri.startsWith("file://")) {
-                deleteImage(trip.imageUri)
+            try {
+                deleteTrip(trip)
+            } catch (e: Exception) {
+                // Trip deletion failed; do not attempt to delete the image to avoid inconsistency.
+                return@launch
             }
-            deleteTrip(trip)
+
+            if (imageUri != null && imageUri.startsWith("file://")) {
+                try {
+                    deleteImage(imageUri)
+                } catch (e: Exception) {
+                    // Best-effort image deletion; ignore failures so they don't affect app flow.
+                    Log.e(TAG, "Failed to delete trip image after trip deletion", e)
+                }
+            }
         }
+    }
+
+    companion object {
+        private const val TAG = "HomeViewModel"
     }
 }
