@@ -7,6 +7,7 @@ import cat.company.wandervault.ui.screens.ItineraryViewModel
 import cat.company.wandervault.ui.screens.LocationDetailViewModel
 import cat.company.wandervault.ui.screens.TransportDetailViewModel
 import cat.company.wandervault.ui.screens.TripDetailViewModel
+import cat.company.wandervault.ui.screens.TripDocumentsViewModel
 import org.koin.android.ext.koin.androidApplication
 import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
@@ -48,4 +49,18 @@ val presentationModule = module {
     }
     viewModel { DataAdminViewModel(androidApplication(), get(), get()) }
     viewModel { FavoritesViewModel(get(), get()) }
+    viewModel { params ->
+        TripDocumentsViewModel(
+            tripId = params.get(),
+            getRootFolders = get(),
+            getSubFolders = get(),
+            getDocumentsInFolder = get(),
+            saveFolder = get(),
+            updateFolder = get(),
+            deleteFolder = get(),
+            saveDocument = get(),
+            updateDocument = get(),
+            deleteDocument = get(),
+        )
+    }
 }

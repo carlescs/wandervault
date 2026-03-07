@@ -1,0 +1,43 @@
+package cat.company.wandervault.ui.screens
+
+import cat.company.wandervault.domain.model.TripDocument
+import cat.company.wandervault.domain.model.TripDocumentFolder
+
+/**
+ * Transient error type for failed write operations in the Documents screen.
+ * The Screen maps each variant to the appropriate string resource.
+ */
+enum class DocumentsWriteError {
+    /** A folder or document with the requested name already exists in this scope. */
+    DuplicateName,
+    /** A generic, unclassified write failure. */
+    Generic,
+}
+
+/**
+ * UI state for the Trip Documents screen.
+ *
+ * Represents the content of the currently visible folder (either the root level or a sub-folder).
+ */
+sealed class TripDocumentsUiState {
+    /** Data is being loaded. */
+    data object Loading : TripDocumentsUiState()
+
+    /**
+     * Data loaded successfully.
+     *
+     * @param folders Sub-folders of the current level (root folders or sub-folders of [currentFolder]).
+     * @param documents Documents in the current folder (empty when at root level, as root has no documents directly).
+     * @param currentFolder The folder currently being viewed, or `null` when at the root level.
+     * @param folderStack Navigation path of folders from the root to the current folder (last element = current folder).
+     * @param writeError A one-off error from a failed write operation (create/rename/delete),
+     *   or `null` when there is no pending error. Call [TripDocumentsViewModel.clearError] to dismiss.
+     */
+    data class Success(
+        val folders: List<TripDocumentFolder> = emptyList(),
+        val documents: List<TripDocument> = emptyList(),
+        val currentFolder: TripDocumentFolder? = null,
+        val folderStack: List<TripDocumentFolder> = emptyList(),
+        val writeError: DocumentsWriteError? = null,
+    ) : TripDocumentsUiState()
+}

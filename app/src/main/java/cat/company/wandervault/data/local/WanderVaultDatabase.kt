@@ -6,7 +6,18 @@ import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [TripEntity::class, DestinationEntity::class, TransportEntity::class, TransportLegEntity::class, HotelEntity::class], version = 13)
+@Database(
+    entities = [
+        TripEntity::class,
+        DestinationEntity::class,
+        TransportEntity::class,
+        TransportLegEntity::class,
+        HotelEntity::class,
+        TripDocumentFolderEntity::class,
+        TripDocumentEntity::class,
+    ],
+    version = 14,
+)
 @TypeConverters(DateConverters::class)
 abstract class WanderVaultDatabase : RoomDatabase() {
     abstract fun tripDao(): TripDao
@@ -14,6 +25,8 @@ abstract class WanderVaultDatabase : RoomDatabase() {
     abstract fun transportDao(): TransportDao
     abstract fun transportLegDao(): TransportLegDao
     abstract fun hotelDao(): HotelDao
+    abstract fun tripDocumentFolderDao(): TripDocumentFolderDao
+    abstract fun tripDocumentDao(): TripDocumentDao
 
     companion object {
         const val DATABASE_NAME = "wandervault.db"
@@ -243,6 +256,49 @@ abstract class WanderVaultDatabase : RoomDatabase() {
         val MIGRATION_12_13 = object : Migration(12, 13) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE `trips` ADD COLUMN `isFavorite` INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+        val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Create trip_document_folders
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `trip_document_folders` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `tripId` INTEGER NOT NULL,
+                        `name` TEXT NOT NULL,
+                        `parentFolderId` INTEGER,
+                        FOREIGN KEY(`tripId`) REFERENCES `trips`(`id`)
+                            ON UPDATE NO ACTION ON DELETE CASCADE,
+                        FOREIGN KEY(`parentFolderId`) REFERENCES `trip_document_folders`(`id`)
+                            ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_trip_document_folders_tripId` ON `trip_document_folders` (`tripId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_trip_document_folders_parentFolderId` ON `trip_document_folders` (`parentFolderId`)")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_trip_document_folders_tripId_parentFolderId_name` ON `trip_document_folders` (`tripId`, `parentFolderId`, `name`)")
+                // Partial unique index for root-level folders (parentFolderId IS NULL).
+                // SQLite's standard unique index treats NULL as distinct, so it cannot enforce
+                // uniqueness for rows where parentFolderId is NULL. This partial index fills that gap.
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_trip_document_folders_tripId_root_name` ON `trip_document_folders` (`tripId`, `name`) WHERE `parentFolderId` IS NULL")
+
+                // Create trip_documents
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `trip_documents` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `folderId` INTEGER NOT NULL,
+                        `name` TEXT NOT NULL,
+                        `uri` TEXT NOT NULL,
+                        `mimeType` TEXT NOT NULL,
+                        FOREIGN KEY(`folderId`) REFERENCES `trip_document_folders`(`id`)
+                            ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_trip_documents_folderId` ON `trip_documents` (`folderId`)")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_trip_documents_folderId_name` ON `trip_documents` (`folderId`, `name`)")
             }
         }
     }
