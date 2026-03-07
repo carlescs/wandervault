@@ -26,7 +26,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
@@ -88,6 +91,8 @@ fun TripDetailScreen(
         onNavigateUp = onNavigateUp,
         onNavigateToDestination = onNavigateToDestination,
         onNavigateToTransport = onNavigateToTransport,
+        onRegenerateDescription = viewModel::regenerateDescription,
+        onDeleteDescription = viewModel::deleteDescription,
         modifier = modifier,
     )
 }
@@ -109,6 +114,8 @@ internal fun TripDetailContent(
     onNavigateUp: () -> Unit,
     onNavigateToDestination: (Int) -> Unit = {},
     onNavigateToTransport: (Int) -> Unit = {},
+    onRegenerateDescription: () -> Unit = {},
+    onDeleteDescription: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var selectedTab by rememberSaveable { mutableStateOf(TripDetailTab.DETAILS) }
@@ -144,7 +151,12 @@ internal fun TripDetailContent(
         },
     ) { innerPadding ->
         when (selectedTab) {
-            TripDetailTab.DETAILS -> TripDetailsTabContent(uiState = uiState, innerPadding = innerPadding)
+            TripDetailTab.DETAILS -> TripDetailsTabContent(
+                uiState = uiState,
+                innerPadding = innerPadding,
+                onRegenerateDescription = onRegenerateDescription,
+                onDeleteDescription = onDeleteDescription,
+            )
             TripDetailTab.ITINERARY -> ItineraryTabContent(
                 tripId = tripId,
                 innerPadding = innerPadding,
@@ -183,6 +195,8 @@ private fun TripDetailBottomBar(
 private fun TripDetailsTabContent(
     uiState: TripDetailUiState,
     innerPadding: PaddingValues,
+    onRegenerateDescription: () -> Unit = {},
+    onDeleteDescription: () -> Unit = {},
 ) {
     when (uiState) {
         is TripDetailUiState.Loading -> {
@@ -250,7 +264,11 @@ private fun TripDetailsTabContent(
                             )
                         }
                         Spacer(modifier = Modifier.height(16.dp))
-                        AiDescriptionSection(descriptionState = uiState.descriptionState)
+                        AiDescriptionSection(
+                            descriptionState = uiState.descriptionState,
+                            onRegenerate = onRegenerateDescription,
+                            onDelete = onDeleteDescription,
+                        )
                     }
                 }
             }
@@ -263,13 +281,42 @@ private fun TripDetailsTabContent(
  *
  * Shows a section title ("AI Summary") followed by the current [DescriptionState]:
  * a spinner while loading, the generated text when available, or a graceful fallback message.
+ * When the description is [DescriptionState.Available], Regenerate and Delete icon buttons are shown.
+ * When the description is [DescriptionState.Error], a Regenerate icon button is shown.
+ * When the description is [DescriptionState.None], a "Generate" button is shown.
  */
 @Composable
-private fun AiDescriptionSection(descriptionState: DescriptionState) {
-    Text(
-        text = stringResource(R.string.trip_detail_ai_summary_title),
-        style = MaterialTheme.typography.titleMedium,
-    )
+private fun AiDescriptionSection(
+    descriptionState: DescriptionState,
+    onRegenerate: () -> Unit = {},
+    onDelete: () -> Unit = {},
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = stringResource(R.string.trip_detail_ai_summary_title),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.weight(1f),
+        )
+        if (descriptionState is DescriptionState.Available || descriptionState is DescriptionState.Error) {
+            IconButton(onClick = onRegenerate) {
+                Icon(
+                    imageVector = Icons.Default.Refresh,
+                    contentDescription = stringResource(R.string.trip_detail_ai_summary_regenerate),
+                )
+            }
+        }
+        if (descriptionState is DescriptionState.Available) {
+            IconButton(onClick = onDelete) {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = stringResource(R.string.trip_detail_ai_summary_delete),
+                )
+            }
+        }
+    }
     Spacer(modifier = Modifier.height(8.dp))
     when (descriptionState) {
         is DescriptionState.Loading -> {
@@ -302,6 +349,11 @@ private fun AiDescriptionSection(descriptionState: DescriptionState) {
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.error,
             )
+        }
+        is DescriptionState.None -> {
+            TextButton(onClick = onRegenerate) {
+                Text(text = stringResource(R.string.trip_detail_ai_summary_generate))
+            }
         }
     }
 }

@@ -32,4 +32,7 @@ sealed class DescriptionState {
 
     /** An error occurred during description generation. */
     data object Error : DescriptionState()
+
+    /** The user deleted the description. */
+    data object None : DescriptionState()
 }
