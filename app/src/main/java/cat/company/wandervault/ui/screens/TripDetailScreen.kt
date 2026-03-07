@@ -1,6 +1,7 @@
 package cat.company.wandervault.ui.screens
 
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -96,6 +97,7 @@ fun TripDetailScreen(
     viewModel: TripDetailViewModel = koinViewModel(key = "TripDetailViewModel:$tripId", parameters = { parametersOf(tripId) }),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    BackHandler(onBack = onNavigateUp)
     TripDetailContent(
         uiState = uiState,
         tripId = tripId,
@@ -284,77 +286,79 @@ private fun TripDetailsTabContent(
         is TripDetailUiState.Success -> {
             val trip = uiState.trip
             val formatter = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = if (isImageCoveringTopBar) {
-                    PaddingValues(bottom = innerPadding.calculateBottomPadding())
-                } else {
-                    innerPadding
-                },
-            ) {
-                if (trip.imageUri != null) {
-                    item {
-                        val imageHeight = if (isImageCoveringTopBar) {
-                            BASE_IMAGE_HEIGHT + innerPadding.calculateTopPadding()
-                        } else {
-                            BASE_IMAGE_HEIGHT
+            Box(modifier = Modifier.fillMaxSize()) {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = if (isImageCoveringTopBar) {
+                        PaddingValues(bottom = innerPadding.calculateBottomPadding())
+                    } else {
+                        innerPadding
+                    },
+                ) {
+                    if (trip.imageUri != null) {
+                        item {
+                            val imageHeight = if (isImageCoveringTopBar) {
+                                BASE_IMAGE_HEIGHT + innerPadding.calculateTopPadding()
+                            } else {
+                                BASE_IMAGE_HEIGHT
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(imageHeight)
+                                    .sharedTripCoverBounds(trip.id),
+                            ) {
+                                AsyncImage(
+                                    model = ImageRequest.Builder(LocalContext.current)
+                                        .data(Uri.parse(trip.imageUri))
+                                        .crossfade(true)
+                                        .build(),
+                                    contentDescription = stringResource(
+                                        R.string.trip_detail_cover_image_desc,
+                                        trip.title,
+                                    ),
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                            }
                         }
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(imageHeight)
-                                .sharedTripCoverBounds(trip.id),
-                        ) {
-                            AsyncImage(
-                                model = ImageRequest.Builder(LocalContext.current)
-                                    .data(Uri.parse(trip.imageUri))
-                                    .crossfade(true)
-                                    .build(),
-                                contentDescription = stringResource(
-                                    R.string.trip_detail_cover_image_desc,
-                                    trip.title,
-                                ),
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize(),
+                    }
+                    item {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                text = trip.title,
+                                style = MaterialTheme.typography.headlineMedium,
                             )
-                            if (isImageCoveringTopBar && scrolledFraction <= 0f) {
-                                IconButton(
-                                    onClick = onNavigateUp,
-                                    modifier = Modifier
-                                        .align(Alignment.TopStart)
-                                        .windowInsetsPadding(WindowInsets.statusBars),
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                        contentDescription = stringResource(R.string.trip_detail_navigate_up),
-                                        tint = Color.White,
-                                    )
-                                }
+                            if (trip.startDate != null && trip.endDate != null) {
+                                Text(
+                                    text = "${trip.startDate.format(formatter)} – ${trip.endDate.format(formatter)}",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            if (uiState.descriptionState !is DescriptionState.Unavailable) {
+                                Spacer(modifier = Modifier.height(16.dp))
+                                AiDescriptionSection(
+                                    descriptionState = uiState.descriptionState,
+                                    onRegenerate = onRegenerateDescription,
+                                    onDelete = onDeleteDescription,
+                                )
                             }
                         }
                     }
                 }
-                item {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            text = trip.title,
-                            style = MaterialTheme.typography.headlineMedium,
+                if (isImageCoveringTopBar && scrolledFraction <= 0f) {
+                    IconButton(
+                        onClick = onNavigateUp,
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .windowInsetsPadding(WindowInsets.statusBars),
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.trip_detail_navigate_up),
+                            tint = Color.White,
                         )
-                        if (trip.startDate != null && trip.endDate != null) {
-                            Text(
-                                text = "${trip.startDate.format(formatter)} – ${trip.endDate.format(formatter)}",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        if (uiState.descriptionState !is DescriptionState.Unavailable) {
-                            Spacer(modifier = Modifier.height(16.dp))
-                            AiDescriptionSection(
-                                descriptionState = uiState.descriptionState,
-                                onRegenerate = onRegenerateDescription,
-                                onDelete = onDeleteDescription,
-                            )
-                        }
                     }
                 }
             }
