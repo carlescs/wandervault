@@ -2,6 +2,7 @@ package cat.company.wandervault.ui.screens
 
 import androidx.activity.compose.BackHandler
 import androidx.annotation.StringRes
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,6 +16,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -54,13 +57,18 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -513,9 +521,9 @@ private fun LegTimelineStop(
 }
 
 /**
- * An editable intermediate stop shown between two leg cards.  When [stopName] is blank the
- * [OutlinedTextField] shows only its floating label; the user types directly into the empty
- * field.
+ * An editable intermediate stop shown between two leg cards. The stop name is displayed as
+ * a tappable label; tapping it switches to an [OutlinedTextField] so the user can edit it
+ * inline. Focus loss or pressing Done returns to the label view.
  *
  * @param onRemove Called when the user taps the delete button.  Deletes the leg that ends at
  *   this stop (i.e. the leg immediately before this stop in the timeline), which removes both
@@ -541,11 +549,10 @@ private fun IntermediateLegStop(
             modifier = Modifier.size(20.dp),
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        OutlinedTextField(
+        EditableLabel(
             value = stopName,
             onValueChange = onStopNameChange,
-            label = { Text(stringResource(R.string.transport_detail_stop_name_label)) },
-            singleLine = true,
+            label = stringResource(R.string.transport_detail_stop_name_label),
             modifier = Modifier.weight(1f),
         )
         val removeDescription = if (stopName.isNotBlank()) {
@@ -660,30 +667,86 @@ private fun TransportLegSection(
             if (selectedType != null) {
                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
-                OutlinedTextField(
+                EditableLabel(
                     value = leg.company,
                     onValueChange = onCompanyChange,
-                    label = { Text(stringResource(R.string.transport_company_label)) },
-                    singleLine = true,
+                    label = stringResource(R.string.transport_company_label),
                     modifier = Modifier.fillMaxWidth(),
                 )
-                Spacer(modifier = Modifier.height(4.dp))
-                OutlinedTextField(
+                EditableLabel(
                     value = leg.flightNumber,
                     onValueChange = onFlightNumberChange,
-                    label = { Text(stringResource(R.string.transport_flight_number_label)) },
-                    singleLine = true,
+                    label = stringResource(R.string.transport_flight_number_label),
                     modifier = Modifier.fillMaxWidth(),
                 )
-                Spacer(modifier = Modifier.height(4.dp))
-                OutlinedTextField(
+                EditableLabel(
                     value = leg.confirmationNumber,
                     onValueChange = onConfirmationNumberChange,
-                    label = { Text(stringResource(R.string.transport_confirmation_label)) },
-                    singleLine = true,
+                    label = stringResource(R.string.transport_confirmation_label),
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
+        }
+    }
+}
+
+/**
+ * A labelled text value that switches to an [OutlinedTextField] when tapped.
+ *
+ * When not in edit mode the field looks like a stacked label + value pair, keeping the legs
+ * tab uncluttered. Tapping the row activates an [OutlinedTextField] with the field label as
+ * a floating label; focus loss or pressing Done returns to the read-only view.
+ *
+ * @param value The current text value.
+ * @param onValueChange Called with the updated text on every keystroke.
+ * @param label The short descriptive label shown above the value in read-only mode and as the
+ *   floating label in edit mode.
+ */
+@Composable
+private fun EditableLabel(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    modifier: Modifier = Modifier,
+) {
+    var isEditing by remember { mutableStateOf(false) }
+    val focusRequester = remember { FocusRequester() }
+    val editActionLabel = stringResource(R.string.editable_label_edit_action, label)
+    if (isEditing) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            label = { Text(label) },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { isEditing = false }),
+            modifier = modifier
+                .focusRequester(focusRequester)
+                .onFocusChanged { if (!it.isFocused) isEditing = false },
+        )
+        LaunchedEffect(isEditing) {
+            focusRequester.requestFocus()
+        }
+    } else {
+        Column(
+            modifier = modifier
+                .clickable(role = Role.Button, onClickLabel = editActionLabel) { isEditing = true }
+                .padding(vertical = 4.dp),
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                text = value.ifBlank { "—" },
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (value.isBlank()) {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
+            )
         }
     }
 }
