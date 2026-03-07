@@ -29,7 +29,7 @@ internal fun Modifier.sharedTripCoverImage(tripId: Int): Modifier {
     val animatedVisibilityScope = LocalAnimatedVisibilityScope.current ?: return this
     return with(sharedTransitionScope) {
         this@sharedTripCoverImage.sharedElement(
-            state = rememberSharedContentState("trip-cover-image-$tripId"),
+            sharedContentState = rememberSharedContentState("trip-cover-image-$tripId"),
             animatedVisibilityScope = animatedVisibilityScope,
         )
     }
