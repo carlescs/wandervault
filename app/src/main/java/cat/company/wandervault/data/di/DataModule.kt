@@ -10,6 +10,8 @@ import cat.company.wandervault.data.repository.TransportRepositoryImpl
 import cat.company.wandervault.data.repository.TripRepositoryImpl
 import cat.company.wandervault.domain.repository.BackupRepository
 import cat.company.wandervault.domain.repository.DestinationRepository
+import cat.company.wandervault.data.repository.HotelRepositoryImpl
+import cat.company.wandervault.domain.repository.HotelRepository
 import cat.company.wandervault.domain.repository.ImageRepository
 import cat.company.wandervault.domain.repository.TransportRepository
 import cat.company.wandervault.domain.repository.TripDescriptionRepository
@@ -33,15 +35,18 @@ val dataModule = module {
             WanderVaultDatabase.MIGRATION_7_8,
             WanderVaultDatabase.MIGRATION_8_9,
             WanderVaultDatabase.MIGRATION_9_10,
+            WanderVaultDatabase.MIGRATION_10_11,
         ).build()
     }
     single { get<WanderVaultDatabase>().tripDao() }
     single { get<WanderVaultDatabase>().destinationDao() }
     single { get<WanderVaultDatabase>().transportDao() }
     single { get<WanderVaultDatabase>().transportLegDao() }
+    single { get<WanderVaultDatabase>().hotelDao() }
     single<TripRepository> { TripRepositoryImpl(get(), get()) }
     single<DestinationRepository> { DestinationRepositoryImpl(get(), get(), get()) }
     single<TransportRepository> { TransportRepositoryImpl(get(), get()) }
+    single<HotelRepository> { HotelRepositoryImpl(get()) }
     single<ImageRepository> { ImageRepositoryImpl(androidContext()) }
     single<TripDescriptionRepository> { TripDescriptionRepositoryImpl() }
     single<BackupRepository> { BackupRepositoryImpl(androidContext(), get()) }

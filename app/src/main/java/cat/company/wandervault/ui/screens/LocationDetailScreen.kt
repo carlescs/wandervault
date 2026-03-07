@@ -2,29 +2,43 @@ package cat.company.wandervault.ui.screens
 
 import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Hotel
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -42,6 +56,13 @@ import org.koin.core.parameter.parametersOf
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
+import java.time.temporal.ChronoUnit
+
+/** Tabs shown in the Location Detail bottom navigation bar. */
+private enum class LocationDetailTab(@StringRes val labelRes: Int, val icon: ImageVector) {
+    OVERVIEW(R.string.location_detail_tab_overview, Icons.Default.Info),
+    HOTEL(R.string.location_detail_tab_hotel, Icons.Default.Hotel),
+}
 
 /**
  * Location Detail screen entry point.
@@ -69,6 +90,9 @@ fun LocationDetailScreen(
         uiState = uiState,
         onNavigateUp = onNavigateUp,
         onTransportClick = onTransportClick,
+        onHotelNameChange = viewModel::onHotelNameChange,
+        onHotelAddressChange = viewModel::onHotelAddressChange,
+        onHotelReservationNumberChange = viewModel::onHotelReservationNumberChange,
         modifier = modifier,
     )
 }
@@ -84,12 +108,17 @@ internal fun LocationDetailContent(
     uiState: LocationDetailUiState,
     onNavigateUp: () -> Unit,
     onTransportClick: (Int) -> Unit = {},
+    onHotelNameChange: (String) -> Unit = {},
+    onHotelAddressChange: (String) -> Unit = {},
+    onHotelReservationNumberChange: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val title = when (uiState) {
         is LocationDetailUiState.Success -> uiState.destination.name
         else -> ""
     }
+    var selectedTab by rememberSaveable { mutableStateOf(LocationDetailTab.OVERVIEW) }
+
     Scaffold(
         modifier = modifier,
         topBar = {
@@ -104,6 +133,18 @@ internal fun LocationDetailContent(
                     }
                 },
             )
+        },
+        bottomBar = {
+            NavigationBar {
+                LocationDetailTab.entries.forEach { tab ->
+                    NavigationBarItem(
+                        selected = tab == selectedTab,
+                        onClick = { selectedTab = tab },
+                        icon = { Icon(tab.icon, contentDescription = null) },
+                        label = { Text(stringResource(tab.labelRes)) },
+                    )
+                }
+            }
         },
     ) { innerPadding ->
         when (uiState) {
@@ -128,69 +169,152 @@ internal fun LocationDetailContent(
                 }
             }
             is LocationDetailUiState.Success -> {
-                val destination = uiState.destination
-                val arrivalTransport = uiState.arrivalTransport
-                val isFirst = uiState.isFirst
-                val isLast = uiState.isLast
-                val locale = LocalConfiguration.current.locales[0]
-                val dateTimeFormatter = remember(locale) {
-                    DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
-                        .withLocale(locale)
+                when (selectedTab) {
+                    LocationDetailTab.OVERVIEW -> OverviewTabContent(
+                        uiState = uiState,
+                        innerPadding = innerPadding,
+                        onTransportClick = onTransportClick,
+                    )
+                    LocationDetailTab.HOTEL -> HotelTabContent(
+                        uiState = uiState,
+                        innerPadding = innerPadding,
+                        onNameChange = onHotelNameChange,
+                        onAddressChange = onHotelAddressChange,
+                        onReservationNumberChange = onHotelReservationNumberChange,
+                    )
                 }
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = innerPadding,
-                ) {
-                    item {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text(
-                                text = destination.name,
-                                style = MaterialTheme.typography.headlineMedium,
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
-                            if (!isFirst) {
-                                destination.arrivalDateTime?.let { arrival ->
-                                    LabeledInfoRow(
-                                        label = stringResource(R.string.location_detail_arrival),
-                                        value = arrival.format(dateTimeFormatter),
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                }
-                                if (arrivalTransport != null) {
-                                    TransportsInfoSection(
-                                        label = stringResource(R.string.location_detail_arrival_transport),
-                                        transport = arrivalTransport,
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                }
-                            }
-                            if (!isLast) {
-                                destination.departureDateTime?.let { departure ->
-                                    LabeledInfoRow(
-                                        label = stringResource(R.string.location_detail_departure),
-                                        value = departure.format(dateTimeFormatter),
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                }
-                                if (destination.transport != null) {
-                                    TransportsInfoSection(
-                                        label = stringResource(R.string.location_detail_transport),
-                                        transport = destination.transport,
-                                        modifier = Modifier.clickable(role = Role.Button) { onTransportClick(destination.id) },
-                                    )
-                                } else {
-                                    LabeledInfoRow(
-                                        label = stringResource(R.string.location_detail_transport),
-                                        value = stringResource(R.string.transport_none),
-                                        onClick = { onTransportClick(destination.id) },
-                                    )
-                                }
-                            }
-                        }
+            }
+        }
+    }
+}
+
+@Composable
+private fun OverviewTabContent(
+    uiState: LocationDetailUiState.Success,
+    innerPadding: PaddingValues,
+    onTransportClick: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val destination = uiState.destination
+    val arrivalTransport = uiState.arrivalTransport
+    val isFirst = uiState.isFirst
+    val isLast = uiState.isLast
+    val locale = LocalConfiguration.current.locales[0]
+    val dateTimeFormatter = remember(locale) {
+        DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
+            .withLocale(locale)
+    }
+    LazyColumn(
+        modifier = modifier.fillMaxSize(),
+        contentPadding = innerPadding,
+    ) {
+        item {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = destination.name,
+                    style = MaterialTheme.typography.headlineMedium,
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                if (!isFirst) {
+                    destination.arrivalDateTime?.let { arrival ->
+                        LabeledInfoRow(
+                            label = stringResource(R.string.location_detail_arrival),
+                            value = arrival.format(dateTimeFormatter),
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                    if (arrivalTransport != null) {
+                        TransportsInfoSection(
+                            label = stringResource(R.string.location_detail_arrival_transport),
+                            transport = arrivalTransport,
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                }
+                if (!isLast) {
+                    destination.departureDateTime?.let { departure ->
+                        LabeledInfoRow(
+                            label = stringResource(R.string.location_detail_departure),
+                            value = departure.format(dateTimeFormatter),
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                    if (destination.transport != null) {
+                        TransportsInfoSection(
+                            label = stringResource(R.string.location_detail_transport),
+                            transport = destination.transport,
+                            modifier = Modifier.clickable(role = Role.Button) { onTransportClick(destination.id) },
+                        )
+                    } else {
+                        LabeledInfoRow(
+                            label = stringResource(R.string.location_detail_transport),
+                            value = stringResource(R.string.transport_none),
+                            onClick = { onTransportClick(destination.id) },
+                        )
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun HotelTabContent(
+    uiState: LocationDetailUiState.Success,
+    innerPadding: PaddingValues,
+    onNameChange: (String) -> Unit,
+    onAddressChange: (String) -> Unit,
+    onReservationNumberChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val hotel = uiState.hotelEditState
+    val destination = uiState.destination
+    val nights = remember(destination.arrivalDateTime, destination.departureDateTime) {
+        val arrival = destination.arrivalDateTime
+        val departure = destination.departureDateTime
+        if (arrival != null && departure != null) {
+            ChronoUnit.DAYS.between(arrival.toLocalDate(), departure.toLocalDate())
+        } else {
+            null
+        }
+    }
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(innerPadding)
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        EditableLabel(
+            value = hotel.name,
+            onValueChange = onNameChange,
+            label = stringResource(R.string.hotel_name_label),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        HorizontalDivider()
+        EditableLabel(
+            value = hotel.address,
+            onValueChange = onAddressChange,
+            label = stringResource(R.string.hotel_address_label),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        HorizontalDivider()
+        EditableLabel(
+            value = hotel.reservationNumber,
+            onValueChange = onReservationNumberChange,
+            label = stringResource(R.string.hotel_reservation_number_label),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        HorizontalDivider()
+        LabeledInfoRow(
+            label = stringResource(R.string.hotel_nights_label),
+            value = if (nights != null) {
+                stringResource(R.string.hotel_nights_value, nights)
+            } else {
+                stringResource(R.string.hotel_nights_not_available)
+            },
+        )
     }
 }
 
@@ -412,3 +536,33 @@ private fun LocationDetailLoadingPreview() {
         )
     }
 }
+
+@Preview(showBackground = true)
+@Composable
+private fun LocationDetailHotelTabPreview() {
+    val destination = Destination(
+        id = 2,
+        tripId = 1,
+        name = "Paris",
+        position = 1,
+        arrivalDateTime = LocalDateTime.of(2024, 6, 1, 12, 30),
+        departureDateTime = LocalDateTime.of(2024, 6, 4, 10, 0),
+    )
+    WanderVaultTheme {
+        HotelTabContent(
+            uiState = LocationDetailUiState.Success(
+                destination = destination,
+                hotelEditState = HotelEditState(
+                    name = "Hotel de Ville",
+                    address = "1 Rue de Rivoli, Paris",
+                    reservationNumber = "HV-20240601",
+                ),
+            ),
+            innerPadding = PaddingValues(0.dp),
+            onNameChange = {},
+            onAddressChange = {},
+            onReservationNumberChange = {},
+        )
+    }
+}
+

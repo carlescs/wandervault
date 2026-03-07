@@ -130,6 +130,15 @@
     <string name="location_detail_arrival_transport">Arrival Transport</string>
     <string name="location_detail_transport">Departure Transport</string>
     <string name="location_detail_not_found">Destination not found</string>
+    <string name="location_detail_tab_overview">Overview</string>
+    <string name="location_detail_tab_hotel">Hotel</string>
+    <!-- Hotel tab -->
+    <string name="hotel_name_label">Hotel name</string>
+    <string name="hotel_address_label">Address</string>
+    <string name="hotel_reservation_number_label">Reservation No.</string>
+    <string name="hotel_nights_label">Nights</string>
+    <string name="hotel_nights_value">%d</string>
+    <string name="hotel_nights_not_available">—</string>
     <string name="transport_company_label">Company</string>
     <string name="transport_flight_number_label">Flight / Reference No.</string>
     <string name="transport_confirmation_label">Confirmation No.</string>
