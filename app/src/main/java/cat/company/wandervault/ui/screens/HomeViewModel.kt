@@ -1,10 +1,12 @@
 package cat.company.wandervault.ui.screens
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import cat.company.wandervault.domain.model.Trip
 import cat.company.wandervault.domain.usecase.CopyImageToInternalStorageUseCase
 import cat.company.wandervault.domain.usecase.DeleteImageUseCase
+import cat.company.wandervault.domain.usecase.DeleteTripUseCase
 import cat.company.wandervault.domain.usecase.GetTripsUseCase
 import cat.company.wandervault.domain.usecase.SaveTripUseCase
 import cat.company.wandervault.domain.usecase.UpdateTripUseCase
@@ -20,6 +22,7 @@ class HomeViewModel(
     private val updateTrip: UpdateTripUseCase,
     private val copyImage: CopyImageToInternalStorageUseCase,
     private val deleteImage: DeleteImageUseCase,
+    private val deleteTrip: DeleteTripUseCase,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -127,4 +130,39 @@ class HomeViewModel(
 
     private suspend fun persistImageUri(uri: String?): String? =
         if (uri != null && uri.startsWith("content://")) copyImage(uri) else uri
+
+    fun onDeleteTripClick(trip: Trip) {
+        _uiState.update { it.copy(tripToDelete = trip) }
+    }
+
+    fun onDismissDeleteTripDialog() {
+        _uiState.update { it.copy(tripToDelete = null) }
+    }
+
+    fun onConfirmDeleteTrip() {
+        val trip = _uiState.value.tripToDelete ?: return
+        _uiState.update { it.copy(tripToDelete = null) }
+        val imageUri = trip.imageUri
+        viewModelScope.launch {
+            try {
+                deleteTrip(trip)
+            } catch (e: Exception) {
+                // Trip deletion failed; do not attempt to delete the image to avoid inconsistency.
+                return@launch
+            }
+
+            if (imageUri != null && imageUri.startsWith("file://")) {
+                try {
+                    deleteImage(imageUri)
+                } catch (e: Exception) {
+                    // Best-effort image deletion; ignore failures so they don't affect app flow.
+                    Log.e(TAG, "Failed to delete trip image after trip deletion", e)
+                }
+            }
+        }
+    }
+
+    companion object {
+        private const val TAG = "HomeViewModel"
+    }
 }

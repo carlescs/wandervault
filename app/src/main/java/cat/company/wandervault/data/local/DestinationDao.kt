@@ -32,4 +32,7 @@ interface DestinationDao {
 
     @Query("SELECT tripId, arrivalDateTime, departureDateTime FROM destinations")
     fun getAll(): Flow<List<DestinationDateProjection>>
+
+    @Query("DELETE FROM destinations WHERE tripId = :tripId")
+    suspend fun deleteByTripId(tripId: Int)
 }

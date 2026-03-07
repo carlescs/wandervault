@@ -58,6 +58,12 @@
     <string name="edit_trip_title">Edit Trip</string>
     <string name="edit_trip_content_desc">Edit trip</string>
 
+    <!-- Delete Trip dialog -->
+    <string name="delete_trip_content_desc">Delete trip</string>
+    <string name="home_delete_trip_dialog_title">Delete trip?</string>
+    <string name="home_delete_trip_dialog_message">"%s" will be permanently deleted.</string>
+    <string name="home_delete_trip_dialog_confirm">Delete</string>
+
     <!-- Generic dialog actions -->
     <string name="dialog_ok">OK</string>
     <string name="dialog_cancel">Cancel</string>

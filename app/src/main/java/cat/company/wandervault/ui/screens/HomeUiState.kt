@@ -12,6 +12,7 @@ data class HomeUiState(
     val editTripTitle: String = "",
     val editTripImageUri: String? = null,
     val editTripOriginalImageUri: String? = null,
+    val tripToDelete: Trip? = null,
 ) {
     val isAddTripFormValid: Boolean
         get() = addTripTitle.isNotBlank()
