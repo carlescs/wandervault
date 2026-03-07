@@ -53,6 +53,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cat.company.wandervault.R
 import cat.company.wandervault.domain.model.Trip
+import cat.company.wandervault.ui.fadeWithSharedTransition
 import cat.company.wandervault.ui.sharedTripCoverImage
 import cat.company.wandervault.ui.theme.WanderVaultTheme
 import coil.compose.AsyncImage
@@ -166,7 +167,10 @@ internal fun TripDetailContent(
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateUp) {
+                    IconButton(
+                        onClick = onNavigateUp,
+                        modifier = Modifier.fadeWithSharedTransition(),
+                    ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = stringResource(R.string.trip_detail_navigate_up),
