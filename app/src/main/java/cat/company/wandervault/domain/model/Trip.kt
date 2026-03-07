@@ -17,4 +17,5 @@ data class Trip(
     val startDate: LocalDate? = null,
     val endDate: LocalDate? = null,
     val aiDescription: String? = null,
+    val isFavorite: Boolean = false,
 )

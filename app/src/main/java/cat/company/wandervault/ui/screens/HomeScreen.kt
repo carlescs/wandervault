@@ -20,6 +20,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.FloatingActionButton
@@ -78,6 +80,7 @@ fun HomeScreen(modifier: Modifier = Modifier, viewModel: HomeViewModel = koinVie
         onDeleteTripClick = viewModel::onDeleteTripClick,
         onConfirmDeleteTrip = viewModel::onConfirmDeleteTrip,
         onDismissDeleteDialog = viewModel::onDismissDeleteTripDialog,
+        onFavoriteClick = viewModel::onToggleFavorite,
         onTripClick = onTripClick,
         modifier = modifier,
     )
@@ -105,6 +108,7 @@ internal fun HomeScreenContent(
     onDeleteTripClick: (Trip) -> Unit = {},
     onConfirmDeleteTrip: () -> Unit = {},
     onDismissDeleteDialog: () -> Unit = {},
+    onFavoriteClick: (Trip) -> Unit = {},
     onTripClick: (Int) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -122,6 +126,7 @@ internal fun HomeScreenContent(
                         trip = trip,
                         onEditClick = { onEditTripClick(trip) },
                         onDeleteClick = { onDeleteTripClick(trip) },
+                        onFavoriteClick = { onFavoriteClick(trip) },
                         onCardClick = { onTripClick(trip.id) },
                     )
                 }
@@ -172,7 +177,7 @@ internal fun HomeScreenContent(
 }
 
 @Composable
-private fun TripCard(trip: Trip, onEditClick: () -> Unit, onDeleteClick: () -> Unit = {}, onCardClick: () -> Unit = {}, modifier: Modifier = Modifier) {
+private fun TripCard(trip: Trip, onEditClick: () -> Unit, onDeleteClick: () -> Unit = {}, onFavoriteClick: () -> Unit = {}, onCardClick: () -> Unit = {}, modifier: Modifier = Modifier) {
     val formatter = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
     Card(modifier = modifier.fillMaxWidth(), onClick = onCardClick) {
         if (trip.imageUri != null) {
@@ -206,6 +211,13 @@ private fun TripCard(trip: Trip, onEditClick: () -> Unit, onDeleteClick: () -> U
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+            }
+            IconButton(onClick = onFavoriteClick) {
+                Icon(
+                    imageVector = if (trip.isFavorite) Icons.Default.Favorite else Icons.Outlined.FavoriteBorder,
+                    contentDescription = stringResource(if (trip.isFavorite) R.string.trip_remove_favorite else R.string.trip_add_favorite),
+                    tint = if (trip.isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
             IconButton(onClick = onEditClick) {
                 Icon(
