@@ -1,5 +1,7 @@
 package cat.company.wandervault.ui.screens
 
+import android.database.sqlite.SQLiteConstraintException
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import cat.company.wandervault.domain.model.TripDocument
@@ -27,6 +29,9 @@ import kotlinx.coroutines.launch
  *
  * Manages folder navigation (root → sub-folder → sub-sub-folder, etc.) and
  * exposes the current level's folders and documents as a [StateFlow].
+ *
+ * Write operations (create/rename/delete) catch constraint and validation failures and surface
+ * them as a transient [TripDocumentsUiState.Success.writeError]. Call [clearError] to dismiss.
  *
  * @param tripId The ID of the trip whose documents are shown.
  */
@@ -70,6 +75,8 @@ class TripDocumentsViewModel(
                         documents = documents,
                         currentFolder = currentFolder,
                         folderStack = stack,
+                        // writeError is not preserved across data refreshes: a successful write
+                        // triggers a new DB emission which clears any prior error naturally.
                     )
                 }
             }.collect { state ->
@@ -97,10 +104,16 @@ class TripDocumentsViewModel(
     /** Returns `true` if the user can navigate up (i.e. not at the root level). */
     fun canNavigateUp(): Boolean = _folderStack.value.isNotEmpty()
 
+    /** Dismisses the current error message (if any). */
+    fun clearError() {
+        val current = _uiState.value as? TripDocumentsUiState.Success ?: return
+        _uiState.value = current.copy(writeError = null)
+    }
+
     /** Creates a new folder with [name] at the current navigation level. */
     fun createFolder(name: String) {
         val parentFolderId = _folderStack.value.lastOrNull()?.id
-        viewModelScope.launch {
+        launchWrite {
             saveFolder(
                 TripDocumentFolder(
                     tripId = tripId,
@@ -113,16 +126,12 @@ class TripDocumentsViewModel(
 
     /** Renames [folder] to [newName]. */
     fun renameFolder(folder: TripDocumentFolder, newName: String) {
-        viewModelScope.launch {
-            updateFolder(folder.copy(name = newName.trim()))
-        }
+        launchWrite { updateFolder(folder.copy(name = newName.trim())) }
     }
 
     /** Permanently removes [folder] and all its contents. */
     fun removeFolder(folder: TripDocumentFolder) {
-        viewModelScope.launch {
-            deleteFolder(folder)
-        }
+        launchWrite { deleteFolder(folder) }
     }
 
     /**
@@ -134,7 +143,7 @@ class TripDocumentsViewModel(
      */
     fun addDocument(name: String, uri: String, mimeType: String) {
         val currentFolder = _folderStack.value.lastOrNull() ?: return
-        viewModelScope.launch {
+        launchWrite {
             saveDocument(
                 TripDocument(
                     folderId = currentFolder.id,
@@ -148,15 +157,46 @@ class TripDocumentsViewModel(
 
     /** Renames [document] to [newName]. */
     fun renameDocument(document: TripDocument, newName: String) {
-        viewModelScope.launch {
-            updateDocument(document.copy(name = newName.trim()))
-        }
+        launchWrite { updateDocument(document.copy(name = newName.trim())) }
     }
 
     /** Permanently removes [document]. */
     fun removeDocument(document: TripDocument) {
+        launchWrite { deleteDocument(document) }
+    }
+
+    /**
+     * Launches a write coroutine that catches:
+     * - [IllegalArgumentException] from repository-level root-folder uniqueness checks → [DocumentsWriteError.DuplicateName]
+     * - [SQLiteConstraintException] from Room unique-index violations on sub-folders or documents → [DocumentsWriteError.DuplicateName]
+     * - All other [Exception] types → [DocumentsWriteError.Generic]
+     *
+     * Errors are surfaced as a transient [DocumentsWriteError] on the UI state rather than
+     * crashing the app or cancelling the ViewModel scope.
+     */
+    private fun launchWrite(block: suspend () -> Unit) {
         viewModelScope.launch {
-            deleteDocument(document)
+            try {
+                block()
+            } catch (e: IllegalArgumentException) {
+                Log.w(TAG, "Write operation rejected (duplicate name): ${e.message}")
+                setWriteError(DocumentsWriteError.DuplicateName)
+            } catch (e: SQLiteConstraintException) {
+                Log.w(TAG, "Write operation rejected (constraint violation): ${e.message}")
+                setWriteError(DocumentsWriteError.DuplicateName)
+            } catch (e: Exception) {
+                Log.e(TAG, "Write operation failed", e)
+                setWriteError(DocumentsWriteError.Generic)
+            }
         }
+    }
+
+    private fun setWriteError(error: DocumentsWriteError) {
+        val current = _uiState.value as? TripDocumentsUiState.Success ?: return
+        _uiState.value = current.copy(writeError = error)
+    }
+
+    companion object {
+        private const val TAG = "TripDocumentsViewModel"
     }
 }

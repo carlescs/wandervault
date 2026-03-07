@@ -278,6 +278,10 @@ abstract class WanderVaultDatabase : RoomDatabase() {
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_trip_document_folders_tripId` ON `trip_document_folders` (`tripId`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_trip_document_folders_parentFolderId` ON `trip_document_folders` (`parentFolderId`)")
                 db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_trip_document_folders_tripId_parentFolderId_name` ON `trip_document_folders` (`tripId`, `parentFolderId`, `name`)")
+                // Partial unique index for root-level folders (parentFolderId IS NULL).
+                // SQLite's standard unique index treats NULL as distinct, so it cannot enforce
+                // uniqueness for rows where parentFolderId is NULL. This partial index fills that gap.
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_trip_document_folders_tripId_root_name` ON `trip_document_folders` (`tripId`, `name`) WHERE `parentFolderId` IS NULL")
 
                 // Create trip_documents
                 db.execSQL(

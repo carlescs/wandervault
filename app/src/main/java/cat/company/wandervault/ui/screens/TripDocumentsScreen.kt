@@ -74,6 +74,7 @@ internal fun TripDocumentsTabContent(
         onDeleteFolder = viewModel::removeFolder,
         onRenameDocument = viewModel::renameDocument,
         onDeleteDocument = viewModel::removeDocument,
+        onErrorDismiss = viewModel::clearError,
     )
 }
 
@@ -81,6 +82,7 @@ internal fun TripDocumentsTabContent(
  * Stateless presentation of the Documents tab content.
  *
  * Supports folder navigation, create/rename/delete dialogs, and document rename/delete.
+ * [onErrorDismiss] is called when the user acknowledges a transient write error.
  */
 @Composable
 internal fun TripDocumentsContent(
@@ -93,6 +95,7 @@ internal fun TripDocumentsContent(
     onDeleteFolder: (TripDocumentFolder) -> Unit = {},
     onRenameDocument: (TripDocument, String) -> Unit = { _, _ -> },
     onDeleteDocument: (TripDocument) -> Unit = {},
+    onErrorDismiss: () -> Unit = {},
 ) {
     var showCreateFolderDialog by rememberSaveable { mutableStateOf(false) }
     var folderToRename by remember { mutableStateOf<TripDocumentFolder?>(null) }
@@ -270,6 +273,25 @@ internal fun TripDocumentsContent(
                 documentToDelete = null
             },
             onDismiss = { documentToDelete = null },
+        )
+    }
+
+    // Show a dialog when a write operation fails (e.g. duplicate name).
+    val writeError = (uiState as? TripDocumentsUiState.Success)?.writeError
+    if (writeError != null) {
+        val errorText = when (writeError) {
+            DocumentsWriteError.DuplicateName -> stringResource(R.string.documents_duplicate_name_error)
+            DocumentsWriteError.Generic -> stringResource(R.string.documents_write_error)
+        }
+        AlertDialog(
+            onDismissRequest = onErrorDismiss,
+            title = { Text(stringResource(R.string.documents_write_error_title)) },
+            text = { Text(errorText) },
+            confirmButton = {
+                TextButton(onClick = onErrorDismiss) {
+                    Text(stringResource(R.string.dialog_ok))
+                }
+            },
         )
     }
 }

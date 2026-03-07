@@ -174,4 +174,21 @@ class TripDocumentDaoTest {
         assertEquals(0, countMissing)
         assertEquals(0, countExcluded)
     }
+
+    @Test
+    fun deleteTrip_cascadesToFoldersAndDocuments() = runTest {
+        // Arrange: create a second trip with folders and documents.
+        db.tripDao().insert(TripEntity(id = 2, title = "Trip To Delete"))
+        folderDao.insert(TripDocumentFolderEntity(id = 800, tripId = 2, name = "Root Folder"))
+        documentDao.insert(TripDocumentEntity(folderId = 800, name = "doc.pdf", uri = "uri", mimeType = "application/pdf"))
+
+        // Act: delete the trip.
+        db.tripDao().delete(TripEntity(id = 2, title = "Trip To Delete"))
+
+        // Assert: all folders and documents for that trip are gone.
+        val folders = folderDao.getRootFolders(tripId = 2).first()
+        val docs = documentDao.getByFolderId(folderId = 800).first()
+        assertTrue("Folders should be empty after trip deletion", folders.isEmpty())
+        assertTrue("Documents should be empty after trip deletion", docs.isEmpty())
+    }
 }
