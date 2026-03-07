@@ -112,6 +112,7 @@ class HomeViewModel(
         val state = _uiState.value
         if (!state.isEditTripFormValid) return
         val id = state.editTripId ?: return
+        val existingTrip = state.trips.find { it.id == id } ?: return
 
         viewModelScope.launch {
             val newImageUri = persistImageUri(state.editTripImageUri)
@@ -120,8 +121,7 @@ class HomeViewModel(
                 deleteImage(oldImageUri)
             }
             updateTrip(
-                Trip(
-                    id = id,
+                existingTrip.copy(
                     title = state.editTripTitle,
                     imageUri = newImageUri,
                 ),
@@ -166,7 +166,7 @@ class HomeViewModel(
 
     fun onToggleFavorite(trip: Trip) {
         viewModelScope.launch {
-            toggleFavorite(trip)
+            toggleFavorite(trip.id)
         }
     }
 

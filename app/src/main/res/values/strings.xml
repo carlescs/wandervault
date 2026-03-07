@@ -11,8 +11,8 @@
     <string name="trips_empty_subtitle">Your saved trips will appear here</string>
 
     <!-- Favorites screen -->
-    <string name="favorites_title">Saved Places</string>
-    <string name="favorites_empty">No saved places yet.\nTap the heart icon on any trip to add it to your favorites.</string>
+    <string name="favorites_title">Favorite Trips</string>
+    <string name="favorites_empty">No favorite trips yet.\nTap the heart icon on any trip to add it to your favorites.</string>
     <string name="trip_add_favorite">Add to favorites</string>
     <string name="trip_remove_favorite">Remove from favorites</string>
 

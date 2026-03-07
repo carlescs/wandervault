@@ -29,7 +29,7 @@ class FavoritesViewModel(
 
     fun onToggleFavorite(trip: Trip) {
         viewModelScope.launch {
-            toggleFavorite(trip)
+            toggleFavorite(trip.id)
         }
     }
 }

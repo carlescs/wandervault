@@ -27,6 +27,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -212,7 +213,10 @@ private fun TripCard(trip: Trip, onEditClick: () -> Unit, onDeleteClick: () -> U
                     )
                 }
             }
-            IconButton(onClick = onFavoriteClick) {
+            IconToggleButton(
+                checked = trip.isFavorite,
+                onCheckedChange = { onFavoriteClick() },
+            ) {
                 Icon(
                     imageVector = if (trip.isFavorite) Icons.Default.Favorite else Icons.Outlined.FavoriteBorder,
                     contentDescription = stringResource(if (trip.isFavorite) R.string.trip_remove_favorite else R.string.trip_add_favorite),

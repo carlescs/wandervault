@@ -45,6 +45,10 @@ class TripRepositoryImpl(
         tripDao.update(trip.toEntity())
     }
 
+    override suspend fun toggleFavoriteTrip(tripId: Int) {
+        tripDao.toggleFavorite(tripId)
+    }
+
     override suspend fun deleteTrip(trip: Trip) {
         database.withTransaction {
             destinationDao.deleteByTripId(trip.id)
