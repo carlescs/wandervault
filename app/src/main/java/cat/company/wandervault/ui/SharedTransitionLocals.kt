@@ -3,6 +3,8 @@ package cat.company.wandervault.ui
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.Modifier
@@ -31,6 +33,25 @@ internal fun Modifier.sharedTripCoverImage(tripId: Int): Modifier {
         this@sharedTripCoverImage.sharedElement(
             sharedContentState = rememberSharedContentState("trip-cover-image-$tripId"),
             animatedVisibilityScope = animatedVisibilityScope,
+        )
+    }
+}
+
+/**
+ * Fades this element in and out in sync with the shared-element transition when running inside a
+ * [SharedTransitionLayout] / [AnimatedContent] scope, or returns [this] unchanged in other
+ * contexts (e.g. `@Preview`).
+ *
+ * Use this on UI chrome elements (e.g. back-arrow buttons) that should appear gradually alongside
+ * the shared-element animation instead of popping in abruptly.
+ */
+@Composable
+internal fun Modifier.fadeWithSharedTransition(): Modifier {
+    val animatedVisibilityScope = LocalAnimatedVisibilityScope.current ?: return this
+    return with(animatedVisibilityScope) {
+        this@fadeWithSharedTransition.animateEnterExit(
+            enter = fadeIn(),
+            exit = fadeOut(),
         )
     }
 }
