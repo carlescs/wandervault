@@ -17,6 +17,11 @@ abstract class WanderVaultDatabase : RoomDatabase() {
     companion object {
         const val DATABASE_NAME = "wandervault.db"
 
+        /** Flushes the WAL file into the main database file so it is safe to copy. */
+        fun WanderVaultDatabase.checkpoint() {
+            openHelper.writableDatabase.execSQL("PRAGMA wal_checkpoint(TRUNCATE)")
+        }
+
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE trips ADD COLUMN imageUri TEXT")

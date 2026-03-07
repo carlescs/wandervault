@@ -17,6 +17,31 @@
     <!-- Profile screen -->
     <string name="profile_title">My Profile</string>
     <string name="profile_subtitle">Manage your account and preferences</string>
+    <string name="profile_settings_desc">Settings</string>
+
+    <!-- Settings screen -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_navigate_up">Navigate up</string>
+    <string name="settings_section_data">Data</string>
+    <string name="settings_data_admin_title">Data Administration</string>
+    <string name="settings_data_admin_subtitle">Backup and restore your data</string>
+
+    <!-- Data Administration screen -->
+    <string name="data_admin_title">Data Administration</string>
+    <string name="data_admin_navigate_up">Navigate up</string>
+    <string name="data_admin_description">Back up all your trips, destinations and images to a zip file, or restore from a previous backup.</string>
+    <string name="data_admin_backup_title">Backup</string>
+    <string name="data_admin_backup_description">Export all data to a zip file</string>
+    <string name="data_admin_backup_button">Create Backup</string>
+    <string name="data_admin_backup_success">Backup created successfully</string>
+    <string name="data_admin_backup_error">Backup failed. Please try again.</string>
+    <string name="data_admin_restore_title">Restore</string>
+    <string name="data_admin_restore_description">Import data from a zip backup file</string>
+    <string name="data_admin_restore_button">Restore Backup</string>
+    <string name="data_admin_restore_success">Restore complete. Restart the app to apply changes.</string>
+    <string name="data_admin_restore_error">Restore failed. Please check the backup file and try again.</string>
+    <string name="data_admin_restart">Restart App</string>
+    <string name="data_admin_dismiss">Dismiss</string>
 
     <!-- Navigation content descriptions (accessibility) -->
     <string name="nav_home_desc">Home</string>

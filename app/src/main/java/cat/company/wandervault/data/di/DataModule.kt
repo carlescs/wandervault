@@ -3,10 +3,12 @@ package cat.company.wandervault.data.di
 import androidx.room.Room
 import cat.company.wandervault.data.local.WanderVaultDatabase
 import cat.company.wandervault.data.mlkit.TripDescriptionRepositoryImpl
+import cat.company.wandervault.data.repository.BackupRepositoryImpl
 import cat.company.wandervault.data.repository.DestinationRepositoryImpl
 import cat.company.wandervault.data.repository.ImageRepositoryImpl
 import cat.company.wandervault.data.repository.TransportRepositoryImpl
 import cat.company.wandervault.data.repository.TripRepositoryImpl
+import cat.company.wandervault.domain.repository.BackupRepository
 import cat.company.wandervault.domain.repository.DestinationRepository
 import cat.company.wandervault.domain.repository.ImageRepository
 import cat.company.wandervault.domain.repository.TransportRepository
@@ -41,4 +43,5 @@ val dataModule = module {
     single<TransportRepository> { TransportRepositoryImpl(get(), get()) }
     single<ImageRepository> { ImageRepositoryImpl(androidContext()) }
     single<TripDescriptionRepository> { TripDescriptionRepositoryImpl() }
+    single<BackupRepository> { BackupRepositoryImpl(androidContext(), get()) }
 }

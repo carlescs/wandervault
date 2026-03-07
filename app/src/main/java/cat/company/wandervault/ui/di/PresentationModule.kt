@@ -1,10 +1,12 @@
 package cat.company.wandervault.ui.di
 
+import cat.company.wandervault.ui.screens.DataAdminViewModel
 import cat.company.wandervault.ui.screens.HomeViewModel
 import cat.company.wandervault.ui.screens.ItineraryViewModel
 import cat.company.wandervault.ui.screens.LocationDetailViewModel
 import cat.company.wandervault.ui.screens.TransportDetailViewModel
 import cat.company.wandervault.ui.screens.TripDetailViewModel
+import org.koin.android.ext.koin.androidApplication
 import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
 
@@ -39,4 +41,5 @@ val presentationModule = module {
             deleteTransport = get(),
         )
     }
+    viewModel { DataAdminViewModel(androidApplication(), get(), get()) }
 }
