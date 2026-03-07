@@ -35,6 +35,12 @@ class TripDetailViewModel(
     /** True once description generation has been kicked off, to avoid duplicate requests. */
     private var descriptionGenerated = false
 
+    /** Cached trip used for on-demand re-generation triggered by the user. */
+    private var lastTrip: Trip? = null
+
+    /** Cached destinations used for on-demand re-generation triggered by the user. */
+    private var lastDestinations: List<Destination> = emptyList()
+
     init {
         viewModelScope.launch {
             combine(
@@ -46,6 +52,8 @@ class TripDetailViewModel(
                         _uiState.value = TripDetailUiState.Error
                         return@collect
                     }
+                    lastTrip = trip
+                    lastDestinations = destinations
                     // Preserve the description state across DB-driven re-emissions
                     val currentDescription =
                         (_uiState.value as? TripDetailUiState.Success)?.descriptionState
@@ -60,6 +68,28 @@ class TripDetailViewModel(
                     }
                 }
         }
+    }
+
+    /**
+     * Re-triggers AI description generation, replacing the current description state.
+     *
+     * No-op if generation is already in progress.
+     */
+    fun regenerateDescription() {
+        val current = _uiState.value as? TripDetailUiState.Success ?: return
+        if (current.descriptionState is DescriptionState.Loading) return
+        val trip = lastTrip ?: return
+        val destinations = lastDestinations
+        _uiState.value = current.copy(descriptionState = DescriptionState.Loading)
+        generateDescription(trip, destinations)
+    }
+
+    /**
+     * Clears the current AI description, setting the state to [DescriptionState.None].
+     */
+    fun deleteDescription() {
+        val current = _uiState.value as? TripDetailUiState.Success ?: return
+        _uiState.value = current.copy(descriptionState = DescriptionState.None)
     }
 
     private fun generateDescription(trip: Trip, destinations: List<Destination>) {
