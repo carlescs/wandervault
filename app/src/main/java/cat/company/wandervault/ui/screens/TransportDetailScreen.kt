@@ -24,6 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AltRoute
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DirectionsBike
@@ -65,7 +66,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -524,7 +524,7 @@ private fun LegTimelineStop(
 /**
  * An editable intermediate stop shown between two leg cards. The stop name is displayed as
  * a tappable label; tapping it switches to an [OutlinedTextField] so the user can edit it
- * inline. Focus loss or pressing Done returns to the label view.
+ * inline. Explicit Save (✓) and Cancel (✗) buttons commit or discard the change.
  *
  * @param onRemove Called when the user taps the delete button.  Deletes the leg that ends at
  *   this stop (i.e. the leg immediately before this stop in the timeline), which removes both
@@ -696,10 +696,11 @@ private fun TransportLegSection(
  *
  * When not in edit mode the field looks like a stacked label + value pair, keeping the legs
  * tab uncluttered. Tapping the row activates an [OutlinedTextField] with the field label as
- * a floating label; focus loss or pressing Done returns to the read-only view.
+ * a floating label. Explicit Save (✓) and Cancel (✗) icon buttons commit or discard the
+ * change; pressing the Done IME action also commits.
  *
  * @param value The current text value.
- * @param onValueChange Called with the updated text on every keystroke.
+ * @param onValueChange Called with the updated text when the user confirms the edit.
  * @param label The short descriptive label shown above the value in read-only mode and as the
  *   floating label in edit mode.
  */
@@ -711,40 +712,61 @@ private fun EditableLabel(
     modifier: Modifier = Modifier,
 ) {
     var isEditing by remember { mutableStateOf(false) }
+    var draft by remember { mutableStateOf("") }
     val focusRequester = remember { FocusRequester() }
     val editActionLabel = stringResource(R.string.editable_label_edit_action, label)
     val notSetPlaceholder = stringResource(R.string.editable_label_not_set)
     if (isEditing) {
-        // Track whether focus has been received at least once so that the initial
-        // "unfocused" callback delivered by Compose before requestFocus() takes effect
-        // does not immediately exit edit mode.
-        var hadFocus by remember { mutableStateOf(false) }
-        OutlinedTextField(
-            value = value,
-            onValueChange = onValueChange,
-            label = { Text(label) },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-            keyboardActions = KeyboardActions(onDone = { isEditing = false }),
-            modifier = modifier
-                .focusRequester(focusRequester)
-                .onFocusChanged { focusState ->
-                    if (focusState.isFocused) {
-                        hadFocus = true
-                    } else if (hadFocus) {
-                        isEditing = false
-                    }
-                },
-        )
+        fun commitEdit() {
+            onValueChange(draft)
+            isEditing = false
+        }
+        fun cancelEdit() {
+            isEditing = false
+        }
+        Row(
+            modifier = modifier,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            OutlinedTextField(
+                value = draft,
+                onValueChange = { draft = it },
+                label = { Text(label) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { commitEdit() }),
+                modifier = Modifier
+                    .weight(1f)
+                    .focusRequester(focusRequester),
+            )
+            IconButton(onClick = { commitEdit() }) {
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = stringResource(R.string.editable_label_save),
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            }
+            IconButton(onClick = { cancelEdit() }) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = stringResource(R.string.editable_label_cancel),
+                )
+            }
+        }
         LaunchedEffect(isEditing) {
-            focusRequester.requestFocus()
+            if (isEditing) {
+                focusRequester.requestFocus()
+            }
         }
     } else {
         Column(
             verticalArrangement = Arrangement.Center,
             modifier = modifier
                 .defaultMinSize(minHeight = 48.dp)
-                .clickable(role = Role.Button, onClickLabel = editActionLabel) { isEditing = true }
+                .clickable(role = Role.Button, onClickLabel = editActionLabel) {
+                    draft = value
+                    isEditing = true
+                }
                 .padding(vertical = 4.dp),
         ) {
             Text(
