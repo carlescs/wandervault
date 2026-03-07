@@ -168,11 +168,12 @@ internal fun TripDetailContent(
                     }
                 },
                 navigationIcon = {
-                    if (!isImageCoveringTopBar) {
+                    if (!isImageCoveringTopBar || scrolledFraction > 0f) {
                         IconButton(onClick = onNavigateUp) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                 contentDescription = stringResource(R.string.trip_detail_navigate_up),
+                                tint = navIconColor,
                             )
                         }
                     }
@@ -202,6 +203,7 @@ internal fun TripDetailContent(
                 innerPadding = innerPadding,
                 onNavigateUp = onNavigateUp,
                 isImageCoveringTopBar = isImageCoveringTopBar,
+                scrolledFraction = scrolledFraction,
                 onRegenerateDescription = onRegenerateDescription,
                 onDeleteDescription = onDeleteDescription,
             )
@@ -248,6 +250,7 @@ private fun TripDetailsTabContent(
     innerPadding: PaddingValues,
     onNavigateUp: () -> Unit,
     isImageCoveringTopBar: Boolean = false,
+    scrolledFraction: Float = 0f,
     onRegenerateDescription: () -> Unit = {},
     onDeleteDescription: () -> Unit = {},
 ) {
@@ -314,7 +317,7 @@ private fun TripDetailsTabContent(
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier.fillMaxSize(),
                             )
-                            if (isImageCoveringTopBar) {
+                            if (isImageCoveringTopBar && scrolledFraction <= 0f) {
                                 IconButton(
                                     onClick = onNavigateUp,
                                     modifier = Modifier
