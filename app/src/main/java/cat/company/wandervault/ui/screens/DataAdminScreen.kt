@@ -137,6 +137,9 @@ internal fun DataAdminContent(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { innerPadding ->
+        val isAnyOperationInProgress =
+            uiState is DataAdminUiState.BackupInProgress || uiState is DataAdminUiState.RestoreInProgress
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -174,9 +177,10 @@ internal fun DataAdminContent(
                             }
                         }
                         else -> {
-                            Button(onClick = {
-                                backupLauncher.launch("wandervault-backup.zip")
-                            }) {
+                            Button(
+                                onClick = { backupLauncher.launch("wandervault-backup.zip") },
+                                enabled = !isAnyOperationInProgress,
+                            ) {
                                 Text(stringResource(R.string.data_admin_backup_button))
                             }
                         }
@@ -208,9 +212,12 @@ internal fun DataAdminContent(
                             }
                         }
                         else -> {
-                            Button(onClick = {
-                                restoreLauncher.launch(arrayOf("application/zip", "application/octet-stream", "*/*"))
-                            }) {
+                            Button(
+                                onClick = {
+                                    restoreLauncher.launch(arrayOf("application/zip", "application/octet-stream", "*/*"))
+                                },
+                                enabled = !isAnyOperationInProgress,
+                            ) {
                                 Text(stringResource(R.string.data_admin_restore_button))
                             }
                         }

@@ -139,7 +139,7 @@ fun WanderVaultApp() {
                     AppDestinations.FAVORITES -> FavoritesScreen(modifier = Modifier.padding(innerPadding))
                     AppDestinations.PROFILE -> ProfileScreen(
                         onNavigateToSettings = { showSettings = true },
-                        modifier = Modifier.padding(innerPadding),
+                        modifier = Modifier.fillMaxSize(),
                     )
                 }
             }

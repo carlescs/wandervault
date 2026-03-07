@@ -19,14 +19,11 @@ import java.util.zip.ZipOutputStream
  * Backup: the WAL is checkpointed, then the main SQLite file and every file inside
  * `filesDir/images/` are written into a single zip archive at the caller-supplied URI.
  *
- * Restore: the Room database is closed, the zip is extracted over the existing database
- * and image files, and the caller is expected to restart the process so Room
- * re-initialises with the restored data.
- *
- * **Note:** `restoreBackup` closes the Room database instance so that the underlying
- * SQLite file can be replaced safely.  Callers must not start any new database
- * operations after calling `restoreBackup`, and should restart the application
- * process immediately after a successful restore.
+ * Restore: the zip is fully extracted to a temporary staging directory first. Only once
+ * extraction succeeds (and the DB entry is confirmed present) is the Room database closed
+ * and the staged files moved into place. This ensures the database is never closed for a
+ * bad or partial archive. The caller must restart the application immediately after a
+ * successful restore so Room re-initialises with the replaced database.
  */
 class BackupRepositoryImpl(
     private val context: Context,
@@ -66,16 +63,17 @@ class BackupRepositoryImpl(
     }
 
     override suspend fun restoreBackup(inputUri: String): Result<Unit> = withContext(Dispatchers.IO) {
+        // Stage directory used for extraction – cleaned up on any failure.
+        val stageDir = File(context.cacheDir, "restore_stage")
         try {
-            val databaseFile = context.getDatabasePath(WanderVaultDatabase.DATABASE_NAME)
-            val databaseWalFile = File("${databaseFile.path}-wal")
-            val databaseShmFile = File("${databaseFile.path}-shm")
-            val imagesDir = File(context.filesDir, "images")
-
-            // Close Room so the database files are not locked.
-            database.close()
+            stageDir.deleteRecursively()
+            stageDir.mkdirs()
 
             val uri = Uri.parse(inputUri)
+            var dbStagedFile: File? = null
+
+            // Phase 1: extract the entire archive to the staging directory.
+            // The database is NOT closed yet so the app remains usable if validation fails.
             context.contentResolver.openInputStream(uri)?.use { inputStream ->
                 ZipInputStream(inputStream).use { zip ->
                     var entry = zip.nextEntry
@@ -85,16 +83,16 @@ class BackupRepositoryImpl(
                         if (!name.contains("..") && !name.startsWith("/")) {
                             when {
                                 name == WanderVaultDatabase.DATABASE_NAME -> {
-                                    databaseFile.parentFile?.mkdirs()
-                                    databaseWalFile.delete()
-                                    databaseShmFile.delete()
-                                    databaseFile.outputStream().use { zip.copyTo(it) }
+                                    val dest = File(stageDir, WanderVaultDatabase.DATABASE_NAME)
+                                    dest.outputStream().use { zip.copyTo(it) }
+                                    dbStagedFile = dest
                                 }
                                 name.startsWith("images/") -> {
                                     val fileName = name.removePrefix("images/")
                                     if (fileName.isNotEmpty() && !fileName.contains('/')) {
-                                        imagesDir.mkdirs()
-                                        File(imagesDir, fileName).outputStream()
+                                        val imagesStage = File(stageDir, "images")
+                                        imagesStage.mkdirs()
+                                        File(imagesStage, fileName).outputStream()
                                             .use { zip.copyTo(it) }
                                     }
                                 }
@@ -106,9 +104,39 @@ class BackupRepositoryImpl(
                 }
             } ?: return@withContext Result.failure(IOException("Cannot open input stream for $inputUri"))
 
+            // Phase 2: validate that the archive contained the database file.
+            val validatedDbFile = dbStagedFile?.takeIf { it.exists() }
+                ?: return@withContext Result.failure(
+                    IOException("Backup archive does not contain a valid database file."),
+                )
+
+            // Phase 3: all validation passed – now close Room and swap files into place.
+            val databaseFile = context.getDatabasePath(WanderVaultDatabase.DATABASE_NAME)
+            val databaseWalFile = File("${databaseFile.path}-wal")
+            val databaseShmFile = File("${databaseFile.path}-shm")
+            val imagesDir = File(context.filesDir, "images")
+
+            database.close()
+
+            // Replace database (delete WAL/SHM so Room starts clean).
+            databaseFile.parentFile?.mkdirs()
+            databaseWalFile.delete()
+            databaseShmFile.delete()
+            validatedDbFile.copyTo(databaseFile, overwrite = true)
+
+            // Replace images: clear existing files first to remove any orphaned images,
+            // then copy in only the files that are part of the backup snapshot.
+            imagesDir.deleteRecursively()
+            val imagesStage = File(stageDir, "images")
+            if (imagesStage.exists()) {
+                imagesStage.copyRecursively(imagesDir, overwrite = true)
+            }
+
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
+        } finally {
+            stageDir.deleteRecursively()
         }
     }
 }
