@@ -704,7 +704,7 @@ private fun TransportLegSection(
  *   floating label in edit mode.
  */
 @Composable
-private fun EditableLabel(
+internal fun EditableLabel(
     value: String,
     onValueChange: (String) -> Unit,
     label: String,

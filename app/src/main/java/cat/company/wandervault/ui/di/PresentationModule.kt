@@ -28,6 +28,9 @@ val presentationModule = module {
             getDestinationById = get(),
             getArrivalTransport = get(),
             getDestinationsForTrip = get(),
+            getHotelForDestination = get(),
+            saveHotel = get(),
+            deleteHotel = get(),
         )
     }
     viewModel {

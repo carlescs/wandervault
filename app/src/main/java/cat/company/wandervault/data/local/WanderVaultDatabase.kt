@@ -6,13 +6,14 @@ import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [TripEntity::class, DestinationEntity::class, TransportEntity::class, TransportLegEntity::class], version = 10)
+@Database(entities = [TripEntity::class, DestinationEntity::class, TransportEntity::class, TransportLegEntity::class, HotelEntity::class], version = 11)
 @TypeConverters(DateConverters::class)
 abstract class WanderVaultDatabase : RoomDatabase() {
     abstract fun tripDao(): TripDao
     abstract fun destinationDao(): DestinationDao
     abstract fun transportDao(): TransportDao
     abstract fun transportLegDao(): TransportLegDao
+    abstract fun hotelDao(): HotelDao
 
     companion object {
         const val DATABASE_NAME = "wandervault.db"
@@ -208,6 +209,26 @@ abstract class WanderVaultDatabase : RoomDatabase() {
         val MIGRATION_9_10 = object : Migration(9, 10) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE `trips` ADD COLUMN `aiDescription` TEXT")
+            }
+        }
+        val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `hotels` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `destinationId` INTEGER NOT NULL,
+                        `name` TEXT NOT NULL DEFAULT '',
+                        `address` TEXT NOT NULL DEFAULT '',
+                        `reservationNumber` TEXT NOT NULL DEFAULT '',
+                        FOREIGN KEY(`destinationId`) REFERENCES `destinations`(`id`)
+                            ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS `index_hotels_destinationId` ON `hotels` (`destinationId`)",
+                )
             }
         }
     }
