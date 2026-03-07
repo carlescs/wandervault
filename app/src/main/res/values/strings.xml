@@ -81,6 +81,7 @@
     <string name="trip_detail_tab_details">Details</string>
     <string name="trip_detail_tab_itinerary">Itinerary</string>
     <string name="trip_detail_tab_calendar">Calendar</string>
+    <string name="trip_detail_tab_documents">Documents</string>
     <string name="trip_detail_loading">Loading trip…</string>
     <string name="trip_detail_error">Could not load trip details.</string>
     <string name="trip_detail_cover_image_desc">Cover image for %1$s</string>
@@ -184,4 +185,25 @@
         <item quantity="one">%d leg</item>
         <item quantity="other">%d legs</item>
     </plurals>
+
+    <!-- Documents tab -->
+    <string name="documents_empty_title">No folders yet</string>
+    <string name="documents_empty_subtitle">Create a folder to organise your trip documents</string>
+    <string name="documents_add_folder">Add folder</string>
+    <string name="documents_new_folder_title">New Folder</string>
+    <string name="documents_folder_name_label">Folder name</string>
+    <string name="documents_rename_folder_title">Rename Folder</string>
+    <string name="documents_rename_document_title">Rename Document</string>
+    <string name="documents_delete_folder_title">Delete folder?</string>
+    <string name="documents_delete_folder_message">"%s" and all its contents will be permanently deleted.</string>
+    <string name="documents_delete_document_title">Delete document?</string>
+    <string name="documents_delete_document_message">"%s" will be permanently deleted.</string>
+    <string name="documents_delete_confirm">Delete</string>
+    <string name="documents_folder_content_desc">Folder: %s</string>
+    <string name="documents_document_content_desc">Document: %s</string>
+    <string name="documents_rename_action">Rename</string>
+    <string name="documents_delete_action">Delete</string>
+    <string name="documents_back_to_root">Back to root</string>
+    <string name="documents_back_to_folder">Back to %s</string>
+    <string name="documents_name_label">Name</string>
 </resources>

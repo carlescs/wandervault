@@ -1,0 +1,179 @@
+package cat.company.wandervault
+
+import cat.company.wandervault.domain.model.TripDocument
+import cat.company.wandervault.domain.model.TripDocumentFolder
+import cat.company.wandervault.domain.repository.TripDocumentRepository
+import cat.company.wandervault.domain.usecase.DeleteDocumentUseCase
+import cat.company.wandervault.domain.usecase.DeleteFolderUseCase
+import cat.company.wandervault.domain.usecase.GetDocumentsInFolderUseCase
+import cat.company.wandervault.domain.usecase.GetRootFoldersUseCase
+import cat.company.wandervault.domain.usecase.GetSubFoldersUseCase
+import cat.company.wandervault.domain.usecase.SaveDocumentUseCase
+import cat.company.wandervault.domain.usecase.SaveFolderUseCase
+import cat.company.wandervault.domain.usecase.UpdateDocumentUseCase
+import cat.company.wandervault.domain.usecase.UpdateFolderUseCase
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+/**
+ * Unit tests for all TripDocument-related use-cases.
+ *
+ * Uses a [FakeTripDocumentRepository] stub to avoid Room dependencies.
+ */
+class TripDocumentUseCaseTest {
+
+    private val repository = FakeTripDocumentRepository()
+
+    // ── GetRootFoldersUseCase ─────────────────────────────────────────────────
+
+    @Test
+    fun `GetRootFoldersUseCase returns root folders for trip`() = runTest {
+        val folder = TripDocumentFolder(id = 1, tripId = 42, name = "Tickets")
+        repository.rootFolders[42] = mutableListOf(folder)
+
+        val result = GetRootFoldersUseCase(repository)(42).first()
+
+        assertEquals(listOf(folder), result)
+    }
+
+    // ── GetSubFoldersUseCase ──────────────────────────────────────────────────
+
+    @Test
+    fun `GetSubFoldersUseCase returns sub-folders for parent folder`() = runTest {
+        val sub = TripDocumentFolder(id = 2, tripId = 1, name = "Sub", parentFolderId = 10)
+        repository.subFolders[10] = mutableListOf(sub)
+
+        val result = GetSubFoldersUseCase(repository)(10).first()
+
+        assertEquals(listOf(sub), result)
+    }
+
+    // ── GetDocumentsInFolderUseCase ───────────────────────────────────────────
+
+    @Test
+    fun `GetDocumentsInFolderUseCase returns documents for folder`() = runTest {
+        val doc = TripDocument(id = 1, folderId = 5, name = "boarding.pdf", uri = "uri", mimeType = "application/pdf")
+        repository.documents[5] = mutableListOf(doc)
+
+        val result = GetDocumentsInFolderUseCase(repository)(5).first()
+
+        assertEquals(listOf(doc), result)
+    }
+
+    // ── SaveFolderUseCase ─────────────────────────────────────────────────────
+
+    @Test
+    fun `SaveFolderUseCase delegates to repository`() = runTest {
+        val folder = TripDocumentFolder(tripId = 1, name = "Hotels")
+
+        SaveFolderUseCase(repository)(folder)
+
+        assertTrue(repository.savedFolders.contains(folder))
+    }
+
+    // ── UpdateFolderUseCase ───────────────────────────────────────────────────
+
+    @Test
+    fun `UpdateFolderUseCase delegates to repository`() = runTest {
+        val folder = TripDocumentFolder(id = 3, tripId = 1, name = "Renamed")
+
+        UpdateFolderUseCase(repository)(folder)
+
+        assertTrue(repository.updatedFolders.contains(folder))
+    }
+
+    // ── DeleteFolderUseCase ───────────────────────────────────────────────────
+
+    @Test
+    fun `DeleteFolderUseCase delegates to repository`() = runTest {
+        val folder = TripDocumentFolder(id = 4, tripId = 1, name = "OldFolder")
+
+        DeleteFolderUseCase(repository)(folder)
+
+        assertTrue(repository.deletedFolders.contains(folder))
+    }
+
+    // ── SaveDocumentUseCase ───────────────────────────────────────────────────
+
+    @Test
+    fun `SaveDocumentUseCase delegates to repository`() = runTest {
+        val doc = TripDocument(folderId = 1, name = "ticket.pdf", uri = "uri", mimeType = "application/pdf")
+
+        SaveDocumentUseCase(repository)(doc)
+
+        assertTrue(repository.savedDocuments.contains(doc))
+    }
+
+    // ── UpdateDocumentUseCase ─────────────────────────────────────────────────
+
+    @Test
+    fun `UpdateDocumentUseCase delegates to repository`() = runTest {
+        val doc = TripDocument(id = 2, folderId = 1, name = "renamed.pdf", uri = "uri", mimeType = "application/pdf")
+
+        UpdateDocumentUseCase(repository)(doc)
+
+        assertTrue(repository.updatedDocuments.contains(doc))
+    }
+
+    // ── DeleteDocumentUseCase ─────────────────────────────────────────────────
+
+    @Test
+    fun `DeleteDocumentUseCase delegates to repository`() = runTest {
+        val doc = TripDocument(id = 3, folderId = 1, name = "old.pdf", uri = "uri", mimeType = "application/pdf")
+
+        DeleteDocumentUseCase(repository)(doc)
+
+        assertTrue(repository.deletedDocuments.contains(doc))
+    }
+}
+
+private class FakeTripDocumentRepository : TripDocumentRepository {
+    val rootFolders: MutableMap<Int, MutableList<TripDocumentFolder>> = mutableMapOf()
+    val subFolders: MutableMap<Int, MutableList<TripDocumentFolder>> = mutableMapOf()
+    val documents: MutableMap<Int, MutableList<TripDocument>> = mutableMapOf()
+
+    val savedFolders = mutableListOf<TripDocumentFolder>()
+    val updatedFolders = mutableListOf<TripDocumentFolder>()
+    val deletedFolders = mutableListOf<TripDocumentFolder>()
+    val savedDocuments = mutableListOf<TripDocument>()
+    val updatedDocuments = mutableListOf<TripDocument>()
+    val deletedDocuments = mutableListOf<TripDocument>()
+
+    override fun getRootFolders(tripId: Int): Flow<List<TripDocumentFolder>> =
+        flowOf(rootFolders[tripId] ?: emptyList())
+
+    override fun getSubFolders(parentFolderId: Int): Flow<List<TripDocumentFolder>> =
+        flowOf(subFolders[parentFolderId] ?: emptyList())
+
+    override fun getDocumentsInFolder(folderId: Int): Flow<List<TripDocument>> =
+        flowOf(documents[folderId] ?: emptyList())
+
+    override suspend fun saveFolder(folder: TripDocumentFolder) {
+        savedFolders.add(folder)
+    }
+
+    override suspend fun updateFolder(folder: TripDocumentFolder) {
+        updatedFolders.add(folder)
+    }
+
+    override suspend fun deleteFolder(folder: TripDocumentFolder) {
+        deletedFolders.add(folder)
+    }
+
+    override suspend fun saveDocument(document: TripDocument) {
+        savedDocuments.add(document)
+    }
+
+    override suspend fun updateDocument(document: TripDocument) {
+        updatedDocuments.add(document)
+    }
+
+    override suspend fun deleteDocument(document: TripDocument) {
+        deletedDocuments.add(document)
+    }
+}

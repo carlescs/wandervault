@@ -7,6 +7,7 @@ import cat.company.wandervault.data.repository.BackupRepositoryImpl
 import cat.company.wandervault.data.repository.DestinationRepositoryImpl
 import cat.company.wandervault.data.repository.ImageRepositoryImpl
 import cat.company.wandervault.data.repository.TransportRepositoryImpl
+import cat.company.wandervault.data.repository.TripDocumentRepositoryImpl
 import cat.company.wandervault.data.repository.TripRepositoryImpl
 import cat.company.wandervault.domain.repository.BackupRepository
 import cat.company.wandervault.domain.repository.DestinationRepository
@@ -15,6 +16,7 @@ import cat.company.wandervault.domain.repository.HotelRepository
 import cat.company.wandervault.domain.repository.ImageRepository
 import cat.company.wandervault.domain.repository.TransportRepository
 import cat.company.wandervault.domain.repository.TripDescriptionRepository
+import cat.company.wandervault.domain.repository.TripDocumentRepository
 import cat.company.wandervault.domain.repository.TripRepository
 import org.koin.android.ext.koin.androidContext
 import org.koin.dsl.module
@@ -38,6 +40,7 @@ val dataModule = module {
             WanderVaultDatabase.MIGRATION_10_11,
             WanderVaultDatabase.MIGRATION_11_12,
             WanderVaultDatabase.MIGRATION_12_13,
+            WanderVaultDatabase.MIGRATION_13_14,
         ).build()
     }
     single { get<WanderVaultDatabase>().tripDao() }
@@ -45,10 +48,13 @@ val dataModule = module {
     single { get<WanderVaultDatabase>().transportDao() }
     single { get<WanderVaultDatabase>().transportLegDao() }
     single { get<WanderVaultDatabase>().hotelDao() }
+    single { get<WanderVaultDatabase>().tripDocumentFolderDao() }
+    single { get<WanderVaultDatabase>().tripDocumentDao() }
     single<TripRepository> { TripRepositoryImpl(get(), get(), get()) }
     single<DestinationRepository> { DestinationRepositoryImpl(get(), get(), get()) }
     single<TransportRepository> { TransportRepositoryImpl(get(), get()) }
     single<HotelRepository> { HotelRepositoryImpl(get()) }
+    single<TripDocumentRepository> { TripDocumentRepositoryImpl(get(), get()) }
     single<ImageRepository> { ImageRepositoryImpl(androidContext()) }
     single<TripDescriptionRepository> { TripDescriptionRepositoryImpl() }
     single<BackupRepository> { BackupRepositoryImpl(androidContext(), get()) }

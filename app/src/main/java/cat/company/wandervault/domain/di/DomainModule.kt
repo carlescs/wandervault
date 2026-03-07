@@ -5,6 +5,8 @@ import cat.company.wandervault.domain.usecase.ToggleFavoriteTripUseCase
 import cat.company.wandervault.domain.usecase.CopyImageToInternalStorageUseCase
 import cat.company.wandervault.domain.usecase.CreateBackupUseCase
 import cat.company.wandervault.domain.usecase.DeleteDestinationUseCase
+import cat.company.wandervault.domain.usecase.DeleteDocumentUseCase
+import cat.company.wandervault.domain.usecase.DeleteFolderUseCase
 import cat.company.wandervault.domain.usecase.DeleteImageUseCase
 import cat.company.wandervault.domain.usecase.DeleteTransportLegUseCase
 import cat.company.wandervault.domain.usecase.DeleteTransportUseCase
@@ -13,10 +15,15 @@ import cat.company.wandervault.domain.usecase.GenerateTripDescriptionUseCase
 import cat.company.wandervault.domain.usecase.GetArrivalTransportForDestinationUseCase
 import cat.company.wandervault.domain.usecase.GetDestinationByIdUseCase
 import cat.company.wandervault.domain.usecase.GetDestinationsForTripUseCase
+import cat.company.wandervault.domain.usecase.GetDocumentsInFolderUseCase
 import cat.company.wandervault.domain.usecase.GetNextDestinationUseCase
 import cat.company.wandervault.domain.usecase.GetOrCreateTransportForDestinationUseCase
 import cat.company.wandervault.domain.usecase.DeleteHotelUseCase
 import cat.company.wandervault.domain.usecase.GetHotelForDestinationUseCase
+import cat.company.wandervault.domain.usecase.GetRootFoldersUseCase
+import cat.company.wandervault.domain.usecase.GetSubFoldersUseCase
+import cat.company.wandervault.domain.usecase.SaveDocumentUseCase
+import cat.company.wandervault.domain.usecase.SaveFolderUseCase
 import cat.company.wandervault.domain.usecase.SaveHotelUseCase
 import cat.company.wandervault.domain.usecase.GetTripUseCase
 import cat.company.wandervault.domain.usecase.GetTripsUseCase
@@ -26,6 +33,8 @@ import cat.company.wandervault.domain.usecase.SaveTransportLegUseCase
 import cat.company.wandervault.domain.usecase.SaveTripDescriptionUseCase
 import cat.company.wandervault.domain.usecase.SaveTripUseCase
 import cat.company.wandervault.domain.usecase.UpdateDestinationUseCase
+import cat.company.wandervault.domain.usecase.UpdateDocumentUseCase
+import cat.company.wandervault.domain.usecase.UpdateFolderUseCase
 import cat.company.wandervault.domain.usecase.UpdateTransportLegUseCase
 import cat.company.wandervault.domain.usecase.UpdateTripUseCase
 import org.koin.dsl.module
@@ -59,4 +68,13 @@ val domainModule = module {
     factory { GetHotelForDestinationUseCase(get()) }
     factory { SaveHotelUseCase(get()) }
     factory { DeleteHotelUseCase(get()) }
+    factory { GetRootFoldersUseCase(get()) }
+    factory { GetSubFoldersUseCase(get()) }
+    factory { GetDocumentsInFolderUseCase(get()) }
+    factory { SaveFolderUseCase(get()) }
+    factory { UpdateFolderUseCase(get()) }
+    factory { DeleteFolderUseCase(get()) }
+    factory { SaveDocumentUseCase(get()) }
+    factory { UpdateDocumentUseCase(get()) }
+    factory { DeleteDocumentUseCase(get()) }
 }
