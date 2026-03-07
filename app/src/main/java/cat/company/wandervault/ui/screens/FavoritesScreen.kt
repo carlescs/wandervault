@@ -77,7 +77,7 @@ internal fun FavoritesContent(
     onUnfavoriteClick: (Trip) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    if (!uiState.isLoading && uiState.trips.isEmpty()) {
+    if (uiState.showEmptyState) {
         FavoritesEmptyState(modifier = modifier)
     } else {
         Box(modifier = modifier.fillMaxSize()) {

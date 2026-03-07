@@ -21,28 +21,14 @@ class TripRepositoryImpl(
     override fun getTrips(): Flow<List<Trip>> = combine(
         tripDao.getAll(),
         destinationDao.getAll(),
-    ) { tripEntities, destinationProjections ->
-        val destinationsByTripId = destinationProjections.groupBy { it.tripId }
-        tripEntities
-            .map { tripEntity ->
-                val destinations = destinationsByTripId[tripEntity.id].orEmpty()
-                tripEntity.toDomain(destinations)
-            }
-            .sortedWith(compareBy(nullsLast<LocalDate>()) { trip: Trip -> trip.startDate }.thenBy { it.id })
-    }
+        ::mapToSortedTripList,
+    )
 
     override fun getFavoriteTrips(): Flow<List<Trip>> = combine(
         tripDao.getFavorites(),
         destinationDao.getAll(),
-    ) { tripEntities, destinationProjections ->
-        val destinationsByTripId = destinationProjections.groupBy { it.tripId }
-        tripEntities
-            .map { tripEntity ->
-                val destinations = destinationsByTripId[tripEntity.id].orEmpty()
-                tripEntity.toDomain(destinations)
-            }
-            .sortedWith(compareBy(nullsLast<LocalDate>()) { trip: Trip -> trip.startDate }.thenBy { it.id })
-    }
+        ::mapToSortedTripList,
+    )
 
     override fun getTripById(id: Int): Flow<Trip?> = combine(
         tripDao.getById(id),
@@ -65,6 +51,19 @@ class TripRepositoryImpl(
             tripDao.delete(trip.toEntity())
         }
     }
+}
+
+private fun mapToSortedTripList(
+    tripEntities: List<TripEntity>,
+    destinationProjections: List<DestinationDateProjection>,
+): List<Trip> {
+    val destinationsByTripId = destinationProjections.groupBy { it.tripId }
+    return tripEntities
+        .map { tripEntity ->
+            val destinations = destinationsByTripId[tripEntity.id].orEmpty()
+            tripEntity.toDomain(destinations)
+        }
+        .sortedWith(compareBy(nullsLast<LocalDate>()) { trip: Trip -> trip.startDate }.thenBy { it.id })
 }
 
 /** Derives [Trip.startDate] and [Trip.endDate] from the given destination date projections. */
