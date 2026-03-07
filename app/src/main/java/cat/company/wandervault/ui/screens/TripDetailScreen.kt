@@ -263,12 +263,14 @@ private fun TripDetailsTabContent(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
-                        Spacer(modifier = Modifier.height(16.dp))
-                        AiDescriptionSection(
-                            descriptionState = uiState.descriptionState,
-                            onRegenerate = onRegenerateDescription,
-                            onDelete = onDeleteDescription,
-                        )
+                        if (uiState.descriptionState !is DescriptionState.Unavailable) {
+                            Spacer(modifier = Modifier.height(16.dp))
+                            AiDescriptionSection(
+                                descriptionState = uiState.descriptionState,
+                                onRegenerate = onRegenerateDescription,
+                                onDelete = onDeleteDescription,
+                            )
+                        }
                     }
                 }
             }
@@ -280,10 +282,13 @@ private fun TripDetailsTabContent(
  * Renders the AI-generated trip description section.
  *
  * Shows a section title ("AI Summary") followed by the current [DescriptionState]:
- * a spinner while loading, the generated text when available, or a graceful fallback message.
+ * a spinner while loading, or the generated text when available.
  * When the description is [DescriptionState.Available], Regenerate and Delete icon buttons are shown.
  * When the description is [DescriptionState.Error], a Regenerate icon button is shown.
  * When the description is [DescriptionState.None], a "Generate" button is shown.
+ *
+ * This composable must not be called when [descriptionState] is [DescriptionState.Unavailable];
+ * callers should hide the section entirely in that case.
  */
 @Composable
 private fun AiDescriptionSection(
@@ -336,13 +341,6 @@ private fun AiDescriptionSection(
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
-        is DescriptionState.Unavailable -> {
-            Text(
-                text = stringResource(R.string.trip_detail_ai_summary_unavailable),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
         is DescriptionState.Error -> {
             Text(
                 text = stringResource(R.string.trip_detail_ai_summary_error),
@@ -354,6 +352,9 @@ private fun AiDescriptionSection(
             TextButton(onClick = onRegenerate) {
                 Text(text = stringResource(R.string.trip_detail_ai_summary_generate))
             }
+        }
+        is DescriptionState.Unavailable -> {
+            error("AiDescriptionSection should not be called with DescriptionState.Unavailable. Hide the section at the call site instead.")
         }
     }
 }
