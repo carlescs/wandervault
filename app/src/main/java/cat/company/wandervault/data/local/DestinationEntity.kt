@@ -16,4 +16,5 @@ data class DestinationEntity(
     val position: Int,
     val arrivalDateTime: LocalDateTime? = null,
     val departureDateTime: LocalDateTime? = null,
+    val notes: String? = null,
 )

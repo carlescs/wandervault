@@ -9,10 +9,10 @@ import cat.company.wandervault.domain.usecase.GetDestinationByIdUseCase
 import cat.company.wandervault.domain.usecase.GetDestinationsForTripUseCase
 import cat.company.wandervault.domain.usecase.GetHotelForDestinationUseCase
 import cat.company.wandervault.domain.usecase.SaveHotelUseCase
+import cat.company.wandervault.domain.usecase.UpdateDestinationUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.filterNotNull
@@ -35,6 +35,7 @@ import kotlinx.coroutines.launch
  * @param getHotelForDestination Use-case that fetches the hotel for a destination.
  * @param saveHotel Use-case that persists a hotel record.
  * @param deleteHotel Use-case that removes a hotel record.
+ * @param updateDestination Use-case that persists changes to a destination (e.g. notes).
  */
 class LocationDetailViewModel(
     private val getDestinationById: GetDestinationByIdUseCase,
@@ -43,6 +44,7 @@ class LocationDetailViewModel(
     private val getHotelForDestination: GetHotelForDestinationUseCase,
     private val saveHotel: SaveHotelUseCase,
     private val deleteHotel: DeleteHotelUseCase,
+    private val updateDestination: UpdateDestinationUseCase,
 ) : ViewModel() {
 
     private val _destinationId = MutableStateFlow<Int?>(null)
@@ -53,6 +55,12 @@ class LocationDetailViewModel(
      * from the persisted record (picking up the real DB-assigned ID on first insert).
      */
     private var _hasUnsavedHotelEdits = false
+
+    /**
+     * True when the user has made unsaved notes edits. While true, incoming DB emissions do not
+     * overwrite the notes edit state. Reset to false after a save.
+     */
+    private var _hasUnsavedNotesEdits = false
 
     private val _uiState = MutableStateFlow<LocationDetailUiState>(LocationDetailUiState.Loading)
     val uiState: StateFlow<LocationDetailUiState> = _uiState.asStateFlow()
@@ -84,12 +92,20 @@ class LocationDetailViewModel(
                                 } else {
                                     hotel?.toEditState() ?: HotelEditState()
                                 }
+                                val notes = if (_hasUnsavedNotesEdits &&
+                                    _uiState.value is LocationDetailUiState.Success
+                                ) {
+                                    (_uiState.value as LocationDetailUiState.Success).notes
+                                } else {
+                                    destination.notes ?: ""
+                                }
                                 LocationDetailUiState.Success(
                                     destination = destination,
                                     arrivalTransport = arrivalTransport,
                                     isFirst = isFirst,
                                     isLast = isLast,
                                     hotelEditState = hotelEditState,
+                                    notes = notes,
                                 )
                             }
                         }
@@ -98,11 +114,17 @@ class LocationDetailViewModel(
                 .collect { state -> _uiState.value = state }
         }
 
-        // Auto-save: persist hotel changes after a short debounce once editing stops.
+        // Auto-save: persist hotel and notes changes after a short debounce once editing stops.
+        // Uses collect (not collectLatest) so that a DB-triggered _uiState emission cannot cancel
+        // an in-flight persistHotel() or persistNotes() call after the unsaved-edits flag is
+        // already cleared.
         viewModelScope.launch {
             _uiState
                 .debounce(AUTO_SAVE_DEBOUNCE_MS)
-                .collectLatest { persistHotel() }
+                .collect {
+                    persistHotel()
+                    persistNotes()
+                }
         }
     }
 
@@ -111,6 +133,7 @@ class LocationDetailViewModel(
         if (_destinationId.value != id) {
             _uiState.value = LocationDetailUiState.Loading
             _hasUnsavedHotelEdits = false
+            _hasUnsavedNotesEdits = false
             _destinationId.value = id
         }
     }
@@ -133,9 +156,19 @@ class LocationDetailViewModel(
         updateHotelEditState { copy(reservationNumber = value) }
     }
 
+    /** Updates the notes field. */
+    fun onNotesChange(value: String) {
+        _hasUnsavedNotesEdits = true
+        val current = _uiState.value as? LocationDetailUiState.Success ?: return
+        _uiState.value = current.copy(notes = value)
+    }
+
     /** Flushes any pending hotel edits immediately (e.g. on navigate-away). */
     fun onSave() {
-        viewModelScope.launch { persistHotel() }
+        viewModelScope.launch {
+            persistHotel()
+            persistNotes()
+        }
     }
 
     private suspend fun persistHotel() {
@@ -169,6 +202,14 @@ class LocationDetailViewModel(
     private inline fun updateHotelEditState(update: HotelEditState.() -> HotelEditState) {
         val current = _uiState.value as? LocationDetailUiState.Success ?: return
         _uiState.value = current.copy(hotelEditState = current.hotelEditState.update())
+    }
+
+    private suspend fun persistNotes() {
+        if (!_hasUnsavedNotesEdits) return
+        val state = _uiState.value as? LocationDetailUiState.Success ?: return
+        _hasUnsavedNotesEdits = false
+        val updatedNotes = state.notes.trim().takeIf { it.isNotEmpty() }
+        updateDestination(state.destination.copy(notes = updatedNotes))
     }
 
     companion object {

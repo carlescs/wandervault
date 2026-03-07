@@ -19,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Hotel
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Notes
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -27,6 +28,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -63,6 +65,7 @@ import java.time.temporal.ChronoUnit
 private enum class LocationDetailTab(@StringRes val labelRes: Int, val icon: ImageVector) {
     OVERVIEW(R.string.location_detail_tab_overview, Icons.Default.Info),
     HOTEL(R.string.location_detail_tab_hotel, Icons.Default.Hotel),
+    NOTES(R.string.location_detail_tab_notes, Icons.Default.Notes),
 }
 
 /**
@@ -100,6 +103,7 @@ fun LocationDetailScreen(
         onHotelNameChange = viewModel::onHotelNameChange,
         onHotelAddressChange = viewModel::onHotelAddressChange,
         onHotelReservationNumberChange = viewModel::onHotelReservationNumberChange,
+        onNotesChange = viewModel::onNotesChange,
         modifier = modifier,
     )
 }
@@ -118,6 +122,7 @@ internal fun LocationDetailContent(
     onHotelNameChange: (String) -> Unit = {},
     onHotelAddressChange: (String) -> Unit = {},
     onHotelReservationNumberChange: (String) -> Unit = {},
+    onNotesChange: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val title = when (uiState) {
@@ -202,6 +207,11 @@ internal fun LocationDetailContent(
                         onNameChange = onHotelNameChange,
                         onAddressChange = onHotelAddressChange,
                         onReservationNumberChange = onHotelReservationNumberChange,
+                    )
+                    LocationDetailTab.NOTES -> NotesTabContent(
+                        uiState = uiState,
+                        innerPadding = innerPadding,
+                        onNotesChange = onNotesChange,
                     )
                 }
             }
@@ -336,6 +346,31 @@ private fun HotelTabContent(
             } else {
                 stringResource(R.string.hotel_nights_not_available)
             },
+        )
+    }
+}
+
+@Composable
+private fun NotesTabContent(
+    uiState: LocationDetailUiState.Success,
+    innerPadding: PaddingValues,
+    onNotesChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(innerPadding)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+    ) {
+        OutlinedTextField(
+            value = uiState.notes,
+            onValueChange = onNotesChange,
+            label = { Text(stringResource(R.string.notes_label)) },
+            placeholder = { Text(stringResource(R.string.notes_placeholder)) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
         )
     }
 }

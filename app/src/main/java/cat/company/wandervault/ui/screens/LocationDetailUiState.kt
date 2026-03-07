@@ -36,6 +36,8 @@ sealed class LocationDetailUiState {
         val isLast: Boolean = false,
         /** The current (possibly dirty) hotel editing state. */
         val hotelEditState: HotelEditState = HotelEditState(),
+        /** The current (possibly dirty) notes text. */
+        val notes: String = "",
     ) : LocationDetailUiState()
 
     /** An error occurred (e.g. destination not found). */

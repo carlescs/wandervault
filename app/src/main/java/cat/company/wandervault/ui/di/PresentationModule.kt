@@ -31,6 +31,7 @@ val presentationModule = module {
             getHotelForDestination = get(),
             saveHotel = get(),
             deleteHotel = get(),
+            updateDestination = get(),
         )
     }
     viewModel {
