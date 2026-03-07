@@ -9,10 +9,10 @@ import androidx.compose.ui.Modifier
 
 /** Provides the [SharedTransitionScope] for shared-element transitions between the trip list and detail. */
 @OptIn(ExperimentalSharedTransitionApi::class)
-val LocalSharedTransitionScope = compositionLocalOf<SharedTransitionScope?> { null }
+internal val LocalSharedTransitionScope = compositionLocalOf<SharedTransitionScope?> { null }
 
 /** Provides the [AnimatedVisibilityScope] for shared-element transitions between the trip list and detail. */
-val LocalAnimatedVisibilityScope = compositionLocalOf<AnimatedVisibilityScope?> { null }
+internal val LocalAnimatedVisibilityScope = compositionLocalOf<AnimatedVisibilityScope?> { null }
 
 /**
  * Applies a shared-element modifier for the trip cover image when running inside a

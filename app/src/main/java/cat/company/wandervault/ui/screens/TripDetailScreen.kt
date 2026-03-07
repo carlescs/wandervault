@@ -1,10 +1,7 @@
-@file:OptIn(ExperimentalSharedTransitionApi::class)
-
 package cat.company.wandervault.ui.screens
 
 import android.net.Uri
 import androidx.annotation.StringRes
-import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -45,7 +42,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -133,13 +132,30 @@ internal fun TripDetailContent(
     val hasImage = uiState is TripDetailUiState.Success && uiState.trip.imageUri != null
     val isImageCoveringTopBar = hasImage && selectedTab == TripDetailTab.DETAILS
 
+    // Always created so it can be unconditionally called (it's @Composable and manages its own
+    // state); the nestedScroll connection and scrollBehavior are only wired into the Scaffold and
+    // TopAppBar when the cover image extends behind the top bar.
+    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
+    val scrolledFraction = if (isImageCoveringTopBar) scrollBehavior.state.overlappedFraction else 0f
+    val navIconColor = if (isImageCoveringTopBar) {
+        lerp(Color.White, MaterialTheme.colorScheme.onSurface, scrolledFraction)
+    } else {
+        MaterialTheme.colorScheme.onSurface
+    }
+
     Scaffold(
-        modifier = modifier,
+        modifier = if (isImageCoveringTopBar) {
+            modifier.nestedScroll(scrollBehavior.nestedScrollConnection)
+        } else {
+            modifier
+        },
         contentWindowInsets = WindowInsets(0),
         topBar = {
             TopAppBar(
                 title = {
-                    if (!isImageCoveringTopBar) {
+                    // Hide the title while the image is visible; show it once content scrolls
+                    // behind the bar (scrolledFraction > 0) so the bar is opaque.
+                    if (!isImageCoveringTopBar || scrolledFraction > 0f) {
                         Text(
                             if (uiState is TripDetailUiState.Success) {
                                 uiState.trip.title
@@ -154,13 +170,16 @@ internal fun TripDetailContent(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = stringResource(R.string.trip_detail_navigate_up),
+                            tint = navIconColor,
                         )
                     }
                 },
+                scrollBehavior = if (isImageCoveringTopBar) scrollBehavior else null,
                 colors = if (isImageCoveringTopBar) {
                     TopAppBarDefaults.topAppBarColors(
                         containerColor = Color.Transparent,
-                        navigationIconContentColor = Color.White,
+                        scrolledContainerColor = MaterialTheme.colorScheme.surface,
+                        navigationIconContentColor = navIconColor,
                     )
                 } else {
                     TopAppBarDefaults.topAppBarColors()
