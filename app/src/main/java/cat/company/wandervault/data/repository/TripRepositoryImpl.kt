@@ -21,15 +21,14 @@ class TripRepositoryImpl(
     override fun getTrips(): Flow<List<Trip>> = combine(
         tripDao.getAll(),
         destinationDao.getAll(),
-    ) { tripEntities, destinationProjections ->
-        val destinationsByTripId = destinationProjections.groupBy { it.tripId }
-        tripEntities
-            .map { tripEntity ->
-                val destinations = destinationsByTripId[tripEntity.id].orEmpty()
-                tripEntity.toDomain(destinations)
-            }
-            .sortedWith(compareBy(nullsLast<LocalDate>()) { trip: Trip -> trip.startDate }.thenBy { it.id })
-    }
+        ::mapToSortedTripList,
+    )
+
+    override fun getFavoriteTrips(): Flow<List<Trip>> = combine(
+        tripDao.getFavorites(),
+        destinationDao.getAll(),
+        ::mapToSortedTripList,
+    )
 
     override fun getTripById(id: Int): Flow<Trip?> = combine(
         tripDao.getById(id),
@@ -46,12 +45,29 @@ class TripRepositoryImpl(
         tripDao.update(trip.toEntity())
     }
 
+    override suspend fun toggleFavoriteTrip(tripId: Int) {
+        tripDao.toggleFavorite(tripId)
+    }
+
     override suspend fun deleteTrip(trip: Trip) {
         database.withTransaction {
             destinationDao.deleteByTripId(trip.id)
             tripDao.delete(trip.toEntity())
         }
     }
+}
+
+private fun mapToSortedTripList(
+    tripEntities: List<TripEntity>,
+    destinationProjections: List<DestinationDateProjection>,
+): List<Trip> {
+    val destinationsByTripId = destinationProjections.groupBy { it.tripId }
+    return tripEntities
+        .map { tripEntity ->
+            val destinations = destinationsByTripId[tripEntity.id].orEmpty()
+            tripEntity.toDomain(destinations)
+        }
+        .sortedWith(compareBy(nullsLast<LocalDate>()) { trip: Trip -> trip.startDate }.thenBy { it.id })
 }
 
 /** Derives [Trip.startDate] and [Trip.endDate] from the given destination date projections. */
@@ -69,6 +85,7 @@ private fun TripEntity.toDomain(destinations: List<DestinationDateProjection>): 
         startDate = allDates.minOrNull(),
         endDate = allDates.maxOrNull(),
         aiDescription = aiDescription,
+        isFavorite = isFavorite,
     )
 }
 
@@ -77,4 +94,5 @@ private fun Trip.toEntity() = TripEntity(
     title = title,
     imageUri = imageUri,
     aiDescription = aiDescription,
+    isFavorite = isFavorite,
 )

@@ -9,6 +9,7 @@ import cat.company.wandervault.domain.usecase.DeleteImageUseCase
 import cat.company.wandervault.domain.usecase.DeleteTripUseCase
 import cat.company.wandervault.domain.usecase.GetTripsUseCase
 import cat.company.wandervault.domain.usecase.SaveTripUseCase
+import cat.company.wandervault.domain.usecase.ToggleFavoriteTripUseCase
 import cat.company.wandervault.domain.usecase.UpdateTripUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -23,6 +24,7 @@ class HomeViewModel(
     private val copyImage: CopyImageToInternalStorageUseCase,
     private val deleteImage: DeleteImageUseCase,
     private val deleteTrip: DeleteTripUseCase,
+    private val toggleFavorite: ToggleFavoriteTripUseCase,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -110,6 +112,7 @@ class HomeViewModel(
         val state = _uiState.value
         if (!state.isEditTripFormValid) return
         val id = state.editTripId ?: return
+        val existingTrip = state.trips.find { it.id == id } ?: return
 
         viewModelScope.launch {
             val newImageUri = persistImageUri(state.editTripImageUri)
@@ -118,8 +121,7 @@ class HomeViewModel(
                 deleteImage(oldImageUri)
             }
             updateTrip(
-                Trip(
-                    id = id,
+                existingTrip.copy(
                     title = state.editTripTitle,
                     imageUri = newImageUri,
                 ),
@@ -159,6 +161,12 @@ class HomeViewModel(
                     Log.e(TAG, "Failed to delete trip image after trip deletion", e)
                 }
             }
+        }
+    }
+
+    fun onToggleFavorite(trip: Trip) {
+        viewModelScope.launch {
+            toggleFavorite(trip.id)
         }
     }
 

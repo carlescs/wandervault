@@ -18,6 +18,12 @@ interface TripDao {
     @Delete
     suspend fun delete(trip: TripEntity)
 
+    @Query("UPDATE trips SET isFavorite = 1 - isFavorite WHERE id = :tripId")
+    suspend fun toggleFavorite(tripId: Int)
+
+    @Query("SELECT * FROM trips WHERE isFavorite = 1 ORDER BY id ASC")
+    fun getFavorites(): Flow<List<TripEntity>>
+
     @Query("SELECT * FROM trips ORDER BY id ASC")
     fun getAll(): Flow<List<TripEntity>>
 

@@ -9,4 +9,5 @@ data class TripEntity(
     val title: String,
     val imageUri: String? = null,
     val aiDescription: String? = null,
+    val isFavorite: Boolean = false,
 )
