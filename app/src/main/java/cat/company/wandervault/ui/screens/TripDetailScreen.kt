@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -31,6 +32,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -39,7 +41,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -48,6 +53,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cat.company.wandervault.R
 import cat.company.wandervault.domain.model.Trip
+import cat.company.wandervault.ui.sharedTripCoverImage
 import cat.company.wandervault.ui.theme.WanderVaultTheme
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
@@ -63,6 +69,9 @@ private enum class TripDetailTab(@StringRes val labelRes: Int, val icon: ImageVe
     ITINERARY(R.string.trip_detail_tab_itinerary, Icons.Default.DateRange),
     CALENDAR(R.string.trip_detail_tab_calendar, Icons.Default.CalendarMonth),
 }
+
+/** Height of the trip cover image when rendered below the top app bar. */
+private val BASE_IMAGE_HEIGHT = 200.dp
 
 /**
  * Trip Detail screen entry point.
@@ -120,26 +129,60 @@ internal fun TripDetailContent(
 ) {
     var selectedTab by rememberSaveable { mutableStateOf(TripDetailTab.DETAILS) }
 
+    val hasImage = uiState is TripDetailUiState.Success && uiState.trip.imageUri != null
+    val isImageCoveringTopBar = hasImage && selectedTab == TripDetailTab.DETAILS
+
+    // Always created so it can be unconditionally called (it's @Composable and manages its own
+    // state); the nestedScroll connection and scrollBehavior are only wired into the Scaffold and
+    // TopAppBar when the cover image extends behind the top bar.
+    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
+    val scrolledFraction = if (isImageCoveringTopBar) scrollBehavior.state.overlappedFraction else 0f
+    val navIconColor = if (isImageCoveringTopBar) {
+        lerp(Color.White, MaterialTheme.colorScheme.onSurface, scrolledFraction)
+    } else {
+        MaterialTheme.colorScheme.onSurface
+    }
+
     Scaffold(
-        modifier = modifier,
+        modifier = if (isImageCoveringTopBar) {
+            modifier.nestedScroll(scrollBehavior.nestedScrollConnection)
+        } else {
+            modifier
+        },
+        contentWindowInsets = WindowInsets(0),
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
-                        if (uiState is TripDetailUiState.Success) {
-                            uiState.trip.title
-                        } else {
-                            stringResource(R.string.trip_detail_title)
-                        },
-                    )
+                    // Hide the title while the image is visible; show it once content scrolls
+                    // behind the bar (scrolledFraction > 0) so the bar is opaque.
+                    if (!isImageCoveringTopBar || scrolledFraction > 0f) {
+                        Text(
+                            if (uiState is TripDetailUiState.Success) {
+                                uiState.trip.title
+                            } else {
+                                stringResource(R.string.trip_detail_title)
+                            },
+                        )
+                    }
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateUp) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = stringResource(R.string.trip_detail_navigate_up),
+                            tint = navIconColor,
                         )
                     }
+                },
+                scrollBehavior = if (isImageCoveringTopBar) scrollBehavior else null,
+                colors = if (isImageCoveringTopBar) {
+                    TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color.Transparent,
+                        scrolledContainerColor = MaterialTheme.colorScheme.surface,
+                        navigationIconContentColor = navIconColor,
+                    )
+                } else {
+                    TopAppBarDefaults.topAppBarColors()
                 },
             )
         },
@@ -154,6 +197,7 @@ internal fun TripDetailContent(
             TripDetailTab.DETAILS -> TripDetailsTabContent(
                 uiState = uiState,
                 innerPadding = innerPadding,
+                isImageCoveringTopBar = isImageCoveringTopBar,
                 onRegenerateDescription = onRegenerateDescription,
                 onDeleteDescription = onDeleteDescription,
             )
@@ -190,11 +234,15 @@ private fun TripDetailBottomBar(
  *
  * Shows a cover image (when available), trip title, formatted date range, and an AI-generated
  * summary via Gemini Nano. Handles [TripDetailUiState.Loading] and [TripDetailUiState.Error] states.
+ *
+ * When [isImageCoveringTopBar] is true the cover image extends behind the top app bar, so the
+ * [LazyColumn] omits top padding and the image is sized to fill the full top-bar area.
  */
 @Composable
 private fun TripDetailsTabContent(
     uiState: TripDetailUiState,
     innerPadding: PaddingValues,
+    isImageCoveringTopBar: Boolean = false,
     onRegenerateDescription: () -> Unit = {},
     onDeleteDescription: () -> Unit = {},
 ) {
@@ -230,10 +278,19 @@ private fun TripDetailsTabContent(
             val formatter = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = innerPadding,
+                contentPadding = if (isImageCoveringTopBar) {
+                    PaddingValues(bottom = innerPadding.calculateBottomPadding())
+                } else {
+                    innerPadding
+                },
             ) {
                 if (trip.imageUri != null) {
                     item {
+                        val imageHeight = if (isImageCoveringTopBar) {
+                            BASE_IMAGE_HEIGHT + innerPadding.calculateTopPadding()
+                        } else {
+                            BASE_IMAGE_HEIGHT
+                        }
                         AsyncImage(
                             model = ImageRequest.Builder(LocalContext.current)
                                 .data(Uri.parse(trip.imageUri))
@@ -246,7 +303,8 @@ private fun TripDetailsTabContent(
                             contentScale = ContentScale.Crop,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(200.dp),
+                                .height(imageHeight)
+                                .sharedTripCoverImage(trip.id),
                         )
                     }
                 }
