@@ -1,6 +1,7 @@
 package cat.company.wandervault.data.local
 
 import androidx.room.Dao
+import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Update
@@ -13,6 +14,9 @@ interface TripDao {
 
     @Update
     suspend fun update(trip: TripEntity)
+
+    @Delete
+    suspend fun delete(trip: TripEntity)
 
     @Query("SELECT * FROM trips ORDER BY id ASC")
     fun getAll(): Flow<List<TripEntity>>

@@ -43,7 +43,7 @@ val dataModule = module {
     single { get<WanderVaultDatabase>().transportDao() }
     single { get<WanderVaultDatabase>().transportLegDao() }
     single { get<WanderVaultDatabase>().hotelDao() }
-    single<TripRepository> { TripRepositoryImpl(get(), get()) }
+    single<TripRepository> { TripRepositoryImpl(get(), get(), get()) }
     single<DestinationRepository> { DestinationRepositoryImpl(get(), get(), get()) }
     single<TransportRepository> { TransportRepositoryImpl(get(), get()) }
     single<HotelRepository> { HotelRepositoryImpl(get()) }

@@ -1,9 +1,11 @@
 package cat.company.wandervault.data.repository
 
+import androidx.room.withTransaction
 import cat.company.wandervault.data.local.DestinationDao
 import cat.company.wandervault.data.local.DestinationDateProjection
 import cat.company.wandervault.data.local.TripDao
 import cat.company.wandervault.data.local.TripEntity
+import cat.company.wandervault.data.local.WanderVaultDatabase
 import cat.company.wandervault.domain.model.Trip
 import cat.company.wandervault.domain.repository.TripRepository
 import kotlinx.coroutines.flow.Flow
@@ -13,6 +15,7 @@ import java.time.LocalDate
 class TripRepositoryImpl(
     private val tripDao: TripDao,
     private val destinationDao: DestinationDao,
+    private val database: WanderVaultDatabase,
 ) : TripRepository {
 
     override fun getTrips(): Flow<List<Trip>> = combine(
@@ -41,6 +44,13 @@ class TripRepositoryImpl(
 
     override suspend fun updateTrip(trip: Trip) {
         tripDao.update(trip.toEntity())
+    }
+
+    override suspend fun deleteTrip(trip: Trip) {
+        database.withTransaction {
+            destinationDao.deleteByTripId(trip.id)
+            tripDao.delete(trip.toEntity())
+        }
     }
 }
 

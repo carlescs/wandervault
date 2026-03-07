@@ -12,4 +12,5 @@ interface TripRepository {
     fun getTripById(id: Int): Flow<Trip?>
     suspend fun saveTrip(trip: Trip)
     suspend fun updateTrip(trip: Trip)
+    suspend fun deleteTrip(trip: Trip)
 }

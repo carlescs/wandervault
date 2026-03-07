@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -73,6 +74,9 @@ fun HomeScreen(modifier: Modifier = Modifier, viewModel: HomeViewModel = koinVie
         onEditTitleChange = viewModel::onEditTripTitleChange,
         onEditImageUriChange = viewModel::onEditTripImageUriChange,
         onUpdateTrip = viewModel::onUpdateTrip,
+        onDeleteTripClick = viewModel::onDeleteTripClick,
+        onConfirmDeleteTrip = viewModel::onConfirmDeleteTrip,
+        onDismissDeleteDialog = viewModel::onDismissDeleteTripDialog,
         onTripClick = onTripClick,
         modifier = modifier,
     )
@@ -97,6 +101,9 @@ internal fun HomeScreenContent(
     onEditTitleChange: (String) -> Unit,
     onEditImageUriChange: (String?) -> Unit,
     onUpdateTrip: () -> Unit,
+    onDeleteTripClick: (Trip) -> Unit = {},
+    onConfirmDeleteTrip: () -> Unit = {},
+    onDismissDeleteDialog: () -> Unit = {},
     onTripClick: (Int) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -110,7 +117,12 @@ internal fun HomeScreenContent(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(uiState.trips) { trip ->
-                    TripCard(trip = trip, onEditClick = { onEditTripClick(trip) }, onCardClick = { onTripClick(trip.id) })
+                    TripCard(
+                        trip = trip,
+                        onEditClick = { onEditTripClick(trip) },
+                        onDeleteClick = { onDeleteTripClick(trip) },
+                        onCardClick = { onTripClick(trip.id) },
+                    )
                 }
             }
         }
@@ -148,10 +160,18 @@ internal fun HomeScreenContent(
             onDismiss = onDismissEditDialog,
         )
     }
+
+    uiState.tripToDelete?.let { trip ->
+        DeleteTripConfirmationDialog(
+            tripTitle = trip.title,
+            onConfirm = onConfirmDeleteTrip,
+            onDismiss = onDismissDeleteDialog,
+        )
+    }
 }
 
 @Composable
-private fun TripCard(trip: Trip, onEditClick: () -> Unit, onCardClick: () -> Unit = {}, modifier: Modifier = Modifier) {
+private fun TripCard(trip: Trip, onEditClick: () -> Unit, onDeleteClick: () -> Unit = {}, onCardClick: () -> Unit = {}, modifier: Modifier = Modifier) {
     val formatter = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
     Card(modifier = modifier.fillMaxWidth(), onClick = onCardClick) {
         if (trip.imageUri != null) {
@@ -189,6 +209,13 @@ private fun TripCard(trip: Trip, onEditClick: () -> Unit, onCardClick: () -> Uni
                 Icon(
                     imageVector = Icons.Default.Edit,
                     contentDescription = stringResource(R.string.edit_trip_content_desc),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            IconButton(onClick = onDeleteClick) {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = stringResource(R.string.delete_trip_content_desc),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -323,6 +350,28 @@ private fun EditTripDialog(
         isFormValid = isFormValid,
         onSave = onSave,
         onDismiss = onDismiss,
+    )
+}
+
+/** Confirmation dialog shown before permanently deleting a trip. */
+@Composable
+private fun DeleteTripConfirmationDialog(
+    tripTitle: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.home_delete_trip_dialog_title)) },
+        text = { Text(stringResource(R.string.home_delete_trip_dialog_message, tripTitle)) },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(stringResource(R.string.home_delete_trip_dialog_confirm))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.dialog_cancel)) }
+        },
     )
 }
 

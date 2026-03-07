@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import cat.company.wandervault.domain.model.Trip
 import cat.company.wandervault.domain.usecase.CopyImageToInternalStorageUseCase
 import cat.company.wandervault.domain.usecase.DeleteImageUseCase
+import cat.company.wandervault.domain.usecase.DeleteTripUseCase
 import cat.company.wandervault.domain.usecase.GetTripsUseCase
 import cat.company.wandervault.domain.usecase.SaveTripUseCase
 import cat.company.wandervault.domain.usecase.UpdateTripUseCase
@@ -20,6 +21,7 @@ class HomeViewModel(
     private val updateTrip: UpdateTripUseCase,
     private val copyImage: CopyImageToInternalStorageUseCase,
     private val deleteImage: DeleteImageUseCase,
+    private val deleteTrip: DeleteTripUseCase,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -127,4 +129,23 @@ class HomeViewModel(
 
     private suspend fun persistImageUri(uri: String?): String? =
         if (uri != null && uri.startsWith("content://")) copyImage(uri) else uri
+
+    fun onDeleteTripClick(trip: Trip) {
+        _uiState.update { it.copy(tripToDelete = trip) }
+    }
+
+    fun onDismissDeleteTripDialog() {
+        _uiState.update { it.copy(tripToDelete = null) }
+    }
+
+    fun onConfirmDeleteTrip() {
+        val trip = _uiState.value.tripToDelete ?: return
+        _uiState.update { it.copy(tripToDelete = null) }
+        viewModelScope.launch {
+            if (trip.imageUri != null && trip.imageUri.startsWith("file://")) {
+                deleteImage(trip.imageUri)
+            }
+            deleteTrip(trip)
+        }
+    }
 }
