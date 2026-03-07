@@ -56,7 +56,10 @@ internal fun WanderVaultNavHost(
         }
 
         composable(AppRoutes.FAVORITES) {
-            FavoritesScreen(modifier = Modifier.fillMaxSize())
+            FavoritesScreen(
+                onTripClick = { tripId -> navController.navigate(AppRoutes.tripDetail(tripId)) },
+                modifier = Modifier.fillMaxSize(),
+            )
         }
 
         composable(AppRoutes.PROFILE) {

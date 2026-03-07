@@ -1,6 +1,7 @@
 package cat.company.wandervault.ui.di
 
 import cat.company.wandervault.ui.screens.DataAdminViewModel
+import cat.company.wandervault.ui.screens.FavoritesViewModel
 import cat.company.wandervault.ui.screens.HomeViewModel
 import cat.company.wandervault.ui.screens.ItineraryViewModel
 import cat.company.wandervault.ui.screens.LocationDetailViewModel
@@ -11,7 +12,7 @@ import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
 
 val presentationModule = module {
-    viewModel { HomeViewModel(get(), get(), get(), get(), get(), get()) }
+    viewModel { HomeViewModel(get(), get(), get(), get(), get(), get(), get()) }
     viewModel { params -> TripDetailViewModel(params.get(), get(), get(), get(), get()) }
     viewModel { params ->
         ItineraryViewModel(
@@ -46,4 +47,5 @@ val presentationModule = module {
         )
     }
     viewModel { DataAdminViewModel(androidApplication(), get(), get()) }
+    viewModel { FavoritesViewModel(get(), get()) }
 }

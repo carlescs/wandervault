@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.Flow
 
 interface TripRepository {
     fun getTrips(): Flow<List<Trip>>
+    fun getFavoriteTrips(): Flow<List<Trip>>
 
     /**
      * Returns a [Flow] that emits the trip with the given [id], or `null` if not found.

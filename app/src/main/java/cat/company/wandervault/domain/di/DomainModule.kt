@@ -1,5 +1,7 @@
 package cat.company.wandervault.domain.di
 
+import cat.company.wandervault.domain.usecase.GetFavoriteTripsUseCase
+import cat.company.wandervault.domain.usecase.ToggleFavoriteTripUseCase
 import cat.company.wandervault.domain.usecase.CopyImageToInternalStorageUseCase
 import cat.company.wandervault.domain.usecase.CreateBackupUseCase
 import cat.company.wandervault.domain.usecase.DeleteDestinationUseCase
@@ -31,6 +33,8 @@ import org.koin.dsl.module
 val domainModule = module {
     factory { GetTripUseCase(get()) }
     factory { GetTripsUseCase(get()) }
+    factory { GetFavoriteTripsUseCase(get()) }
+    factory { ToggleFavoriteTripUseCase(get()) }
     factory { SaveTripUseCase(get()) }
     factory { UpdateTripUseCase(get()) }
     factory { GenerateTripDescriptionUseCase(get()) }

@@ -31,6 +31,19 @@ class TripRepositoryImpl(
             .sortedWith(compareBy(nullsLast<LocalDate>()) { trip: Trip -> trip.startDate }.thenBy { it.id })
     }
 
+    override fun getFavoriteTrips(): Flow<List<Trip>> = combine(
+        tripDao.getFavorites(),
+        destinationDao.getAll(),
+    ) { tripEntities, destinationProjections ->
+        val destinationsByTripId = destinationProjections.groupBy { it.tripId }
+        tripEntities
+            .map { tripEntity ->
+                val destinations = destinationsByTripId[tripEntity.id].orEmpty()
+                tripEntity.toDomain(destinations)
+            }
+            .sortedWith(compareBy(nullsLast<LocalDate>()) { trip: Trip -> trip.startDate }.thenBy { it.id })
+    }
+
     override fun getTripById(id: Int): Flow<Trip?> = combine(
         tripDao.getById(id),
         destinationDao.getDateProjectionsForTrip(id),
@@ -69,6 +82,7 @@ private fun TripEntity.toDomain(destinations: List<DestinationDateProjection>): 
         startDate = allDates.minOrNull(),
         endDate = allDates.maxOrNull(),
         aiDescription = aiDescription,
+        isFavorite = isFavorite,
     )
 }
 
@@ -77,4 +91,5 @@ private fun Trip.toEntity() = TripEntity(
     title = title,
     imageUri = imageUri,
     aiDescription = aiDescription,
+    isFavorite = isFavorite,
 )
