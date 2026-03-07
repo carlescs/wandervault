@@ -129,9 +129,14 @@ internal fun LocationDetailContent(
         (!uiState.isFirst && !uiState.isLast)
 
     // If the Hotel tab is selected but is no longer visible (destination became first/last),
-    // fall back to the Overview tab.
-    if (!hotelTabVisible && selectedTab == LocationDetailTab.HOTEL) {
-        selectedTab = LocationDetailTab.OVERVIEW
+    // fall back to the Overview tab. Done in a side-effect to avoid mutating state directly
+    // during composition, and only when we have a Success state so the selection is not reset
+    // during transient loading states.
+    LaunchedEffect(uiState) {
+        (uiState as? LocationDetailUiState.Success)?.let { successState ->
+            if (!successState.isFirst && !successState.isLast) return@let
+            if (selectedTab == LocationDetailTab.HOTEL) selectedTab = LocationDetailTab.OVERVIEW
+        }
     }
 
     Scaffold(
