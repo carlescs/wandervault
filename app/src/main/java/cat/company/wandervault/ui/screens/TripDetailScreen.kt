@@ -1,6 +1,7 @@
 package cat.company.wandervault.ui.screens
 
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -96,6 +97,7 @@ fun TripDetailScreen(
     viewModel: TripDetailViewModel = koinViewModel(key = "TripDetailViewModel:$tripId", parameters = { parametersOf(tripId) }),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    BackHandler(onBack = onNavigateUp)
     TripDetailContent(
         uiState = uiState,
         tripId = tripId,
