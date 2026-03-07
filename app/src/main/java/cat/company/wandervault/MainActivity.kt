@@ -25,10 +25,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.PreviewScreenSizes
+import cat.company.wandervault.ui.screens.DataAdminScreen
 import cat.company.wandervault.ui.screens.FavoritesScreen
 import cat.company.wandervault.ui.screens.HomeScreen
 import cat.company.wandervault.ui.screens.LocationDetailScreen
 import cat.company.wandervault.ui.screens.ProfileScreen
+import cat.company.wandervault.ui.screens.SettingsScreen
 import cat.company.wandervault.ui.screens.TransportDetailScreen
 import cat.company.wandervault.ui.screens.TripDetailScreen
 import cat.company.wandervault.ui.theme.WanderVaultTheme
@@ -52,9 +54,24 @@ fun WanderVaultApp() {
     var tripDetailId by rememberSaveable { mutableStateOf<Int?>(null) }
     var selectedDestinationId by rememberSaveable { mutableStateOf<Int?>(null) }
     var selectedTransportDestinationId by rememberSaveable { mutableStateOf<Int?>(null) }
+    var showSettings by rememberSaveable { mutableStateOf(false) }
+    var showDataAdmin by rememberSaveable { mutableStateOf(false) }
     val saveableStateHolder = rememberSaveableStateHolder()
 
-    if (selectedTransportDestinationId != null) {
+    if (showDataAdmin) {
+        BackHandler { showDataAdmin = false }
+        DataAdminScreen(
+            onNavigateUp = { showDataAdmin = false },
+            modifier = Modifier.fillMaxSize(),
+        )
+    } else if (showSettings) {
+        BackHandler { showSettings = false }
+        SettingsScreen(
+            onNavigateUp = { showSettings = false },
+            onNavigateToDataAdmin = { showDataAdmin = true },
+            modifier = Modifier.fillMaxSize(),
+        )
+    } else if (selectedTransportDestinationId != null) {
         BackHandler { selectedTransportDestinationId = null }
         selectedTransportDestinationId?.let { destinationId ->
             TransportDetailScreen(
@@ -120,7 +137,10 @@ fun WanderVaultApp() {
                         onTripClick = { tripDetailId = it },
                     )
                     AppDestinations.FAVORITES -> FavoritesScreen(modifier = Modifier.padding(innerPadding))
-                    AppDestinations.PROFILE -> ProfileScreen(modifier = Modifier.padding(innerPadding))
+                    AppDestinations.PROFILE -> ProfileScreen(
+                        onNavigateToSettings = { showSettings = true },
+                        modifier = Modifier.fillMaxSize(),
+                    )
                 }
             }
         }
