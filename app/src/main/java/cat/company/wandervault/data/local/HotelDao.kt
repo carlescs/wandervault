@@ -13,7 +13,7 @@ interface HotelDao {
     @Query("SELECT * FROM hotels WHERE destinationId = :destinationId")
     fun getByDestinationId(destinationId: Int): Flow<HotelEntity?>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(hotel: HotelEntity)
 
     @Update

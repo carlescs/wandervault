@@ -1,5 +1,6 @@
 package cat.company.wandervault.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -86,9 +87,15 @@ fun LocationDetailScreen(
         viewModel.loadDestination(destinationId)
     }
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val saveAndNavigateUp: () -> Unit = {
+        viewModel.onSave()
+        onNavigateUp()
+    }
+    // Intercept system back so it follows the same save path as the toolbar up button.
+    BackHandler(onBack = saveAndNavigateUp)
     LocationDetailContent(
         uiState = uiState,
-        onNavigateUp = onNavigateUp,
+        onNavigateUp = saveAndNavigateUp,
         onTransportClick = onTransportClick,
         onHotelNameChange = viewModel::onHotelNameChange,
         onHotelAddressChange = viewModel::onHotelAddressChange,
@@ -273,7 +280,8 @@ private fun HotelTabContent(
         val arrival = destination.arrivalDateTime
         val departure = destination.departureDateTime
         if (arrival != null && departure != null) {
-            ChronoUnit.DAYS.between(arrival.toLocalDate(), departure.toLocalDate())
+            val days = ChronoUnit.DAYS.between(arrival.toLocalDate(), departure.toLocalDate())
+            if (days >= 0) days else null
         } else {
             null
         }

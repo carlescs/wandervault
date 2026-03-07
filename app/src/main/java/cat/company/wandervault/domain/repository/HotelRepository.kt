@@ -10,4 +10,7 @@ interface HotelRepository {
 
     /** Persists or updates the [hotel] for a destination. */
     suspend fun saveHotel(hotel: Hotel)
+
+    /** Removes the [hotel] from the data store. */
+    suspend fun deleteHotel(hotel: Hotel)
 }

@@ -3,6 +3,7 @@ package cat.company.wandervault.ui.screens
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import cat.company.wandervault.domain.model.Hotel
+import cat.company.wandervault.domain.usecase.DeleteHotelUseCase
 import cat.company.wandervault.domain.usecase.GetArrivalTransportForDestinationUseCase
 import cat.company.wandervault.domain.usecase.GetDestinationByIdUseCase
 import cat.company.wandervault.domain.usecase.GetDestinationsForTripUseCase
@@ -23,11 +24,9 @@ import kotlinx.coroutines.launch
 /**
  * ViewModel for the Location Detail screen.
  *
- * A single instance is reused across destinations. Call [loadDestination] whenever the
- * displayed destination changes; the ViewModel switches its collection to the new ID via
- * [flatMapLatest], cancelling the previous subscription automatically.
- *
- * Hotel edits are tracked in memory and auto-saved to the database after a short debounce.
+ * Each instance is scoped to a single destination ID via a Koin key. Hotel edits are tracked
+ * in memory and auto-saved to the database after a short debounce; [onSave] can also be called
+ * explicitly (e.g. on navigate-away) to flush any pending edits immediately.
  *
  * @param getDestinationById Use-case that fetches a single destination by ID.
  * @param getArrivalTransport Use-case that fetches the transport used to arrive at a destination.
@@ -35,6 +34,7 @@ import kotlinx.coroutines.launch
  *   determine whether the destination is the first or last stop.
  * @param getHotelForDestination Use-case that fetches the hotel for a destination.
  * @param saveHotel Use-case that persists a hotel record.
+ * @param deleteHotel Use-case that removes a hotel record.
  */
 class LocationDetailViewModel(
     private val getDestinationById: GetDestinationByIdUseCase,
@@ -42,6 +42,7 @@ class LocationDetailViewModel(
     private val getDestinationsForTrip: GetDestinationsForTripUseCase,
     private val getHotelForDestination: GetHotelForDestinationUseCase,
     private val saveHotel: SaveHotelUseCase,
+    private val deleteHotel: DeleteHotelUseCase,
 ) : ViewModel() {
 
     private val _destinationId = MutableStateFlow<Int?>(null)
@@ -144,7 +145,6 @@ class LocationDetailViewModel(
         val edit = state.hotelEditState
         _hasUnsavedHotelEdits = false
 
-        // Only persist if there is at least one non-blank field.
         val hasContent = edit.name.isNotBlank() || edit.address.isNotBlank() || edit.reservationNumber.isNotBlank()
         if (hasContent) {
             saveHotel(
@@ -156,6 +156,9 @@ class LocationDetailViewModel(
                     reservationNumber = edit.reservationNumber.trim(),
                 ),
             )
+        } else if (edit.id > 0) {
+            // All fields cleared – delete the persisted hotel row so clearing is reflected in DB.
+            deleteHotel(Hotel(id = edit.id, destinationId = destinationId))
         }
     }
 

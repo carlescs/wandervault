@@ -19,6 +19,10 @@ class HotelRepositoryImpl(private val dao: HotelDao) : HotelRepository {
             dao.update(hotel.toEntity())
         }
     }
+
+    override suspend fun deleteHotel(hotel: Hotel) {
+        dao.delete(hotel.toEntity())
+    }
 }
 
 private fun HotelEntity.toDomain() = Hotel(
