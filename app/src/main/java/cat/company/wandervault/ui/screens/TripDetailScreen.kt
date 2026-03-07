@@ -13,7 +13,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -53,8 +55,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cat.company.wandervault.R
 import cat.company.wandervault.domain.model.Trip
-import cat.company.wandervault.ui.fadeWithSharedTransition
-import cat.company.wandervault.ui.sharedTripCoverImage
+import cat.company.wandervault.ui.sharedTripCoverBounds
 import cat.company.wandervault.ui.theme.WanderVaultTheme
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
@@ -167,15 +168,14 @@ internal fun TripDetailContent(
                     }
                 },
                 navigationIcon = {
-                    IconButton(
-                        onClick = onNavigateUp,
-                        modifier = Modifier.fadeWithSharedTransition(),
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.trip_detail_navigate_up),
-                            tint = navIconColor,
-                        )
+                    if (!isImageCoveringTopBar || scrolledFraction > 0f) {
+                        IconButton(onClick = onNavigateUp) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = stringResource(R.string.trip_detail_navigate_up),
+                                tint = navIconColor,
+                            )
+                        }
                     }
                 },
                 scrollBehavior = if (isImageCoveringTopBar) scrollBehavior else null,
@@ -201,7 +201,9 @@ internal fun TripDetailContent(
             TripDetailTab.DETAILS -> TripDetailsTabContent(
                 uiState = uiState,
                 innerPadding = innerPadding,
+                onNavigateUp = onNavigateUp,
                 isImageCoveringTopBar = isImageCoveringTopBar,
+                scrolledFraction = scrolledFraction,
                 onRegenerateDescription = onRegenerateDescription,
                 onDeleteDescription = onDeleteDescription,
             )
@@ -246,7 +248,9 @@ private fun TripDetailBottomBar(
 private fun TripDetailsTabContent(
     uiState: TripDetailUiState,
     innerPadding: PaddingValues,
+    onNavigateUp: () -> Unit,
     isImageCoveringTopBar: Boolean = false,
+    scrolledFraction: Float = 0f,
     onRegenerateDescription: () -> Unit = {},
     onDeleteDescription: () -> Unit = {},
 ) {
@@ -295,21 +299,39 @@ private fun TripDetailsTabContent(
                         } else {
                             BASE_IMAGE_HEIGHT
                         }
-                        AsyncImage(
-                            model = ImageRequest.Builder(LocalContext.current)
-                                .data(Uri.parse(trip.imageUri))
-                                .crossfade(true)
-                                .build(),
-                            contentDescription = stringResource(
-                                R.string.trip_detail_cover_image_desc,
-                                trip.title,
-                            ),
-                            contentScale = ContentScale.Crop,
+                        Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(imageHeight)
-                                .sharedTripCoverImage(trip.id),
-                        )
+                                .sharedTripCoverBounds(trip.id),
+                        ) {
+                            AsyncImage(
+                                model = ImageRequest.Builder(LocalContext.current)
+                                    .data(Uri.parse(trip.imageUri))
+                                    .crossfade(true)
+                                    .build(),
+                                contentDescription = stringResource(
+                                    R.string.trip_detail_cover_image_desc,
+                                    trip.title,
+                                ),
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                            if (isImageCoveringTopBar && scrolledFraction <= 0f) {
+                                IconButton(
+                                    onClick = onNavigateUp,
+                                    modifier = Modifier
+                                        .align(Alignment.TopStart)
+                                        .windowInsetsPadding(WindowInsets.statusBars),
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                        contentDescription = stringResource(R.string.trip_detail_navigate_up),
+                                        tint = Color.White,
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
                 item {

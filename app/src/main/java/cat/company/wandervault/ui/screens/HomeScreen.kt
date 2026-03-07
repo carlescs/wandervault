@@ -47,7 +47,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cat.company.wandervault.R
 import cat.company.wandervault.domain.model.Trip
-import cat.company.wandervault.ui.sharedTripCoverImage
+import cat.company.wandervault.ui.sharedTripCoverBounds
 import cat.company.wandervault.ui.theme.WanderVaultTheme
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
@@ -182,18 +182,22 @@ private fun TripCard(trip: Trip, onEditClick: () -> Unit, onDeleteClick: () -> U
     val formatter = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
     Card(modifier = modifier.fillMaxWidth(), onClick = onCardClick) {
         if (trip.imageUri != null) {
-            AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(Uri.parse(trip.imageUri))
-                    .crossfade(true)
-                    .build(),
-                contentDescription = stringResource(R.string.trip_image_content_desc),
-                contentScale = ContentScale.Crop,
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(120.dp)
-                    .sharedTripCoverImage(trip.id),
-            )
+                    .sharedTripCoverBounds(trip.id),
+            ) {
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(Uri.parse(trip.imageUri))
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = stringResource(R.string.trip_image_content_desc),
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
         }
         Row(
             modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 16.dp, end = 8.dp),
