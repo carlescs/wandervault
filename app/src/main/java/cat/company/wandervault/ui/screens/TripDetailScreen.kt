@@ -354,7 +354,7 @@ private fun AiDescriptionSection(
             }
         }
         is DescriptionState.Unavailable -> {
-            // Section is hidden at the call site when unavailable; this branch is never reached.
+            error("AiDescriptionSection should not be called with DescriptionState.Unavailable. Hide the section at the call site instead.")
         }
     }
 }
