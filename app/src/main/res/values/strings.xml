@@ -57,8 +57,8 @@
     <string name="trip_detail_ai_summary_generating">Generating summary…</string>
     <string name="trip_detail_ai_summary_unavailable">AI summary is not available on this device.</string>
     <string name="trip_detail_ai_summary_error">Could not generate AI summary.</string>
-    <string name="trip_detail_ai_summary_regenerate">Regenerate</string>
-    <string name="trip_detail_ai_summary_delete">Delete</string>
+    <string name="trip_detail_ai_summary_regenerate">Regenerate AI summary</string>
+    <string name="trip_detail_ai_summary_delete">Delete AI summary</string>
     <string name="trip_detail_ai_summary_generate">Generate AI summary</string>
 
     <!-- Calendar tab -->
