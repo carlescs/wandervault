@@ -54,8 +54,8 @@ class TripDetailViewModel(
                     }
                     lastTrip = trip
                     lastDestinations = destinations
-                    // Preserve in-memory description state (e.g. while loading/generating).
-                    // On first load, derive the initial state from the persisted description.
+                    // Only preserve the in-memory state while generation is actively in progress,
+                    // so DB remains the source of truth for all other states.
                     val currentDescription =
                         (_uiState.value as? TripDetailUiState.Success)?.descriptionState
                     val persistedDescription = if (trip.aiDescription != null) {
@@ -63,9 +63,16 @@ class TripDetailViewModel(
                     } else {
                         DescriptionState.None
                     }
+                    // Only preserve Loading to avoid a flicker while generation is in progress;
+                    // for all other states the DB value is the source of truth.
+                    val descriptionState = if (currentDescription is DescriptionState.Loading) {
+                        currentDescription
+                    } else {
+                        persistedDescription
+                    }
                     _uiState.value = TripDetailUiState.Success(
                         trip = trip,
-                        descriptionState = currentDescription ?: persistedDescription,
+                        descriptionState = descriptionState,
                     )
                 }
         }
@@ -87,36 +94,57 @@ class TripDetailViewModel(
 
     /**
      * Clears the current AI description and removes it from the database.
+     * Reverts to the previous state if the DB update fails.
      */
     fun deleteDescription() {
         val current = _uiState.value as? TripDetailUiState.Success ?: return
         val trip = lastTrip ?: return
+        val previousDescriptionState = current.descriptionState
         _uiState.value = current.copy(descriptionState = DescriptionState.None)
         viewModelScope.launch {
-            saveTripDescriptionUseCase(trip, null)
+            try {
+                saveTripDescriptionUseCase(trip, null)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to delete trip description", e)
+                val latest = _uiState.value
+                if (latest !is TripDetailUiState.Success) return@launch
+                if (latest.descriptionState !is DescriptionState.None) return@launch
+                _uiState.value = latest.copy(descriptionState = previousDescriptionState)
+            }
         }
     }
 
     private fun generateDescription(trip: Trip, destinations: List<Destination>) {
         viewModelScope.launch {
-            val newDescriptionState = try {
-                val text = generateTripDescriptionUseCase(trip, destinations)
-                if (text != null) {
-                    val currentTrip = lastTrip
-                    if (currentTrip != null) {
-                        saveTripDescriptionUseCase(currentTrip, text)
-                    }
-                    DescriptionState.Available(text)
-                } else {
-                    DescriptionState.Unavailable
-                }
+            val text = try {
+                generateTripDescriptionUseCase(trip, destinations)
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to generate trip description", e)
-                DescriptionState.Error
+                val current = _uiState.value
+                if (current is TripDetailUiState.Success) {
+                    _uiState.value = current.copy(descriptionState = DescriptionState.Error)
+                }
+                return@launch
             }
+
+            if (text == null) {
+                val current = _uiState.value
+                if (current is TripDetailUiState.Success) {
+                    _uiState.value = current.copy(descriptionState = DescriptionState.Unavailable)
+                }
+                return@launch
+            }
+
+            // Show the generated text in the UI immediately, even if the DB save fails.
             val current = _uiState.value
             if (current is TripDetailUiState.Success) {
-                _uiState.value = current.copy(descriptionState = newDescriptionState)
+                _uiState.value = current.copy(descriptionState = DescriptionState.Available(text))
+            }
+
+            try {
+                saveTripDescriptionUseCase(trip, text)
+            } catch (e: Exception) {
+                Log.e(TAG, "Generated description displayed but not saved to database", e)
             }
         }
     }
