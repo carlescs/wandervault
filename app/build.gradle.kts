@@ -102,6 +102,7 @@ dependencies {
     implementation(libs.koin.androidx.compose)
     implementation(libs.coil.compose)
     implementation(libs.mlkit.genai.prompt)
+    implementation(libs.androidx.navigation.compose)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
