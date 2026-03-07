@@ -58,6 +58,7 @@ private fun TripEntity.toDomain(destinations: List<DestinationDateProjection>): 
         imageUri = imageUri,
         startDate = allDates.minOrNull(),
         endDate = allDates.maxOrNull(),
+        aiDescription = aiDescription,
     )
 }
 
@@ -65,4 +66,5 @@ private fun Trip.toEntity() = TripEntity(
     id = id,
     title = title,
     imageUri = imageUri,
+    aiDescription = aiDescription,
 )

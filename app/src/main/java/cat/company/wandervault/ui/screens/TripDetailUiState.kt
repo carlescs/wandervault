@@ -12,7 +12,7 @@ sealed class TripDetailUiState {
     /** The trip was loaded successfully. */
     data class Success(
         val trip: Trip,
-        val descriptionState: DescriptionState = DescriptionState.Loading,
+        val descriptionState: DescriptionState = DescriptionState.None,
     ) : TripDetailUiState()
 
     /** An error occurred (e.g. trip not found). */

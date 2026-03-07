@@ -17,6 +17,7 @@ import cat.company.wandervault.domain.usecase.GetTripsUseCase
 import cat.company.wandervault.domain.usecase.RestoreBackupUseCase
 import cat.company.wandervault.domain.usecase.SaveDestinationUseCase
 import cat.company.wandervault.domain.usecase.SaveTransportLegUseCase
+import cat.company.wandervault.domain.usecase.SaveTripDescriptionUseCase
 import cat.company.wandervault.domain.usecase.SaveTripUseCase
 import cat.company.wandervault.domain.usecase.UpdateDestinationUseCase
 import cat.company.wandervault.domain.usecase.UpdateTransportLegUseCase
@@ -29,6 +30,7 @@ val domainModule = module {
     factory { SaveTripUseCase(get()) }
     factory { UpdateTripUseCase(get()) }
     factory { GenerateTripDescriptionUseCase(get()) }
+    factory { SaveTripDescriptionUseCase(get()) }
     factory { GetDestinationByIdUseCase(get()) }
     factory { GetNextDestinationUseCase(get()) }
     factory { GetArrivalTransportForDestinationUseCase(get()) }
