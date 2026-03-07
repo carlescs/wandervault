@@ -21,9 +21,9 @@ abstract class WanderVaultDatabase : RoomDatabase() {
         /** Flushes the WAL file into the main database file so it is safe to copy. */
         fun WanderVaultDatabase.checkpoint() {
             // wal_checkpoint returns result rows (busy, log, checkpointed), so it must be
-            // executed via rawQuery rather than execSQL to avoid the "Queries can be performed
+            // executed via query rather than execSQL to avoid the "Queries can be performed
             // using SQLiteDatabase query or rawQuery methods only" error on Android.
-            openHelper.writableDatabase.rawQuery("PRAGMA wal_checkpoint(TRUNCATE)", null)
+            openHelper.writableDatabase.query("PRAGMA wal_checkpoint(TRUNCATE)")
                 .use { it.moveToFirst() }
         }
 
