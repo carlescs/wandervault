@@ -5,6 +5,13 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -16,6 +23,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -25,6 +33,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.PreviewScreenSizes
+import cat.company.wandervault.ui.LocalAnimatedVisibilityScope
+import cat.company.wandervault.ui.LocalSharedTransitionScope
 import cat.company.wandervault.ui.screens.DataAdminScreen
 import cat.company.wandervault.ui.screens.FavoritesScreen
 import cat.company.wandervault.ui.screens.HomeScreen
@@ -47,6 +57,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @PreviewScreenSizes
 @Composable
 fun WanderVaultApp() {
@@ -90,57 +101,71 @@ fun WanderVaultApp() {
                 modifier = Modifier.fillMaxSize(),
             )
         }
-    } else if (tripDetailId != null) {
-        BackHandler {
-            tripDetailId?.let { id ->
-                saveableStateHolder.removeState("TripDetail:$id")
-                tripDetailId = null
-            }
-        }
-        tripDetailId?.let { id ->
-            val tripDetailKey = "TripDetail:$id"
-            saveableStateHolder.SaveableStateProvider(key = tripDetailKey) {
-                TripDetailScreen(
-                    tripId = id,
-                    onNavigateUp = {
-                        saveableStateHolder.removeState(tripDetailKey)
-                        tripDetailId = null
-                    },
-                    onNavigateToDestination = { selectedDestinationId = it },
-                    onNavigateToTransport = { selectedTransportDestinationId = it },
-                    modifier = Modifier.fillMaxSize(),
-                )
-            }
-        }
     } else {
-        NavigationSuiteScaffold(
-            navigationSuiteItems = {
-                AppDestinations.entries.forEach {
-                    item(
-                        icon = {
-                            Icon(
-                                it.icon,
-                                contentDescription = stringResource(it.contentDescriptionRes)
+        SharedTransitionLayout(modifier = Modifier.fillMaxSize()) {
+            AnimatedContent(
+                targetState = tripDetailId,
+                label = "trip-detail-transition",
+                transitionSpec = {
+                    fadeIn(animationSpec = tween(300, delayMillis = 100)) togetherWith
+                        fadeOut(animationSpec = tween(150))
+                },
+            ) { currentTripId ->
+                CompositionLocalProvider(
+                    LocalSharedTransitionScope provides this@SharedTransitionLayout,
+                    LocalAnimatedVisibilityScope provides this,
+                ) {
+                    if (currentTripId != null) {
+                        BackHandler {
+                            saveableStateHolder.removeState("TripDetail:$currentTripId")
+                            tripDetailId = null
+                        }
+                        val tripDetailKey = "TripDetail:$currentTripId"
+                        saveableStateHolder.SaveableStateProvider(key = tripDetailKey) {
+                            TripDetailScreen(
+                                tripId = currentTripId,
+                                onNavigateUp = {
+                                    saveableStateHolder.removeState(tripDetailKey)
+                                    tripDetailId = null
+                                },
+                                onNavigateToDestination = { selectedDestinationId = it },
+                                onNavigateToTransport = { selectedTransportDestinationId = it },
+                                modifier = Modifier.fillMaxSize(),
                             )
-                        },
-                        label = { Text(stringResource(it.labelRes)) },
-                        selected = it == currentDestination,
-                        onClick = { currentDestination = it }
-                    )
-                }
-            }
-        ) {
-            Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                when (currentDestination) {
-                    AppDestinations.HOME -> HomeScreen(
-                        modifier = Modifier.padding(innerPadding),
-                        onTripClick = { tripDetailId = it },
-                    )
-                    AppDestinations.FAVORITES -> FavoritesScreen(modifier = Modifier.padding(innerPadding))
-                    AppDestinations.PROFILE -> ProfileScreen(
-                        onNavigateToSettings = { showSettings = true },
-                        modifier = Modifier.fillMaxSize(),
-                    )
+                        }
+                    } else {
+                        NavigationSuiteScaffold(
+                            navigationSuiteItems = {
+                                AppDestinations.entries.forEach {
+                                    item(
+                                        icon = {
+                                            Icon(
+                                                it.icon,
+                                                contentDescription = stringResource(it.contentDescriptionRes)
+                                            )
+                                        },
+                                        label = { Text(stringResource(it.labelRes)) },
+                                        selected = it == currentDestination,
+                                        onClick = { currentDestination = it }
+                                    )
+                                }
+                            }
+                        ) {
+                            Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+                                when (currentDestination) {
+                                    AppDestinations.HOME -> HomeScreen(
+                                        modifier = Modifier.padding(innerPadding),
+                                        onTripClick = { tripDetailId = it },
+                                    )
+                                    AppDestinations.FAVORITES -> FavoritesScreen(modifier = Modifier.padding(innerPadding))
+                                    AppDestinations.PROFILE -> ProfileScreen(
+                                        onNavigateToSettings = { showSettings = true },
+                                        modifier = Modifier.fillMaxSize(),
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
