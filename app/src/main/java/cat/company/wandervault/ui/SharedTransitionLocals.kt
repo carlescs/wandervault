@@ -17,20 +17,24 @@ internal val LocalSharedTransitionScope = compositionLocalOf<SharedTransitionSco
 internal val LocalAnimatedVisibilityScope = compositionLocalOf<AnimatedVisibilityScope?> { null }
 
 /**
- * Applies a shared-element modifier for the trip cover image when running inside a
+ * Applies a shared-bounds modifier for the trip cover image container when running inside a
  * [SharedTransitionLayout] / [AnimatedContent] scope, or returns [this] unchanged in other
  * contexts (e.g. `@Preview`).
+ *
+ * Use this on a [androidx.compose.foundation.layout.Box] that wraps the trip cover image (and
+ * optionally overlaid UI controls), so that screens with differing container content share the
+ * same animated bounds between the list card and the detail screen.
  *
  * @param tripId The unique ID of the trip, used to generate a stable shared-element key
  *   (`"trip-cover-image-$tripId"`) that matches between the list card and the detail screen.
  */
 @Composable
 @OptIn(ExperimentalSharedTransitionApi::class)
-internal fun Modifier.sharedTripCoverImage(tripId: Int): Modifier {
+internal fun Modifier.sharedTripCoverBounds(tripId: Int): Modifier {
     val sharedTransitionScope = LocalSharedTransitionScope.current ?: return this
     val animatedVisibilityScope = LocalAnimatedVisibilityScope.current ?: return this
     return with(sharedTransitionScope) {
-        this@sharedTripCoverImage.sharedElement(
+        this@sharedTripCoverBounds.sharedBounds(
             sharedContentState = rememberSharedContentState("trip-cover-image-$tripId"),
             animatedVisibilityScope = animatedVisibilityScope,
         )
@@ -42,8 +46,8 @@ internal fun Modifier.sharedTripCoverImage(tripId: Int): Modifier {
  * [SharedTransitionLayout] / [AnimatedContent] scope, or returns [this] unchanged in other
  * contexts (e.g. `@Preview`).
  *
- * Use this on UI chrome elements (e.g. back-arrow buttons) that should appear gradually alongside
- * the shared-element animation instead of popping in abruptly.
+ * Use this on UI chrome elements that should appear gradually alongside the shared-element
+ * animation instead of popping in abruptly.
  */
 @Composable
 internal fun Modifier.fadeWithSharedTransition(): Modifier {
