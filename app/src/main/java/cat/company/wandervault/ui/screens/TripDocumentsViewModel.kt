@@ -4,6 +4,7 @@ import android.database.sqlite.SQLiteConstraintException
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import cat.company.wandervault.domain.model.Destination
 import cat.company.wandervault.domain.model.FlightInfo
 import cat.company.wandervault.domain.model.Hotel
 import cat.company.wandervault.domain.model.HotelInfo
@@ -82,6 +83,9 @@ class TripDocumentsViewModel(
 
     /** The coroutine running the current document analysis, kept so it can be cancelled. */
     private var analyzeJob: Job? = null
+
+    /** Pending hotel info kept alive across the [AnalyzeDocumentUiState.HotelDestinationSelection] dialog. */
+    private var pendingHotelInfo: HotelInfo? = null
 
     private val _uiState = MutableStateFlow<TripDocumentsUiState>(TripDocumentsUiState.Loading)
     val uiState: StateFlow<TripDocumentsUiState> = _uiState.asStateFlow()
@@ -436,22 +440,50 @@ class TripDocumentsViewModel(
      * Dismisses the dialog before applying the trip changes proposed in the current
      * [AnalyzeDocumentUiState.Result].
      *
-     * The dialog is dismissed first so the user sees the screen return to normal state
-     * immediately; the apply work continues in the background.
+     * For flight info and general trip info, the dialog is dismissed first so the user sees the
+     * screen return to normal state immediately; the apply work continues in the background.
+     *
+     * For hotel info, a confident match (by booking reference or hotel name) is checked first.
+     * If found, the dialog is dismissed and the hotel is updated immediately.
+     * If no confident match is found, the state transitions to
+     * [AnalyzeDocumentUiState.HotelDestinationSelection] so the user can pick the right
+     * destination before the dialog is dismissed.
      *
      * No-op when the analyze state is not [AnalyzeDocumentUiState.Result].
      */
     fun applyAnalysisChanges() {
         val analyzeResult = _analyzeState.value as? AnalyzeDocumentUiState.Result ?: return
-        dismissAnalyze()
-        viewModelScope.launch {
-            try {
-                val result = analyzeResult.extractionResult
-                val documentName = analyzeResult.document.name
-                when {
-                    result.flightInfo != null -> applyFlightInfo(result.flightInfo, documentName)
-                    result.hotelInfo != null -> applyHotelInfo(result.hotelInfo, documentName)
-                    else -> {
+        val result = analyzeResult.extractionResult
+        val documentName = analyzeResult.document.name
+        when {
+            result.flightInfo != null -> {
+                dismissAnalyze()
+                viewModelScope.launch {
+                    try {
+                        applyFlightInfo(result.flightInfo, documentName)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to apply flight info for trip $tripId", e)
+                        setWriteError(DocumentsWriteError.Generic)
+                    }
+                }
+            }
+            result.hotelInfo != null -> {
+                // Don't dismiss yet — check for a confident match first so we can show
+                // a destination-selection dialog when the destination is ambiguous.
+                viewModelScope.launch {
+                    try {
+                        applyOrDisambiguateHotelInfo(result.hotelInfo, documentName)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to apply hotel info for trip $tripId", e)
+                        setWriteError(DocumentsWriteError.Generic)
+                        dismissAnalyze()
+                    }
+                }
+            }
+            else -> {
+                dismissAnalyze()
+                viewModelScope.launch {
+                    try {
                         val relevantInfo = result.relevantTripInfo ?: return@launch
                         val trip = getTrip(tripId).first()
                         if (trip == null) {
@@ -463,11 +495,33 @@ class TripDocumentsViewModel(
                         if (trip.aiDescription == null) {
                             saveTripDescription(trip, relevantInfo)
                         }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to apply analysis changes for trip $tripId", e)
+                        setWriteError(DocumentsWriteError.Generic)
                     }
                 }
+            }
+        }
+    }
+
+    /**
+     * Called when the user picks a [Destination] from the hotel disambiguation dialog.
+     * Applies [pendingHotelInfo] to that destination and dismisses the dialog.
+     */
+    fun onHotelDestinationSelected(destination: Destination) {
+        val hotelInfo = pendingHotelInfo ?: run {
+            dismissAnalyze()
+            return
+        }
+        pendingHotelInfo = null
+        viewModelScope.launch {
+            try {
+                applyHotelInfoToDestination(hotelInfo, destination)
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to apply analysis changes for trip $tripId", e)
+                Log.e(TAG, "Failed to apply hotel info to selected destination", e)
                 setWriteError(DocumentsWriteError.Generic)
+            } finally {
+                dismissAnalyze()
             }
         }
     }
@@ -478,7 +532,83 @@ class TripDocumentsViewModel(
     fun dismissAnalyze() {
         analyzeJob?.cancel()
         analyzeJob = null
+        pendingHotelInfo = null
         _analyzeState.value = null
+    }
+
+    /**
+     * Checks [hotelInfo] against all destinations in this trip.
+     *
+     * A *confident* match requires the booking reference **or** hotel name to match exactly
+     * (case-insensitive). When there is a confident match the dialog is dismissed and the hotel
+     * is updated immediately. When there is no confident match, the state transitions to
+     * [AnalyzeDocumentUiState.HotelDestinationSelection] so the user can pick the destination.
+     */
+    private suspend fun applyOrDisambiguateHotelInfo(hotelInfo: HotelInfo, documentName: String) {
+        val destinations = getDestinationsForTrip(tripId).first()
+        if (destinations.isEmpty()) {
+            Log.d(TAG, "No destinations in trip $tripId; skipping hotel info from $documentName")
+            dismissAnalyze()
+            return
+        }
+
+        val destinationHotels = destinations.map { dest ->
+            dest to getHotelForDestination(dest.id).first()
+        }
+
+        val confidentMatch = destinationHotels.firstOrNull { (_, hotel) ->
+            hotel != null && hotelInfo.bookingReference != null &&
+                hotel.reservationNumber.equals(hotelInfo.bookingReference, ignoreCase = true)
+        } ?: destinationHotels.firstOrNull { (_, hotel) ->
+            hotel != null && hotelInfo.name != null &&
+                hotel.name.equals(hotelInfo.name, ignoreCase = true)
+        }
+
+        if (confidentMatch != null) {
+            applyHotelInfoToDestination(hotelInfo, confidentMatch.first)
+            dismissAnalyze()
+        } else {
+            pendingHotelInfo = hotelInfo
+            _analyzeState.value = AnalyzeDocumentUiState.HotelDestinationSelection(
+                hotelInfo = hotelInfo,
+                candidates = destinations,
+            )
+        }
+    }
+
+    /**
+     * Applies [hotelInfo] to the given [destination], updating its existing hotel record
+     * (preserving non-blank fields) or creating a new one if none exists yet.
+     */
+    private suspend fun applyHotelInfoToDestination(hotelInfo: HotelInfo, destination: Destination) {
+        val existingHotel = getHotelForDestination(destination.id).first()
+        if (existingHotel != null) {
+            // Only fill in blank fields; preserve existing non-blank values.
+            val updatedHotel = existingHotel.copy(
+                name = existingHotel.name.ifBlank { null } ?: hotelInfo.name.orEmpty(),
+                address = existingHotel.address.ifBlank { null } ?: hotelInfo.address.orEmpty(),
+                reservationNumber = existingHotel.reservationNumber.ifBlank { null }
+                    ?: hotelInfo.bookingReference.orEmpty(),
+            )
+            if (updatedHotel != existingHotel) {
+                saveHotel(updatedHotel)
+            }
+        } else {
+            // No hotel exists for this destination yet — create one with the extracted data.
+            if (hotelInfo.name.isNullOrBlank() && hotelInfo.address.isNullOrBlank() &&
+                hotelInfo.bookingReference.isNullOrBlank()
+            ) {
+                return
+            }
+            saveHotel(
+                Hotel(
+                    destinationId = destination.id,
+                    name = hotelInfo.name ?: "",
+                    address = hotelInfo.address ?: "",
+                    reservationNumber = hotelInfo.bookingReference ?: "",
+                ),
+            )
+        }
     }
 
     /**

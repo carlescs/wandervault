@@ -39,7 +39,9 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FindInPage
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.Hotel
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -68,6 +70,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -77,6 +80,7 @@ import androidx.core.content.FileProvider
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cat.company.wandervault.R
+import cat.company.wandervault.domain.model.Destination
 import cat.company.wandervault.domain.model.DocumentExtractionResult
 import cat.company.wandervault.domain.model.FlightInfo
 import cat.company.wandervault.domain.model.HotelInfo
@@ -164,6 +168,7 @@ internal fun TripDocumentsTabContent(
         },
         onAnalyzeDocument = viewModel::analyzeDocument,
         onAnalyzeApplyChanges = viewModel::applyAnalysisChanges,
+        onAnalyzeHotelDestinationSelected = viewModel::onHotelDestinationSelected,
         onAnalyzeDismiss = viewModel::dismissAnalyze,
         onErrorDismiss = viewModel::clearError,
     )
@@ -192,6 +197,7 @@ internal fun TripDocumentsContent(
     onOpenDocument: (TripDocument) -> Unit = {},
     onAnalyzeDocument: (TripDocument) -> Unit = {},
     onAnalyzeApplyChanges: () -> Unit = {},
+    onAnalyzeHotelDestinationSelected: (Destination) -> Unit = {},
     onAnalyzeDismiss: () -> Unit = {},
     onErrorDismiss: () -> Unit = {},
 ) {
@@ -439,13 +445,24 @@ internal fun TripDocumentsContent(
     }
 
     // Show the analysis dialog when an analysis is in progress or has a result.
+    // When the state is HotelDestinationSelection, show a dedicated destination picker instead.
     val analyzeState = (uiState as? TripDocumentsUiState.Success)?.analyzeState
-    if (analyzeState != null) {
-        AnalyzeDocumentDialog(
-            analyzeState = analyzeState,
-            onApplyChanges = onAnalyzeApplyChanges,
-            onDismiss = onAnalyzeDismiss,
-        )
+    when {
+        analyzeState is AnalyzeDocumentUiState.HotelDestinationSelection -> {
+            AnalyzeHotelDestinationSelectionDialog(
+                hotelInfo = analyzeState.hotelInfo,
+                candidates = analyzeState.candidates,
+                onDestinationSelected = onAnalyzeHotelDestinationSelected,
+                onSkip = onAnalyzeDismiss,
+            )
+        }
+        analyzeState != null -> {
+            AnalyzeDocumentDialog(
+                analyzeState = analyzeState,
+                onApplyChanges = onAnalyzeApplyChanges,
+                onDismiss = onAnalyzeDismiss,
+            )
+        }
     }
 
     // Show a dialog when a write operation fails (e.g. duplicate name).
@@ -1034,6 +1051,98 @@ private fun AnalyzeDocumentDialog(
             }
         },
     )
+}
+
+/**
+ * A dialog shown when ML Kit extracted hotel information from an analyzed document but could not
+ * confidently determine which destination to update. The user selects one of [candidates] or skips.
+ */
+@Composable
+private fun AnalyzeHotelDestinationSelectionDialog(
+    hotelInfo: HotelInfo,
+    candidates: List<Destination>,
+    onDestinationSelected: (Destination) -> Unit,
+    onSkip: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onSkip,
+        title = { Text(stringResource(R.string.share_hotel_selection_title)) },
+        text = {
+            Column {
+                AnalyzeHotelInfoSummary(hotelInfo = hotelInfo)
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = stringResource(R.string.share_hotel_selection_message),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                LazyColumn(modifier = Modifier.heightIn(max = 280.dp)) {
+                    items(candidates) { destination ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onDestinationSelected(destination) }
+                                .padding(vertical = 10.dp, horizontal = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Place,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.secondary,
+                                modifier = Modifier
+                                    .padding(end = 12.dp),
+                            )
+                            Text(
+                                text = destination.name,
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+                        HorizontalDivider()
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onSkip) {
+                Text(stringResource(R.string.share_skip))
+            }
+        },
+    )
+}
+
+@Composable
+private fun AnalyzeHotelInfoSummary(hotelInfo: HotelInfo, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = Icons.Default.Hotel,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(end = 8.dp),
+        )
+        Column {
+            val hotelLabel = hotelInfo.name?.ifBlank { null }
+                ?: stringResource(R.string.share_unknown_hotel)
+            Text(
+                text = hotelLabel,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Bold,
+            )
+            if (!hotelInfo.bookingReference.isNullOrBlank()) {
+                Text(
+                    text = stringResource(R.string.documents_analyze_ref, hotelInfo.bookingReference),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
 }
 
 @Composable
