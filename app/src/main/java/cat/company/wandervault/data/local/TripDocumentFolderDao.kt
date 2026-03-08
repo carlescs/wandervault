@@ -35,4 +35,8 @@ interface TripDocumentFolderDao {
             "WHERE tripId = :tripId AND parentFolderId IS NULL AND name = :name AND id != :excludeId",
     )
     suspend fun countRootFoldersByName(tripId: Int, name: String, excludeId: Int = 0): Int
+
+    /** Returns all folders belonging to [tripId], ordered by name. */
+    @Query("SELECT * FROM trip_document_folders WHERE tripId = :tripId ORDER BY name ASC")
+    fun getAllByTripId(tripId: Int): Flow<List<TripDocumentFolderEntity>>
 }

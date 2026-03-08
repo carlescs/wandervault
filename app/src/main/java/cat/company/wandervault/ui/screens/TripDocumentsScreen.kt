@@ -12,6 +12,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,12 +25,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.DriveFileMove
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
@@ -118,6 +121,7 @@ internal fun TripDocumentsTabContent(
         onRenameFolder = viewModel::renameFolder,
         onDeleteFolder = viewModel::removeFolder,
         onRenameDocument = viewModel::renameDocument,
+        onMoveDocument = viewModel::moveDocument,
         onDeleteDocument = viewModel::removeDocument,
         onUploadFile = { filePicker.launch(arrayOf("*/*")) },
         onOpenDocument = { document ->
@@ -166,6 +170,7 @@ internal fun TripDocumentsContent(
     onRenameFolder: (TripDocumentFolder, String) -> Unit = { _, _ -> },
     onDeleteFolder: (TripDocumentFolder) -> Unit = {},
     onRenameDocument: (TripDocument, String) -> Unit = { _, _ -> },
+    onMoveDocument: (TripDocument, Int?) -> Unit = { _, _ -> },
     onDeleteDocument: (TripDocument) -> Unit = {},
     onUploadFile: () -> Unit = {},
     onOpenDocument: (TripDocument) -> Unit = {},
@@ -176,6 +181,7 @@ internal fun TripDocumentsContent(
     var folderToRename by remember { mutableStateOf<TripDocumentFolder?>(null) }
     var folderToDelete by remember { mutableStateOf<TripDocumentFolder?>(null) }
     var documentToRename by remember { mutableStateOf<TripDocument?>(null) }
+    var documentToMove by remember { mutableStateOf<TripDocument?>(null) }
     var documentToDelete by remember { mutableStateOf<TripDocument?>(null) }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -267,6 +273,7 @@ internal fun TripDocumentsContent(
                                     document = document,
                                     onOpen = { onOpenDocument(document) },
                                     onRename = { documentToRename = document },
+                                    onMove = { documentToMove = document },
                                     onDelete = { documentToDelete = document },
                                 )
                                 HorizontalDivider()
@@ -391,6 +398,18 @@ internal fun TripDocumentsContent(
         )
     }
 
+    documentToMove?.let { document ->
+        val allFolders = (uiState as? TripDocumentsUiState.Success)?.allFolders ?: emptyList()
+        MoveFolderPickerDialog(
+            allFolders = allFolders,
+            onMove = { targetFolderId ->
+                onMoveDocument(document, targetFolderId)
+                documentToMove = null
+            },
+            onDismiss = { documentToMove = null },
+        )
+    }
+
     documentToDelete?.let { document ->
         ConfirmDeleteDialog(
             title = stringResource(R.string.documents_delete_document_title),
@@ -507,6 +526,7 @@ private fun DocumentRow(
     document: TripDocument,
     onOpen: () -> Unit,
     onRename: () -> Unit,
+    onMove: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -537,6 +557,12 @@ private fun DocumentRow(
             Icon(
                 imageVector = Icons.Default.Edit,
                 contentDescription = stringResource(R.string.documents_rename_action),
+            )
+        }
+        IconButton(onClick = onMove) {
+            Icon(
+                imageVector = Icons.Default.DriveFileMove,
+                contentDescription = stringResource(R.string.documents_move_action),
             )
         }
         IconButton(onClick = onDelete) {
@@ -602,6 +628,78 @@ private fun ConfirmDeleteDialog(
                 Text(stringResource(R.string.documents_delete_confirm))
             }
         },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.dialog_cancel))
+            }
+        },
+    )
+}
+
+/**
+ * A dialog that lets the user pick a destination folder when moving a document.
+ *
+ * Shows a "Root (no folder)" option followed by all folders in the trip. Tapping an option
+ * immediately calls [onMove] with the selected folder ID (or `null` for root) and dismisses
+ * the dialog.
+ */
+@Composable
+private fun MoveFolderPickerDialog(
+    allFolders: List<TripDocumentFolder>,
+    onMove: (targetFolderId: Int?) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.documents_move_document_title)) },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                // Root option
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onMove(null) }
+                        .padding(vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.FolderOpen,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = stringResource(R.string.documents_move_to_root),
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                }
+                allFolders.forEach { folder ->
+                    HorizontalDivider()
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onMove(folder.id) }
+                            .padding(vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Folder,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = folder.name,
+                            style = MaterialTheme.typography.bodyLarge,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
+        },
+        // No confirm button — the dialog is dismissed automatically on item selection.
+        confirmButton = {},
         dismissButton = {
             TextButton(onClick = onDismiss) {
                 Text(stringResource(R.string.dialog_cancel))

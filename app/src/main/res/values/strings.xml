@@ -216,4 +216,7 @@
     <string name="documents_no_app_to_open">No app available to open this document</string>
     <string name="documents_empty_root_subtitle">Create a folder or upload a file to get started</string>
     <string name="documents_empty_folder_subtitle">Upload a file or create a sub-folder</string>
+    <string name="documents_move_action">Move</string>
+    <string name="documents_move_document_title">Move Document</string>
+    <string name="documents_move_to_root">Root (no folder)</string>
 </resources>
