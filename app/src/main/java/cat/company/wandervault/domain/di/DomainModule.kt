@@ -62,7 +62,7 @@ val domainModule = module {
     factory { UpdateTransportLegUseCase(get()) }
     factory { DeleteTransportLegUseCase(get()) }
     factory { DeleteTransportUseCase(get()) }
-    factory { DeleteTripUseCase(get()) }
+    factory { DeleteTripUseCase(get(), get(), get()) }
     factory { CopyImageToInternalStorageUseCase(get()) }
     factory { DeleteImageUseCase(get()) }
     factory { CreateBackupUseCase(get()) }

@@ -217,4 +217,12 @@ private class FakeTripDocumentRepository : TripDocumentRepository {
 
     override suspend fun copyDocumentToInternalStorage(sourceUri: String): String? =
         "file:///fake/documents/copy.pdf"
+
+    override suspend fun getAllDocumentUrisForTrip(tripId: Int): List<String> =
+        (rootDocuments[tripId]?.map { it.uri } ?: emptyList()) +
+            documents.values.flatten().filter { it.tripId == tripId }.map { it.uri }
+
+    override suspend fun deleteDocumentFileByUri(fileUri: String) {
+        // no-op in tests
+    }
 }

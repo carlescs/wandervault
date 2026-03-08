@@ -102,6 +102,12 @@ class TripDocumentRepositoryImpl(
             }
         }
 
+    override suspend fun getAllDocumentUrisForTrip(tripId: Int): List<String> =
+        documentDao.getAllDocumentUrisByTripId(tripId)
+
+    override suspend fun deleteDocumentFileByUri(fileUri: String) =
+        deleteFileFromInternalStorage(fileUri)
+
     /**
      * Enforces uniqueness for root-level folders where parentFolderId is null, since SQLite's
      * unique index treats NULL values as distinct and cannot enforce this constraint natively.

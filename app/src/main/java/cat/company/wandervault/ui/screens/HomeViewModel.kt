@@ -144,22 +144,12 @@ class HomeViewModel(
     fun onConfirmDeleteTrip() {
         val trip = _uiState.value.tripToDelete ?: return
         _uiState.update { it.copy(tripToDelete = null) }
-        val imageUri = trip.imageUri
         viewModelScope.launch {
             try {
                 deleteTrip(trip)
             } catch (e: Exception) {
-                // Trip deletion failed; do not attempt to delete the image to avoid inconsistency.
-                return@launch
-            }
-
-            if (imageUri != null && imageUri.startsWith("file://")) {
-                try {
-                    deleteImage(imageUri)
-                } catch (e: Exception) {
-                    // Best-effort image deletion; ignore failures so they don't affect app flow.
-                    Log.e(TAG, "Failed to delete trip image after trip deletion", e)
-                }
+                // Trip deletion failed; physical files are preserved to maintain consistency.
+                Log.e(TAG, "Failed to delete trip", e)
             }
         }
     }

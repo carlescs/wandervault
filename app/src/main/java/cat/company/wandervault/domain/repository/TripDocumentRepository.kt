@@ -41,4 +41,18 @@ interface TripDocumentRepository {
      * @return The internal file URI string, or `null` if the copy fails.
      */
     suspend fun copyDocumentToInternalStorage(sourceUri: String): String?
+
+    /**
+     * Returns the internal-storage URI strings for every document belonging to [tripId].
+     * Includes documents at root level and inside any folder. Intended for use before a trip is
+     * deleted so that physical files can be cleaned up after the DB cascade removes the rows.
+     */
+    suspend fun getAllDocumentUrisForTrip(tripId: Int): List<String>
+
+    /**
+     * Deletes the physical file at [fileUri] from internal document storage (best-effort).
+     * Only files inside the app's `filesDir/documents/` directory are affected; external URIs
+     * are silently ignored. Errors (missing file, I/O failure) are also silently ignored.
+     */
+    suspend fun deleteDocumentFileByUri(fileUri: String)
 }

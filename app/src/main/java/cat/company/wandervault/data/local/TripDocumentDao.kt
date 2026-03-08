@@ -53,4 +53,8 @@ interface TripDocumentDao {
         """,
     )
     suspend fun getDocumentUrisInFolderTree(rootFolderId: Int): List<String>
+
+    /** Returns the [uri] strings for every document belonging to [tripId] (all folders + root). */
+    @Query("SELECT uri FROM trip_documents WHERE tripId = :tripId")
+    suspend fun getAllDocumentUrisByTripId(tripId: Int): List<String>
 }
