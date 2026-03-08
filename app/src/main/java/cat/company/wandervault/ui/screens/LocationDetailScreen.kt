@@ -572,7 +572,7 @@ private fun HotelScanDialog(
                             Text(
                                 text = stringResource(
                                     R.string.scan_document_downloaded_bytes,
-                                    formatHotelScanBytes(scanState.bytesDownloaded),
+                                    formatScanBytes(scanState.bytesDownloaded),
                                 ),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -615,7 +615,12 @@ private fun HotelScanDialog(
                                 text = stringResource(R.string.scan_document_hotel_found),
                                 style = MaterialTheme.typography.labelLarge,
                             )
-                            buildHotelScanInfoText(hotel)?.let { info ->
+                            buildHotelScanInfoText(
+                                hotel = hotel,
+                                formattedRef = hotel.bookingReference?.let {
+                                    stringResource(R.string.documents_analyze_ref, it)
+                                },
+                            )?.let { info ->
                                 Text(
                                     text = info,
                                     style = MaterialTheme.typography.bodySmall,
@@ -651,20 +656,13 @@ private fun HotelScanDialog(
     )
 }
 
-/** Formats [bytes] as a human-readable size string (B / KB / MB). */
-private fun formatHotelScanBytes(bytes: Long): String = when {
-    bytes < 1_024 -> "$bytes B"
-    bytes < 1_048_576 -> "${bytes / 1_024} KB"
-    else -> "${"%.1f".format(bytes / 1_048_576.0)} MB"
-}
-
-/** Builds a short description of the extracted [HotelInfo], or `null` if all fields are blank. */
-private fun buildHotelScanInfoText(hotel: HotelInfo): String? {
-    val parts = listOfNotNull(
-        hotel.name?.ifBlank { null },
-        hotel.address?.ifBlank { null },
-        hotel.bookingReference?.let { "Ref: $it" },
-    )
+/** Builds a short description of the extracted hotel info, or `null` if all parts are blank. */
+private fun buildHotelScanInfoText(hotel: HotelInfo, formattedRef: String?): String? {
+    val parts = buildList {
+        hotel.name?.ifBlank { null }?.let { add(it) }
+        hotel.address?.ifBlank { null }?.let { add(it) }
+        formattedRef?.ifBlank { null }?.let { add(it) }
+    }
     return parts.joinToString(" · ").ifBlank { null }
 }
 

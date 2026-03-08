@@ -984,7 +984,18 @@ private fun DocumentScanDialog(
                                 text = stringResource(R.string.scan_document_flight_found),
                                 style = MaterialTheme.typography.labelLarge,
                             )
-                            buildFlightScanInfoText(flight)?.let { info ->
+                            buildFlightScanInfoText(
+                                flight = flight,
+                                formattedRef = flight.bookingReference?.let {
+                                    stringResource(R.string.documents_analyze_ref, it)
+                                },
+                                formattedFrom = flight.departurePlace?.let {
+                                    stringResource(R.string.documents_analyze_from, it)
+                                },
+                                formattedTo = flight.arrivalPlace?.let {
+                                    stringResource(R.string.documents_analyze_to, it)
+                                },
+                            )?.let { info ->
                                 Text(
                                     text = info,
                                     style = MaterialTheme.typography.bodySmall,
@@ -1020,21 +1031,20 @@ private fun DocumentScanDialog(
     )
 }
 
-/** Formats [bytes] as a human-readable size string (B / KB / MB). */
-private fun formatScanBytes(bytes: Long): String = when {
-    bytes < 1_024 -> "$bytes B"
-    bytes < 1_048_576 -> "${bytes / 1_024} KB"
-    else -> "${"%.1f".format(bytes / 1_048_576.0)} MB"
-}
-
-/** Builds a short description of the extracted [FlightInfo], or `null` if all fields are blank. */
-private fun buildFlightScanInfoText(flight: FlightInfo): String? {
-    val parts = listOfNotNull(
-        listOfNotNull(flight.airline, flight.flightNumber).joinToString(" ").ifBlank { null },
-        flight.bookingReference?.let { "Ref: $it" },
-        flight.departurePlace?.let { "From: $it" },
-        flight.arrivalPlace?.let { "To: $it" },
-    )
+/** Builds a short description of the extracted flight info, or `null` if all parts are blank. */
+private fun buildFlightScanInfoText(
+    flight: FlightInfo,
+    formattedRef: String?,
+    formattedFrom: String?,
+    formattedTo: String?,
+): String? {
+    val parts = buildList {
+        val nameAndNumber = listOfNotNull(flight.airline, flight.flightNumber).joinToString(" ")
+        if (nameAndNumber.isNotBlank()) add(nameAndNumber)
+        if (!formattedRef.isNullOrBlank()) add(formattedRef)
+        if (!formattedFrom.isNullOrBlank()) add(formattedFrom)
+        if (!formattedTo.isNullOrBlank()) add(formattedTo)
+    }
     return parts.joinToString(" · ").ifBlank { null }
 }
 
