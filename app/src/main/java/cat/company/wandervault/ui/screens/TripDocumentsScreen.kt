@@ -13,7 +13,6 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -59,7 +58,6 @@ import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -74,7 +72,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.core.net.toUri
@@ -523,19 +520,6 @@ private fun SpeedDialItem(
     }
 }
 
-// ── Row layout helpers ────────────────────────────────────────────────────────
-
-private const val ROW_HORIZONTAL_PADDING_DP = 32
-private const val ROW_ICON_DP = 48
-private const val ROW_MIN_TEXT_DP = 80
-
-/**
- * Returns the minimum row width at which [actionCount] inline action buttons fit alongside the
- * leading icon and a reasonably sized document/folder name.
- */
-private fun rowMinWidthForButtons(actionCount: Int): Dp =
-    (ROW_HORIZONTAL_PADDING_DP + ROW_ICON_DP + ROW_MIN_TEXT_DP + actionCount * ROW_ICON_DP).dp
-
 // ── Rows ──────────────────────────────────────────────────────────────────────
 
 @Composable
@@ -547,76 +531,55 @@ private fun FolderRow(
     modifier: Modifier = Modifier,
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
-    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
-        // Each action button occupies 48 dp. Reserve 32 dp for horizontal Row padding,
-        // 48 dp for the leading folder icon, and at least 80 dp for the name text.
-        val allButtonsFit = maxWidth >= rowMinWidthForButtons(actionCount = 2)
-        LaunchedEffect(allButtonsFit) { if (allButtonsFit) menuExpanded = false }
-        Row(
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(onClick = onClick) {
+            Icon(
+                imageVector = Icons.Default.Folder,
+                contentDescription = stringResource(R.string.documents_folder_content_desc, folder.name),
+                tint = MaterialTheme.colorScheme.primary,
+            )
+        }
+        Text(
+            text = folder.name,
+            style = MaterialTheme.typography.bodyLarge,
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            IconButton(onClick = onClick) {
+                .weight(1f)
+                .padding(start = 4.dp),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Box {
+            IconButton(onClick = { menuExpanded = true }) {
                 Icon(
-                    imageVector = Icons.Default.Folder,
-                    contentDescription = stringResource(R.string.documents_folder_content_desc, folder.name),
-                    tint = MaterialTheme.colorScheme.primary,
+                    imageVector = Icons.Default.MoreVert,
+                    contentDescription = stringResource(R.string.documents_more_options),
                 )
             }
-            Text(
-                text = folder.name,
-                style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(start = 4.dp),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (allButtonsFit) {
-                IconButton(onClick = onRename) {
-                    Icon(
-                        imageVector = Icons.Default.Edit,
-                        contentDescription = stringResource(R.string.documents_rename_action),
-                    )
-                }
-                IconButton(onClick = onDelete) {
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = stringResource(R.string.documents_delete_action),
-                    )
-                }
-            } else {
-                Box {
-                    IconButton(onClick = { menuExpanded = true }) {
-                        Icon(
-                            imageVector = Icons.Default.MoreVert,
-                            contentDescription = stringResource(R.string.documents_more_options),
-                        )
-                    }
-                    DropdownMenu(
-                        expanded = menuExpanded,
-                        onDismissRequest = { menuExpanded = false },
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.documents_rename_action)) },
-                            onClick = {
-                                menuExpanded = false
-                                onRename()
-                            },
-                            leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
-                        )
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.documents_delete_action)) },
-                            onClick = {
-                                menuExpanded = false
-                                onDelete()
-                            },
-                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
-                        )
-                    }
-                }
+            DropdownMenu(
+                expanded = menuExpanded,
+                onDismissRequest = { menuExpanded = false },
+            ) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.documents_rename_action)) },
+                    onClick = {
+                        menuExpanded = false
+                        onRename()
+                    },
+                    leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.documents_delete_action)) },
+                    onClick = {
+                        menuExpanded = false
+                        onDelete()
+                    },
+                    leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
+                )
             }
         }
     }
@@ -633,105 +596,72 @@ private fun DocumentRow(
     modifier: Modifier = Modifier,
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
-    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
-        // Each action button occupies 48 dp. Reserve 32 dp for horizontal Row padding,
-        // 48 dp for the leading document icon, and at least 80 dp for the name text.
-        val allButtonsFit = maxWidth >= rowMinWidthForButtons(actionCount = 4)
-        LaunchedEffect(allButtonsFit) { if (allButtonsFit) menuExpanded = false }
-        Row(
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(onClick = onOpen) {
+            Icon(
+                imageVector = Icons.Default.Description,
+                contentDescription = stringResource(R.string.documents_open_content_desc, document.name),
+                tint = MaterialTheme.colorScheme.secondary,
+            )
+        }
+        Text(
+            text = document.name,
+            style = MaterialTheme.typography.bodyLarge,
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            IconButton(onClick = onOpen) {
+                .weight(1f)
+                .padding(start = 4.dp)
+                .clickable(onClick = onOpen),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Box {
+            IconButton(onClick = { menuExpanded = true }) {
                 Icon(
-                    imageVector = Icons.Default.Description,
-                    contentDescription = stringResource(R.string.documents_open_content_desc, document.name),
-                    tint = MaterialTheme.colorScheme.secondary,
+                    imageVector = Icons.Default.MoreVert,
+                    contentDescription = stringResource(R.string.documents_more_options),
                 )
             }
-            Text(
-                text = document.name,
-                style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(start = 4.dp)
-                    .clickable(onClick = onOpen),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (allButtonsFit) {
-                IconButton(onClick = onAnalyze) {
-                    Icon(
-                        imageVector = Icons.Default.FindInPage,
-                        contentDescription = stringResource(R.string.documents_analyze_content_desc, document.name),
-                    )
-                }
-                IconButton(onClick = onRename) {
-                    Icon(
-                        imageVector = Icons.Default.Edit,
-                        contentDescription = stringResource(R.string.documents_rename_action),
-                    )
-                }
-                IconButton(onClick = onMove) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.DriveFileMove,
-                        contentDescription = stringResource(R.string.documents_move_action),
-                    )
-                }
-                IconButton(onClick = onDelete) {
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = stringResource(R.string.documents_delete_action),
-                    )
-                }
-            } else {
-                Box {
-                    IconButton(onClick = { menuExpanded = true }) {
-                        Icon(
-                            imageVector = Icons.Default.MoreVert,
-                            contentDescription = stringResource(R.string.documents_more_options),
-                        )
-                    }
-                    DropdownMenu(
-                        expanded = menuExpanded,
-                        onDismissRequest = { menuExpanded = false },
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.documents_analyze_action)) },
-                            onClick = {
-                                menuExpanded = false
-                                onAnalyze()
-                            },
-                            leadingIcon = { Icon(Icons.Default.FindInPage, contentDescription = null) },
-                        )
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.documents_rename_action)) },
-                            onClick = {
-                                menuExpanded = false
-                                onRename()
-                            },
-                            leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
-                        )
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.documents_move_action)) },
-                            onClick = {
-                                menuExpanded = false
-                                onMove()
-                            },
-                            leadingIcon = { Icon(Icons.AutoMirrored.Filled.DriveFileMove, contentDescription = null) },
-                        )
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.documents_delete_action)) },
-                            onClick = {
-                                menuExpanded = false
-                                onDelete()
-                            },
-                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
-                        )
-                    }
-                }
+            DropdownMenu(
+                expanded = menuExpanded,
+                onDismissRequest = { menuExpanded = false },
+            ) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.documents_analyze_action)) },
+                    onClick = {
+                        menuExpanded = false
+                        onAnalyze()
+                    },
+                    leadingIcon = { Icon(Icons.Default.FindInPage, contentDescription = null) },
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.documents_rename_action)) },
+                    onClick = {
+                        menuExpanded = false
+                        onRename()
+                    },
+                    leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.documents_move_action)) },
+                    onClick = {
+                        menuExpanded = false
+                        onMove()
+                    },
+                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.DriveFileMove, contentDescription = null) },
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.documents_delete_action)) },
+                    onClick = {
+                        menuExpanded = false
+                        onDelete()
+                    },
+                    leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
+                )
             }
         }
     }
