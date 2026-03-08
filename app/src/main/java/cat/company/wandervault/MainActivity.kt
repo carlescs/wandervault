@@ -51,7 +51,12 @@ class MainActivity : ComponentActivity() {
             WanderVaultTheme {
                 WanderVaultApp(
                     shareIntent = shareIntentState,
-                    onShareHandled = { shareIntentState = null },
+                    onShareHandled = {
+                        shareIntentState = null
+                        // Clear the intent so a configuration change does not re-open the share
+                        // overlay with the same document.
+                        setIntent(Intent(Intent.ACTION_MAIN))
+                    },
                 )
             }
         }

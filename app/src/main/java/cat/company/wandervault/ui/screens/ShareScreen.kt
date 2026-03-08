@@ -77,26 +77,35 @@ fun ShareScreen(shareIntent: Intent, onDismiss: () -> Unit) {
         @Suppress("DEPRECATION")
         shareIntent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)?.toString() ?: ""
     }
-    val mimeType: String = shareIntent.type ?: "*/*"
+    val mimeType: String = if (sharedUri.isNotEmpty()) {
+        context.contentResolver.getType(Uri.parse(sharedUri)) ?: (shareIntent.type ?: "*/*")
+    } else {
+        shareIntent.type ?: "*/*"
+    }
     val documentName: String = remember(sharedUri) {
         if (sharedUri.isNotEmpty()) {
-            context.contentResolver.query(
-                Uri.parse(sharedUri),
-                null,
-                null,
-                null,
-                null,
-            )?.use { cursor ->
-                val idx = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
-                if (idx >= 0 && cursor.moveToFirst()) cursor.getString(idx) else null
-            } ?: ""
+            runCatching {
+                context.contentResolver.query(
+                    Uri.parse(sharedUri),
+                    arrayOf(android.provider.OpenableColumns.DISPLAY_NAME),
+                    null,
+                    null,
+                    null,
+                )?.use { cursor ->
+                    val idx = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                    if (idx >= 0 && cursor.moveToFirst()) cursor.getString(idx) else null
+                }
+            }.getOrNull() ?: ""
         } else {
             ""
         }
     }.ifBlank { stringResource(R.string.share_document_name_fallback) }
 
+    // Use the URI as the key so the same document reuses the same ViewModel instance across
+    // configuration changes while ensuring each distinct document gets its own instance.
+    // This avoids the ViewModel accumulation issue that arises when using System.identityHashCode.
     val viewModel: ShareViewModel = koinViewModel(
-        key = remember(shareIntent) { "ShareViewModel:${System.identityHashCode(shareIntent)}" },
+        key = "ShareViewModel:$sharedUri",
         parameters = { parametersOf(sharedUri, mimeType, documentName) },
     )
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
