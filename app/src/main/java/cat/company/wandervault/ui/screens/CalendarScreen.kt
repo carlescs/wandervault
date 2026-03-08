@@ -1,6 +1,7 @@
 package cat.company.wandervault.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -67,11 +68,13 @@ import java.util.Locale
  *
  * @param tripId The ID of the trip whose calendar is shown.
  * @param innerPadding Scaffold inner padding forwarded from the parent [Scaffold].
+ * @param onDestinationClick Called with the destination ID when the user taps a stay in the legend.
  */
 @Composable
 internal fun CalendarTabContent(
     tripId: Int,
     innerPadding: PaddingValues,
+    onDestinationClick: (Int) -> Unit = {},
     viewModel: ItineraryViewModel = koinViewModel(key = "ItineraryViewModel:$tripId", parameters = { parametersOf(tripId) }),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -79,6 +82,7 @@ internal fun CalendarTabContent(
         destinations = uiState.destinations,
         isLoading = uiState.isLoading,
         innerPadding = innerPadding,
+        onDestinationClick = onDestinationClick,
     )
 }
 
@@ -135,12 +139,14 @@ private val STAY_COLOR_SCHEMES: List<StayColorScheme> = listOf(
  * @param destinations The list of destinations for the trip.
  * @param isLoading Whether the destinations are still being loaded.
  * @param innerPadding Scaffold inner padding to avoid content hidden behind bars.
+ * @param onDestinationClick Called with the destination ID when the user taps a stay in the legend.
  */
 @Composable
 internal fun CalendarContent(
     destinations: List<Destination>,
     isLoading: Boolean,
     innerPadding: PaddingValues,
+    onDestinationClick: (Int) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     // The earliest date across all destinations, used to jump to the right month on first load.
@@ -209,6 +215,7 @@ internal fun CalendarContent(
         StayLegendSection(
             destinations = destinations,
             displayedMonth = displayedMonth,
+            onDestinationClick = onDestinationClick,
         )
     }
 }
@@ -552,6 +559,7 @@ private fun DayCell(
 private fun StayLegendSection(
     destinations: List<Destination>,
     displayedMonth: YearMonth,
+    onDestinationClick: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val configuration = LocalConfiguration.current
@@ -589,7 +597,9 @@ private fun StayLegendSection(
         )
         staysInMonth.forEach { (dest, colorScheme) ->
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onDestinationClick(dest.id) },
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {

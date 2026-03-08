@@ -211,7 +211,11 @@ internal fun TripDetailContent(
                 onDestinationClick = onNavigateToDestination,
                 onTransportClick = onNavigateToTransport,
             )
-            TripDetailTab.CALENDAR -> CalendarTabContent(tripId = tripId, innerPadding = innerPadding)
+            TripDetailTab.CALENDAR -> CalendarTabContent(
+                tripId = tripId,
+                innerPadding = innerPadding,
+                onDestinationClick = onNavigateToDestination,
+            )
             TripDetailTab.DOCUMENTS -> TripDocumentsTabContent(tripId = tripId, innerPadding = innerPadding)
         }
     }
