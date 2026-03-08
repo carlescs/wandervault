@@ -235,6 +235,8 @@
     <string name="share_unknown_hotel">Unknown hotel</string>
     <string name="share_unnamed_flight_leg">Unnamed leg</string>
     <string name="documents_move_action">Move</string>
+    <string name="documents_analyze_action">Analyze</string>
+    <string name="documents_more_options">More options</string>
     <string name="documents_move_document_title">Move Document</string>
     <string name="documents_move_to_root">Root (no folder)</string>
     <string name="documents_analyze_content_desc">Analyze document: %s</string>
