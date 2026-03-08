@@ -375,9 +375,10 @@ internal fun TripDocumentsContent(
             label = stringResource(R.string.documents_folder_name_label),
             initialName = "",
             onConfirm = { name ->
+                showCreateFolderDialog = false
                 onCreateFolder(name)
             },
-            onDismiss = { },
+            onDismiss = { showCreateFolderDialog = false },
         )
     }
 
@@ -387,9 +388,10 @@ internal fun TripDocumentsContent(
             label = stringResource(R.string.documents_folder_name_label),
             initialName = folder.name,
             onConfirm = { newName ->
+                folderToRename = null
                 onRenameFolder(folder, newName)
             },
-            onDismiss = { },
+            onDismiss = { folderToRename = null },
         )
     }
 
@@ -398,9 +400,10 @@ internal fun TripDocumentsContent(
             title = stringResource(R.string.documents_delete_folder_title),
             message = stringResource(R.string.documents_delete_folder_message, folder.name),
             onConfirm = {
+                folderToDelete = null
                 onDeleteFolder(folder)
             },
-            onDismiss = { },
+            onDismiss = { folderToDelete = null },
         )
     }
 
@@ -410,9 +413,10 @@ internal fun TripDocumentsContent(
             label = stringResource(R.string.documents_name_label),
             initialName = document.name,
             onConfirm = { newName ->
+                documentToRename = null
                 onRenameDocument(document, newName)
             },
-            onDismiss = { },
+            onDismiss = { documentToRename = null },
         )
     }
 
@@ -421,9 +425,10 @@ internal fun TripDocumentsContent(
         MoveFolderPickerDialog(
             allFolders = allFolders,
             onMove = { targetFolderId ->
+                documentToMove = null
                 onMoveDocument(document, targetFolderId)
             },
-            onDismiss = { },
+            onDismiss = { documentToMove = null },
         )
     }
 
@@ -432,9 +437,10 @@ internal fun TripDocumentsContent(
             title = stringResource(R.string.documents_delete_document_title),
             message = stringResource(R.string.documents_delete_document_message, document.name),
             onConfirm = {
+                documentToDelete = null
                 onDeleteDocument(document)
             },
-            onDismiss = { },
+            onDismiss = { documentToDelete = null },
         )
     }
 
