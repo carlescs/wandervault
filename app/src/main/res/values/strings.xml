@@ -98,6 +98,7 @@
     <string name="calendar_previous_month">Previous month</string>
     <string name="calendar_next_month">Next month</string>
     <string name="calendar_stays_section_title">Stays</string>
+    <string name="calendar_stay_open_details">Open details</string>
 
     <!-- Itinerary planner -->
     <string name="itinerary_add_destination">Add destination</string>
