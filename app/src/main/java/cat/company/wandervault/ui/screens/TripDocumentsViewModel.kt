@@ -13,8 +13,11 @@ import cat.company.wandervault.domain.usecase.GetDocumentsInFolderUseCase
 import cat.company.wandervault.domain.usecase.GetRootDocumentsUseCase
 import cat.company.wandervault.domain.usecase.GetRootFoldersUseCase
 import cat.company.wandervault.domain.usecase.GetSubFoldersUseCase
+import cat.company.wandervault.domain.usecase.GetTripUseCase
 import cat.company.wandervault.domain.usecase.SaveDocumentUseCase
 import cat.company.wandervault.domain.usecase.SaveFolderUseCase
+import cat.company.wandervault.domain.usecase.SaveTripDescriptionUseCase
+import cat.company.wandervault.domain.usecase.SummarizeDocumentUseCase
 import cat.company.wandervault.domain.usecase.UpdateDocumentUseCase
 import cat.company.wandervault.domain.usecase.UpdateFolderUseCase
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -22,6 +25,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.launch
 
@@ -50,6 +54,9 @@ class TripDocumentsViewModel(
     private val updateDocument: UpdateDocumentUseCase,
     private val deleteDocument: DeleteDocumentUseCase,
     private val copyDocumentToInternalStorage: CopyDocumentToInternalStorageUseCase,
+    private val summarizeDocument: SummarizeDocumentUseCase,
+    private val getTrip: GetTripUseCase,
+    private val saveTripDescription: SaveTripDescriptionUseCase,
 ) : ViewModel() {
 
     /** Stack of folders the user has navigated into; empty = at root. */
@@ -142,8 +149,11 @@ class TripDocumentsViewModel(
      * the current folder, or to the trip root when no folder is open.
      *
      * [name] will be used as the document display name. [mimeType] should be the MIME type of
-     * the file (e.g. "application/pdf"). If the file copy fails the error is surfaced via
-     * [DocumentsWriteError.Generic].
+     * the file (e.g. "application/pdf"). After saving the document, ML Kit is used to extract a
+     * summary and any relevant trip information. The summary is stored in the document record, and
+     * any trip information found is saved as the trip's AI description if not already set.
+     *
+     * If the file copy fails the error is surfaced via [DocumentsWriteError.Generic].
      */
     fun addDocument(name: String, sourceUri: String, mimeType: String) {
         val currentFolder = _folderStack.value.lastOrNull()
@@ -159,6 +169,50 @@ class TripDocumentsViewModel(
                     mimeType = mimeType,
                 ),
             )
+            extractAndApplyDocumentInfo(internalUri, mimeType, name.trim())
+        }
+    }
+
+    /**
+     * Runs ML Kit document extraction on the file at [internalUri], then:
+     * 1. Updates the document record with the extracted summary.
+     * 2. Updates the trip's AI description with any extracted trip-relevant info if the trip
+     *    currently has no description.
+     *
+     * Extraction failures are logged and silently ignored so that the document upload always
+     * succeeds even when on-device AI is unavailable.
+     */
+    private suspend fun extractAndApplyDocumentInfo(
+        internalUri: String,
+        mimeType: String,
+        documentName: String,
+    ) {
+        try {
+            val result = summarizeDocument(internalUri, mimeType) ?: return
+            // Update the saved document with the extracted summary.
+            // Lookup by URI is safe because internalUri is a UUID-based filename.
+            val currentDocuments = if (_folderStack.value.isEmpty()) {
+                getRootDocuments(tripId).first()
+            } else {
+                val folderId = _folderStack.value.last().id
+                getDocumentsInFolder(folderId).first()
+            }
+            val savedDoc = currentDocuments.find { it.uri == internalUri }
+            if (savedDoc != null) {
+                updateDocument(savedDoc.copy(summary = result.summary))
+            }
+            // Update the trip description with extracted trip-relevant info if not yet set.
+            val relevantInfo = result.relevantTripInfo ?: return
+            val trip = getTrip(tripId).first()
+            if (trip == null) {
+                Log.w(TAG, "Trip $tripId not found; skipping description update for $documentName")
+                return
+            }
+            if (trip.aiDescription == null) {
+                saveTripDescription(trip, relevantInfo)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Document info extraction failed for $documentName", e)
         }
     }
 

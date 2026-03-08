@@ -2,6 +2,7 @@ package cat.company.wandervault.data.di
 
 import androidx.room.Room
 import cat.company.wandervault.data.local.WanderVaultDatabase
+import cat.company.wandervault.data.mlkit.DocumentSummaryRepositoryImpl
 import cat.company.wandervault.data.mlkit.TripDescriptionRepositoryImpl
 import cat.company.wandervault.data.repository.BackupRepositoryImpl
 import cat.company.wandervault.data.repository.DestinationRepositoryImpl
@@ -10,6 +11,7 @@ import cat.company.wandervault.data.repository.TransportRepositoryImpl
 import cat.company.wandervault.data.repository.TripDocumentRepositoryImpl
 import cat.company.wandervault.data.repository.TripRepositoryImpl
 import cat.company.wandervault.domain.repository.BackupRepository
+import cat.company.wandervault.domain.repository.DocumentSummaryRepository
 import cat.company.wandervault.domain.repository.DestinationRepository
 import cat.company.wandervault.data.repository.HotelRepositoryImpl
 import cat.company.wandervault.domain.repository.HotelRepository
@@ -42,6 +44,7 @@ val dataModule = module {
             WanderVaultDatabase.MIGRATION_12_13,
             WanderVaultDatabase.MIGRATION_13_14,
             WanderVaultDatabase.MIGRATION_14_15,
+            WanderVaultDatabase.MIGRATION_15_16,
         ).build()
     }
     single { get<WanderVaultDatabase>().tripDao() }
@@ -58,5 +61,6 @@ val dataModule = module {
     single<TripDocumentRepository> { TripDocumentRepositoryImpl(androidContext(), get(), get()) }
     single<ImageRepository> { ImageRepositoryImpl(androidContext()) }
     single<TripDescriptionRepository> { TripDescriptionRepositoryImpl() }
+    single<DocumentSummaryRepository> { DocumentSummaryRepositoryImpl(androidContext()) }
     single<BackupRepository> { BackupRepositoryImpl(androidContext(), get()) }
 }

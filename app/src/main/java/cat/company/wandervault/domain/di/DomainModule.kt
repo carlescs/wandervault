@@ -34,6 +34,7 @@ import cat.company.wandervault.domain.usecase.SaveDestinationUseCase
 import cat.company.wandervault.domain.usecase.SaveTransportLegUseCase
 import cat.company.wandervault.domain.usecase.SaveTripDescriptionUseCase
 import cat.company.wandervault.domain.usecase.SaveTripUseCase
+import cat.company.wandervault.domain.usecase.SummarizeDocumentUseCase
 import cat.company.wandervault.domain.usecase.UpdateDestinationUseCase
 import cat.company.wandervault.domain.usecase.UpdateDocumentUseCase
 import cat.company.wandervault.domain.usecase.UpdateFolderUseCase
@@ -81,4 +82,5 @@ val domainModule = module {
     factory { UpdateDocumentUseCase(get()) }
     factory { DeleteDocumentUseCase(get()) }
     factory { CopyDocumentToInternalStorageUseCase(get()) }
+    factory { SummarizeDocumentUseCase(get()) }
 }

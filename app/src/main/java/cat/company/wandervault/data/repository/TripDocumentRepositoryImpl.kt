@@ -184,6 +184,7 @@ private fun TripDocumentEntity.toDomain() = TripDocument(
     name = name,
     uri = uri,
     mimeType = mimeType,
+    summary = summary,
 )
 
 private fun TripDocument.toEntity() = TripDocumentEntity(
@@ -193,4 +194,5 @@ private fun TripDocument.toEntity() = TripDocumentEntity(
     name = name,
     uri = uri,
     mimeType = mimeType,
+    summary = summary,
 )
