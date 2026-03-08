@@ -227,6 +227,9 @@ private class FakeTripDocumentRepository : TripDocumentRepository {
     override fun getRootDocuments(tripId: Int): Flow<List<TripDocument>> =
         flowOf(rootDocuments[tripId] ?: emptyList())
 
+    override fun getAllFoldersForTrip(tripId: Int): Flow<List<TripDocumentFolder>> =
+        flowOf(emptyList())
+
     override suspend fun saveFolder(folder: TripDocumentFolder) {
         savedFolders.add(folder)
     }

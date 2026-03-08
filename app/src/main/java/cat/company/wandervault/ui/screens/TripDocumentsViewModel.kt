@@ -13,6 +13,7 @@ import cat.company.wandervault.domain.model.TripDocumentFolder
 import cat.company.wandervault.domain.usecase.CopyDocumentToInternalStorageUseCase
 import cat.company.wandervault.domain.usecase.DeleteDocumentUseCase
 import cat.company.wandervault.domain.usecase.DeleteFolderUseCase
+import cat.company.wandervault.domain.usecase.GetAllFoldersForTripUseCase
 import cat.company.wandervault.domain.usecase.GetDestinationsForTripUseCase
 import cat.company.wandervault.domain.usecase.GetDocumentsInFolderUseCase
 import cat.company.wandervault.domain.usecase.GetHotelForDestinationUseCase
@@ -63,6 +64,7 @@ class TripDocumentsViewModel(
     private val deleteDocument: DeleteDocumentUseCase,
     private val copyDocumentToInternalStorage: CopyDocumentToInternalStorageUseCase,
     private val summarizeDocument: SummarizeDocumentUseCase,
+    private val getAllFoldersForTrip: GetAllFoldersForTripUseCase,
     private val getTrip: GetTripUseCase,
     private val saveTripDescription: SaveTripDescriptionUseCase,
     private val getDestinationsForTrip: GetDestinationsForTripUseCase,
@@ -79,6 +81,9 @@ class TripDocumentsViewModel(
 
     init {
         viewModelScope.launch {
+            // allFoldersFlow is independent of navigation level, so it is hoisted outside
+            // flatMapLatest to avoid creating a new Room observer on every folder navigation.
+            val allFoldersFlow = getAllFoldersForTrip(tripId)
             _folderStack.flatMapLatest { stack ->
                 val currentFolder = stack.lastOrNull()
                 val foldersFlow = if (currentFolder == null) {
@@ -91,12 +96,13 @@ class TripDocumentsViewModel(
                 } else {
                     getDocumentsInFolder(currentFolder.id)
                 }
-                combine(foldersFlow, documentsFlow) { folders, documents ->
+                combine(foldersFlow, documentsFlow, allFoldersFlow) { folders, documents, allFolders ->
                     TripDocumentsUiState.Success(
                         folders = folders,
                         documents = documents,
                         currentFolder = currentFolder,
                         folderStack = stack,
+                        allFolders = allFolders,
                         // writeError is not preserved across data refreshes: a successful write
                         // triggers a new DB emission which clears any prior error naturally.
                     )
@@ -360,6 +366,11 @@ class TripDocumentsViewModel(
     /** Renames [document] to [newName]. */
     fun renameDocument(document: TripDocument, newName: String) {
         launchWrite { updateDocument(document.copy(name = newName.trim())) }
+    }
+
+    /** Moves [document] to the folder with [targetFolderId], or to root level when `null`. */
+    fun moveDocument(document: TripDocument, targetFolderId: Int?) {
+        launchWrite { updateDocument(document.copy(folderId = targetFolderId)) }
     }
 
     /** Permanently removes [document]. */

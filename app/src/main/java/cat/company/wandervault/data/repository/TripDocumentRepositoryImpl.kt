@@ -44,6 +44,9 @@ class TripDocumentRepositoryImpl(
     override fun getRootDocuments(tripId: Int): Flow<List<TripDocument>> =
         documentDao.getRootDocuments(tripId).map { list -> list.map { it.toDomain() } }
 
+    override fun getAllFoldersForTrip(tripId: Int): Flow<List<TripDocumentFolder>> =
+        folderDao.getAllByTripId(tripId).map { list -> list.map { it.toDomain() } }
+
     override suspend fun saveFolder(folder: TripDocumentFolder) {
         requireUniqueFolderName(folder)
         folderDao.insert(folder.toEntity())

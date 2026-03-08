@@ -18,6 +18,9 @@ interface TripDocumentRepository {
     /** Returns a [Flow] emitting root-level documents (no folder) for [tripId], ordered by name. */
     fun getRootDocuments(tripId: Int): Flow<List<TripDocument>>
 
+    /** Returns a [Flow] emitting all folders (at any depth) for [tripId], ordered by name. */
+    fun getAllFoldersForTrip(tripId: Int): Flow<List<TripDocumentFolder>>
+
     /** Persists a new [folder]. */
     suspend fun saveFolder(folder: TripDocumentFolder)
 
