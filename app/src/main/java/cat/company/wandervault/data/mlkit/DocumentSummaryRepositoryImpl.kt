@@ -21,7 +21,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.io.IOException
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
@@ -104,7 +103,7 @@ class DocumentSummaryRepositoryImpl(private val context: Context) : DocumentSumm
                 context.contentResolver.openInputStream(uri) ?: return@withContext null
             }
             inputStream.use { it.reader().readText().take(MAX_DOCUMENT_CHARS) }
-        } catch (e: IOException) {
+        } catch (e: Exception) {
             Log.w(TAG, "Failed to read document text from $fileUri", e)
             null
         }

@@ -169,7 +169,7 @@ class TripDocumentsViewModel(
                     mimeType = mimeType,
                 ),
             )
-            extractAndApplyDocumentInfo(internalUri, mimeType, name.trim())
+            extractAndApplyDocumentInfo(internalUri, mimeType, name.trim(), currentFolder?.id)
         }
     }
 
@@ -179,6 +179,10 @@ class TripDocumentsViewModel(
      * 2. Updates the trip's AI description with any extracted trip-relevant info if the trip
      *    currently has no description.
      *
+     * [folderId] is the ID of the folder the document was saved into (null = trip root). It is
+     * captured at upload time so that navigation changes during the (potentially long) ML Kit
+     * extraction do not affect which document list is queried.
+     *
      * Extraction failures are logged and silently ignored so that the document upload always
      * succeeds even when on-device AI is unavailable.
      */
@@ -186,15 +190,15 @@ class TripDocumentsViewModel(
         internalUri: String,
         mimeType: String,
         documentName: String,
+        folderId: Int?,
     ) {
         try {
             val result = summarizeDocument(internalUri, mimeType) ?: return
             // Update the saved document with the extracted summary.
             // Lookup by URI is safe because internalUri is a UUID-based filename.
-            val currentDocuments = if (_folderStack.value.isEmpty()) {
+            val currentDocuments = if (folderId == null) {
                 getRootDocuments(tripId).first()
             } else {
-                val folderId = _folderStack.value.last().id
                 getDocumentsInFolder(folderId).first()
             }
             val savedDoc = currentDocuments.find { it.uri == internalUri }
