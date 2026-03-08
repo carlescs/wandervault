@@ -14,9 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -172,14 +170,12 @@ internal fun TripDetailContent(
                     }
                 },
                 navigationIcon = {
-                    if (!isImageCoveringTopBar || scrolledFraction > 0f) {
-                        IconButton(onClick = onNavigateUp) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = stringResource(R.string.trip_detail_navigate_up),
-                                tint = navIconColor,
-                            )
-                        }
+                    IconButton(onClick = onNavigateUp) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.trip_detail_navigate_up),
+                            tint = navIconColor,
+                        )
                     }
                 },
                 scrollBehavior = if (isImageCoveringTopBar) scrollBehavior else null,
@@ -205,9 +201,7 @@ internal fun TripDetailContent(
             TripDetailTab.DETAILS -> TripDetailsTabContent(
                 uiState = uiState,
                 innerPadding = innerPadding,
-                onNavigateUp = onNavigateUp,
                 isImageCoveringTopBar = isImageCoveringTopBar,
-                scrolledFraction = scrolledFraction,
                 onRegenerateDescription = onRegenerateDescription,
                 onDeleteDescription = onDeleteDescription,
             )
@@ -253,9 +247,7 @@ private fun TripDetailBottomBar(
 private fun TripDetailsTabContent(
     uiState: TripDetailUiState,
     innerPadding: PaddingValues,
-    onNavigateUp: () -> Unit,
     isImageCoveringTopBar: Boolean = false,
-    scrolledFraction: Float = 0f,
     onRegenerateDescription: () -> Unit = {},
     onDeleteDescription: () -> Unit = {},
 ) {
@@ -289,15 +281,14 @@ private fun TripDetailsTabContent(
         is TripDetailUiState.Success -> {
             val trip = uiState.trip
             val formatter = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
-            Box(modifier = Modifier.fillMaxSize()) {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = if (isImageCoveringTopBar) {
-                        PaddingValues(bottom = innerPadding.calculateBottomPadding())
-                    } else {
-                        innerPadding
-                    },
-                ) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = if (isImageCoveringTopBar) {
+                    PaddingValues(bottom = innerPadding.calculateBottomPadding())
+                } else {
+                    innerPadding
+                },
+            ) {
                     if (trip.imageUri != null) {
                         item {
                             val imageHeight = if (isImageCoveringTopBar) {
@@ -350,21 +341,6 @@ private fun TripDetailsTabContent(
                         }
                     }
                 }
-                if (isImageCoveringTopBar && scrolledFraction <= 0f) {
-                    IconButton(
-                        onClick = onNavigateUp,
-                        modifier = Modifier
-                            .align(Alignment.TopStart)
-                            .windowInsetsPadding(WindowInsets.statusBars),
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.trip_detail_navigate_up),
-                            tint = Color.White,
-                        )
-                    }
-                }
-            }
         }
     }
 }
