@@ -1157,6 +1157,8 @@ private fun AnalyzeHotelDestinationSelectionDialog(
                                 Text(
                                     text = destination.name,
                                     style = MaterialTheme.typography.bodyMedium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
                                 )
                                 val arrival = destination.arrivalDateTime?.toLocalDate()
                                 val departure = destination.departureDateTime?.toLocalDate()

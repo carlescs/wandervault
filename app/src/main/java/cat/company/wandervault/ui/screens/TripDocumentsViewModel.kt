@@ -322,8 +322,9 @@ class TripDocumentsViewModel(
      * Matching priority:
      * 1. Existing hotel whose [Hotel.reservationNumber] matches the extracted booking reference.
      * 2. Existing hotel whose [Hotel.name] matches the extracted hotel name.
-     * 3. First destination that has no hotel yet (a new [Hotel] is created for it).
-     * 4. First destination's hotel (last resort).
+     * 3. Destination whose arrival date matches the extracted check-in date.
+     * 4. First destination that has no hotel yet (a new [Hotel] is created for it).
+     * 5. First destination's hotel (last resort).
      *
      * Only blank fields on the matched hotel are updated; existing non-blank values are preserved.
      */
