@@ -16,7 +16,7 @@ enum class DocumentsWriteError {
 }
 
 /**
- * State of an in-progress or completed document analysis, shown via [AnalyzeDocumentDialog].
+ * State of an in-progress or completed document analysis, shown in the document analysis dialog.
  */
 sealed class AnalyzeDocumentUiState {
     /** ML Kit analysis is running. */

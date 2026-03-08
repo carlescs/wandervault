@@ -30,6 +30,7 @@ import cat.company.wandervault.domain.usecase.UpdateDocumentUseCase
 import cat.company.wandervault.domain.usecase.UpdateFolderUseCase
 import cat.company.wandervault.domain.usecase.UpdateTransportLegUseCase
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -78,6 +79,9 @@ class TripDocumentsViewModel(
 
     /** Current document analysis state; decoupled from the DB flow to avoid race conditions. */
     private val _analyzeState = MutableStateFlow<AnalyzeDocumentUiState?>(null)
+
+    /** The coroutine running the current document analysis, kept so it can be cancelled. */
+    private var analyzeJob: Job? = null
 
     private val _uiState = MutableStateFlow<TripDocumentsUiState>(TripDocumentsUiState.Loading)
     val uiState: StateFlow<TripDocumentsUiState> = _uiState.asStateFlow()
@@ -390,32 +394,45 @@ class TripDocumentsViewModel(
      * [AnalyzeDocumentUiState.Result] with the extraction result. On failure sets
      * [AnalyzeDocumentUiState.Error].
      *
-     * Also updates the document's stored summary if a new one is extracted.
+     * Also updates the document's stored summary if a new one is extracted (best-effort:
+     * a DB failure persisting the summary does not affect the displayed result).
      */
     fun analyzeDocument(document: TripDocument) {
+        analyzeJob?.cancel()
         _analyzeState.value = AnalyzeDocumentUiState.Loading
-        viewModelScope.launch {
-            try {
-                val result = summarizeDocument(document.uri, document.mimeType)
-                if (result == null) {
+        analyzeJob = viewModelScope.launch {
+            val result = try {
+                val analysisResult = summarizeDocument(document.uri, document.mimeType)
+                if (analysisResult == null) {
                     Log.w(TAG, "summarizeDocument returned null for ${document.name}; skipping analysis")
                     _analyzeState.value = AnalyzeDocumentUiState.Error
                     return@launch
                 }
-                // Set the result before persisting so the UI immediately shows the analysis.
-                _analyzeState.value = AnalyzeDocumentUiState.Result(document, result)
-                // Persist the refreshed summary on the document record (best-effort).
-                updateDocument(document.copy(summary = result.summary))
+                // Set the result immediately so the UI shows the analysis without waiting for DB.
+                _analyzeState.value = AnalyzeDocumentUiState.Result(document, analysisResult)
+                analysisResult
             } catch (e: Exception) {
                 Log.w(TAG, "Document analysis failed for ${document.name}", e)
                 _analyzeState.value = AnalyzeDocumentUiState.Error
+                return@launch
+            }
+
+            // Persist the refreshed summary on the document record (best-effort).
+            try {
+                updateDocument(document.copy(summary = result.summary))
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to persist refreshed summary for ${document.name}", e)
+                setWriteError(DocumentsWriteError.Generic)
             }
         }
     }
 
     /**
-     * Applies the trip changes proposed in the current [AnalyzeDocumentUiState.Result] and then
-     * dismisses the dialog.
+     * Dismisses the dialog before applying the trip changes proposed in the current
+     * [AnalyzeDocumentUiState.Result].
+     *
+     * The dialog is dismissed first so the user sees the screen return to normal state
+     * immediately; the apply work continues in the background.
      *
      * No-op when the analyze state is not [AnalyzeDocumentUiState.Result].
      */
@@ -450,8 +467,12 @@ class TripDocumentsViewModel(
         }
     }
 
-    /** Dismisses the document analysis dialog. */
+    /**
+     * Cancels any in-flight analysis and dismisses the document analysis dialog.
+     */
     fun dismissAnalyze() {
+        analyzeJob?.cancel()
+        analyzeJob = null
         _analyzeState.value = null
     }
 

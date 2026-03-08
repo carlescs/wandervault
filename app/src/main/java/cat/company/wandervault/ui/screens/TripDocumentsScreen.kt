@@ -831,9 +831,15 @@ private fun AnalyzeDocumentDialog(
                                     label = stringResource(R.string.documents_analyze_flight_info_label),
                                     info = buildFlightInfoText(
                                         flight = flight,
-                                        fromLabel = stringResource(R.string.documents_analyze_from),
-                                        toLabel = stringResource(R.string.documents_analyze_to),
-                                        refLabel = stringResource(R.string.documents_analyze_ref),
+                                        formattedFrom = flight.departurePlace?.let {
+                                            stringResource(R.string.documents_analyze_from, it)
+                                        },
+                                        formattedTo = flight.arrivalPlace?.let {
+                                            stringResource(R.string.documents_analyze_to, it)
+                                        },
+                                        formattedRef = flight.bookingReference?.let {
+                                            stringResource(R.string.documents_analyze_ref, it)
+                                        },
                                     ),
                                 )
                             }
@@ -842,7 +848,9 @@ private fun AnalyzeDocumentDialog(
                                     label = stringResource(R.string.documents_analyze_hotel_info_label),
                                     info = buildHotelInfoText(
                                         hotel = hotel,
-                                        refLabel = stringResource(R.string.documents_analyze_ref),
+                                        formattedRef = hotel.bookingReference?.let {
+                                            stringResource(R.string.documents_analyze_ref, it)
+                                        },
                                     ),
                                 )
                             }
@@ -889,23 +897,23 @@ private fun AnalyzeInfoSection(label: String, info: String) {
 
 private fun buildFlightInfoText(
     flight: FlightInfo,
-    fromLabel: String,
-    toLabel: String,
-    refLabel: String,
+    formattedFrom: String?,
+    formattedTo: String?,
+    formattedRef: String?,
 ): String =
     listOfNotNull(
         flight.airline,
         flight.flightNumber,
-        flight.departurePlace?.let { fromLabel.format(it) },
-        flight.arrivalPlace?.let { toLabel.format(it) },
-        flight.bookingReference?.let { refLabel.format(it) },
+        formattedFrom,
+        formattedTo,
+        formattedRef,
     ).joinToString(" · ")
 
-private fun buildHotelInfoText(hotel: HotelInfo, refLabel: String): String =
+private fun buildHotelInfoText(hotel: HotelInfo, formattedRef: String?): String =
     listOfNotNull(
         hotel.name,
         hotel.address,
-        hotel.bookingReference?.let { refLabel.format(it) },
+        formattedRef,
     ).joinToString(" · ")
 
 private fun DocumentExtractionResult.hasProposedChanges(): Boolean =

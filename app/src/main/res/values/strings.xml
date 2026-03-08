@@ -237,7 +237,6 @@
     <string name="documents_move_action">Move</string>
     <string name="documents_move_document_title">Move Document</string>
     <string name="documents_move_to_root">Root (no folder)</string>
-    <string name="documents_analyze_action">Analyze</string>
     <string name="documents_analyze_content_desc">Analyze document: %s</string>
     <string name="documents_analyze_title">Document Analysis</string>
     <string name="documents_analyze_analyzing">Analyzing document…</string>
