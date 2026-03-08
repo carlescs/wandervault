@@ -48,6 +48,15 @@ class DocumentSummaryRepositoryImpl(private val context: Context) : DocumentSumm
         TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
     }
 
+    /**
+     * Reads the document at [fileUri] and uses on-device Gemini Nano to extract a summary and
+     * any trip-relevant information.
+     *
+     * Returns `null` only when the on-device AI feature is permanently
+     * [FeatureStatus.UNAVAILABLE] on this device, or when the document text cannot be read.
+     * Any transient failure (model download error, generation error, etc.) is thrown as an
+     * exception so callers can distinguish permanent unavailability from retriable errors.
+     */
     override suspend fun extractDocumentInfo(
         fileUri: String,
         mimeType: String,
@@ -59,18 +68,13 @@ class DocumentSummaryRepositoryImpl(private val context: Context) : DocumentSumm
                 FeatureStatus.DOWNLOADABLE -> awaitDownload()
                 FeatureStatus.AVAILABLE -> Unit
             }
-            try {
-                val request = generateContentRequest(TextPart(buildPrompt(text))) {
-                    maxOutputTokens = MAX_OUTPUT_TOKENS
-                }
-                val response = generationClient.generateContent(request)
-                val rawOutput = response.candidates.firstOrNull()?.text
-                    ?.trim() ?: return@withContext null
-                parseResponse(rawOutput)
-            } catch (e: Exception) {
-                Log.w(TAG, "Gemini Nano document extraction failed", e)
-                null
+            val request = generateContentRequest(TextPart(buildPrompt(text))) {
+                maxOutputTokens = MAX_OUTPUT_TOKENS
             }
+            val response = generationClient.generateContent(request)
+            val rawOutput = response.candidates.firstOrNull()?.text
+                ?.trim() ?: return@withContext null
+            parseResponse(rawOutput)
         }
     }
 
