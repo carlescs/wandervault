@@ -8,6 +8,7 @@ import cat.company.wandervault.domain.model.Destination
 import cat.company.wandervault.domain.model.FlightInfo
 import cat.company.wandervault.domain.model.Hotel
 import cat.company.wandervault.domain.model.HotelInfo
+import cat.company.wandervault.domain.model.TransportLeg
 import cat.company.wandervault.domain.model.TransportType
 import cat.company.wandervault.domain.model.TripDocument
 import cat.company.wandervault.domain.model.TripDocumentFolder
@@ -83,6 +84,9 @@ class TripDocumentsViewModel(
 
     /** The coroutine running the current document analysis, kept so it can be cancelled. */
     private var analyzeJob: Job? = null
+
+    /** Pending flight info kept alive across the [AnalyzeDocumentUiState.FlightLegSelection] dialog. */
+    private var pendingFlightInfo: FlightInfo? = null
 
     /** Pending hotel info kept alive across the [AnalyzeDocumentUiState.HotelDestinationSelection] dialog. */
     private var pendingHotelInfo: HotelInfo? = null
@@ -457,13 +461,15 @@ class TripDocumentsViewModel(
         val documentName = analyzeResult.document.name
         when {
             result.flightInfo != null -> {
-                dismissAnalyze()
+                // Don't dismiss yet — check for a confident match first so we can show
+                // a flight-leg selection dialog when the leg is ambiguous.
                 viewModelScope.launch {
                     try {
-                        applyFlightInfo(result.flightInfo, documentName)
+                        applyOrDisambiguateFlightInfo(result.flightInfo, documentName)
                     } catch (e: Exception) {
                         Log.e(TAG, "Failed to apply flight info for trip $tripId", e)
                         setWriteError(DocumentsWriteError.Generic)
+                        dismissAnalyze()
                     }
                 }
             }
@@ -527,11 +533,35 @@ class TripDocumentsViewModel(
     }
 
     /**
+     * Called when the user picks a [TransportLeg] from the flight disambiguation dialog.
+     * Applies [pendingFlightInfo] to the chosen leg and dismisses the dialog.
+     */
+    fun onFlightLegSelected(leg: TransportLeg) {
+        val flightInfo = pendingFlightInfo ?: run {
+            Log.w(TAG, "onFlightLegSelected called with no pending flight info; dismissing")
+            dismissAnalyze()
+            return
+        }
+        pendingFlightInfo = null
+        viewModelScope.launch {
+            try {
+                applyFlightInfoToLeg(flightInfo, leg)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to apply flight info to selected leg", e)
+                setWriteError(DocumentsWriteError.Generic)
+            } finally {
+                dismissAnalyze()
+            }
+        }
+    }
+
+    /**
      * Cancels any in-flight analysis and dismisses the document analysis dialog.
      */
     fun dismissAnalyze() {
         analyzeJob?.cancel()
         analyzeJob = null
+        pendingFlightInfo = null
         pendingHotelInfo = null
         _analyzeState.value = null
     }
@@ -608,6 +638,69 @@ class TripDocumentsViewModel(
                     reservationNumber = hotelInfo.bookingReference ?: "",
                 ),
             )
+        }
+    }
+
+    /**
+     * Checks [flightInfo] against all FLIGHT-type legs in this trip.
+     *
+     * A *confident* match requires the flight number **or** booking reference to match exactly
+     * (case-insensitive). When there is a confident match the dialog is dismissed and the leg
+     * is updated immediately. When there is no confident match but there are flight legs, the
+     * state transitions to [AnalyzeDocumentUiState.FlightLegSelection] so the user can pick.
+     * When there are no flight legs at all the info is silently skipped.
+     */
+    private suspend fun applyOrDisambiguateFlightInfo(flightInfo: FlightInfo, documentName: String) {
+        val allFlightLegs = getDestinationsForTrip(tripId).first()
+            .flatMap { dest -> dest.transport?.legs.orEmpty() }
+            .filter { it.type == TransportType.FLIGHT }
+
+        if (allFlightLegs.isEmpty()) {
+            Log.d(TAG, "No flight legs in trip $tripId; skipping flight info from $documentName")
+            dismissAnalyze()
+            return
+        }
+
+        val confidentMatch = allFlightLegs.firstOrNull { leg ->
+            flightInfo.flightNumber != null &&
+                leg.flightNumber?.equals(flightInfo.flightNumber, ignoreCase = true) == true
+        } ?: allFlightLegs.firstOrNull { leg ->
+            flightInfo.bookingReference != null &&
+                leg.reservationConfirmationNumber?.equals(
+                    flightInfo.bookingReference,
+                    ignoreCase = true,
+                ) == true
+        }
+
+        if (confidentMatch != null) {
+            applyFlightInfoToLeg(flightInfo, confidentMatch)
+            dismissAnalyze()
+        } else {
+            pendingFlightInfo = flightInfo
+            _analyzeState.value = AnalyzeDocumentUiState.FlightLegSelection(
+                flightInfo = flightInfo,
+                candidates = allFlightLegs,
+            )
+        }
+    }
+
+    /**
+     * Applies [flightInfo] to [leg], filling only blank fields and preserving existing non-blank
+     * values. Persists the change via [updateTransportLeg] only when the leg actually changes.
+     */
+    private suspend fun applyFlightInfoToLeg(
+        flightInfo: FlightInfo,
+        leg: TransportLeg,
+    ) {
+        val updatedLeg = leg.copy(
+            company = leg.company?.ifBlank { null } ?: flightInfo.airline,
+            flightNumber = leg.flightNumber?.ifBlank { null } ?: flightInfo.flightNumber,
+            reservationConfirmationNumber = leg.reservationConfirmationNumber
+                ?.ifBlank { null } ?: flightInfo.bookingReference,
+            stopName = leg.stopName?.ifBlank { null } ?: flightInfo.arrivalPlace,
+        )
+        if (updatedLeg != leg) {
+            updateTransportLeg(updatedLeg)
         }
     }
 
