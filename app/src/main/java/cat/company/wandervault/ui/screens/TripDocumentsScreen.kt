@@ -2,7 +2,6 @@ package cat.company.wandervault.ui.screens
 
 import android.content.ActivityNotFoundException
 import android.content.Intent
-import android.net.Uri
 import android.webkit.MimeTypeMap
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -12,7 +11,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -28,18 +26,19 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.DriveFileMove
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.DriveFileMove
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.FindInPage
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
-import androidx.compose.material.icons.filled.FindInPage
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material3.AlertDialog
@@ -74,6 +73,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
+import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cat.company.wandervault.R
 import cat.company.wandervault.domain.model.DocumentExtractionResult
@@ -90,7 +90,7 @@ import java.io.File
  * Documents tab entry point for the Trip Detail screen.
  *
  * @param tripId The ID of the trip whose documents are shown.
- * @param innerPadding Padding values provided by the parent [Scaffold].
+ * @param innerPadding Padding values provided by the parent [androidx.compose.material3.Scaffold].
  */
 @Composable
 internal fun TripDocumentsTabContent(
@@ -138,7 +138,7 @@ internal fun TripDocumentsTabContent(
         onUploadFile = { filePicker.launch(arrayOf("*/*")) },
         onOpenDocument = { document ->
             try {
-                val uri = Uri.parse(document.uri)
+                val uri = document.uri.toUri()
                 val contentUri = if (uri.scheme == "file") {
                     val path = uri.path
                         ?: throw IllegalArgumentException("File URI has no path: $uri")
@@ -155,9 +155,9 @@ internal fun TripDocumentsTabContent(
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 }
                 context.startActivity(intent)
-            } catch (e: ActivityNotFoundException) {
+            } catch (_: ActivityNotFoundException) {
                 android.widget.Toast.makeText(context, noAppMessage, android.widget.Toast.LENGTH_SHORT).show()
-            } catch (e: IllegalArgumentException) {
+            } catch (_: IllegalArgumentException) {
                 android.widget.Toast.makeText(context, noAppMessage, android.widget.Toast.LENGTH_SHORT).show()
             }
         },
@@ -173,7 +173,7 @@ internal fun TripDocumentsTabContent(
  *
  * Supports folder navigation, create/rename/delete dialogs, document rename/delete/move/analyze,
  * file upload (via [onUploadFile]), and document open (via [onOpenDocument]).
- * [onErrorDismiss] is called when the user acknowledges a transient write error.
+ * [onErrorDismiss] is called when the user acknowledges a transient writing error.
  */
 @Composable
 internal fun TripDocumentsContent(
@@ -214,7 +214,7 @@ internal fun TripDocumentsContent(
                         .fillMaxSize()
                         .padding(innerPadding),
                 ) {
-                    // Breadcrumb / back row when inside a sub-folder
+                    // Breadcrumb / back row when inside a subfolder
                     if (uiState.currentFolder != null) {
                         // Drop the current folder from the stack to find the immediate parent.
                         val parentName = uiState.folderStack
@@ -375,9 +375,8 @@ internal fun TripDocumentsContent(
             initialName = "",
             onConfirm = { name ->
                 onCreateFolder(name)
-                showCreateFolderDialog = false
             },
-            onDismiss = { showCreateFolderDialog = false },
+            onDismiss = { },
         )
     }
 
@@ -388,9 +387,8 @@ internal fun TripDocumentsContent(
             initialName = folder.name,
             onConfirm = { newName ->
                 onRenameFolder(folder, newName)
-                folderToRename = null
             },
-            onDismiss = { folderToRename = null },
+            onDismiss = { },
         )
     }
 
@@ -400,9 +398,8 @@ internal fun TripDocumentsContent(
             message = stringResource(R.string.documents_delete_folder_message, folder.name),
             onConfirm = {
                 onDeleteFolder(folder)
-                folderToDelete = null
             },
-            onDismiss = { folderToDelete = null },
+            onDismiss = { },
         )
     }
 
@@ -413,9 +410,8 @@ internal fun TripDocumentsContent(
             initialName = document.name,
             onConfirm = { newName ->
                 onRenameDocument(document, newName)
-                documentToRename = null
             },
-            onDismiss = { documentToRename = null },
+            onDismiss = { },
         )
     }
 
@@ -425,9 +421,8 @@ internal fun TripDocumentsContent(
             allFolders = allFolders,
             onMove = { targetFolderId ->
                 onMoveDocument(document, targetFolderId)
-                documentToMove = null
             },
-            onDismiss = { documentToMove = null },
+            onDismiss = { },
         )
     }
 
@@ -437,13 +432,12 @@ internal fun TripDocumentsContent(
             message = stringResource(R.string.documents_delete_document_message, document.name),
             onConfirm = {
                 onDeleteDocument(document)
-                documentToDelete = null
             },
-            onDismiss = { documentToDelete = null },
+            onDismiss = { },
         )
     }
 
-    // Show the analyze dialog when an analysis is in progress or has a result.
+    // Show the analysis dialog when an analysis is in progress or has a result.
     val analyzeState = (uiState as? TripDocumentsUiState.Success)?.analyzeState
     if (analyzeState != null) {
         AnalyzeDocumentDialog(
@@ -658,7 +652,7 @@ private fun DocumentRow(
                 }
                 IconButton(onClick = onMove) {
                     Icon(
-                        imageVector = Icons.Default.DriveFileMove,
+                        imageVector = Icons.AutoMirrored.Filled.DriveFileMove,
                         contentDescription = stringResource(R.string.documents_move_action),
                     )
                 }
@@ -702,7 +696,7 @@ private fun DocumentRow(
                                 menuExpanded = false
                                 onMove()
                             },
-                            leadingIcon = { Icon(Icons.Default.DriveFileMove, contentDescription = null) },
+                            leadingIcon = { Icon(Icons.AutoMirrored.Filled.DriveFileMove, contentDescription = null) },
                         )
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.documents_delete_action)) },
@@ -845,7 +839,7 @@ private fun MoveFolderPickerDialog(
                 }
             }
         },
-        // No confirm button — the dialog is dismissed automatically on item selection.
+        // No confirmation button — the dialog is dismissed automatically on item selection.
         confirmButton = {},
         dismissButton = {
             TextButton(onClick = onDismiss) {
@@ -859,7 +853,7 @@ private fun MoveFolderPickerDialog(
  * Builds a human-readable path for [folder] by walking up the [folderMap] via [TripDocumentFolder.parentFolderId].
  * Example: "Travel / Flights / Tickets".
  *
- * A visited-ID set guards against cycles in case of data corruption so the loop always terminates.
+ * A visited-ID set guards against cycles in case of data corruption, so the loop always terminates.
  */
 private fun buildFolderPath(
     folder: TripDocumentFolder,
@@ -1068,7 +1062,7 @@ private fun DocumentExtractionResult.hasProposedChanges(): Boolean =
 
 /**
  * Formats [bytes] as a human-readable file size string (B / KB / MB).
- * Used to display Gemini Nano model download progress in the analyze dialog.
+ * Used to display Gemini Nano model download progress in the analysis dialog.
  */
 private fun formatBytes(bytes: Long): String = when {
     bytes < BYTES_PER_KB -> "$bytes B"
