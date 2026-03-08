@@ -58,6 +58,7 @@ import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -70,6 +71,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -501,6 +503,19 @@ private fun SpeedDialItem(
     }
 }
 
+// ── Row layout helpers ────────────────────────────────────────────────────────
+
+private const val ROW_HORIZONTAL_PADDING_DP = 32
+private const val ROW_ICON_DP = 48
+private const val ROW_MIN_TEXT_DP = 80
+
+/**
+ * Returns the minimum row width at which [actionCount] inline action buttons fit alongside the
+ * leading icon and a reasonably sized document/folder name.
+ */
+private fun rowMinWidthForButtons(actionCount: Int): Dp =
+    (ROW_HORIZONTAL_PADDING_DP + ROW_ICON_DP + ROW_MIN_TEXT_DP + actionCount * ROW_ICON_DP).dp
+
 // ── Rows ──────────────────────────────────────────────────────────────────────
 
 @Composable
@@ -515,7 +530,8 @@ private fun FolderRow(
     BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
         // Each action button occupies 48 dp. Reserve 32 dp for horizontal Row padding,
         // 48 dp for the leading folder icon, and at least 80 dp for the name text.
-        val allButtonsFit = maxWidth >= (32 + 48 + 80 + 2 * 48).dp
+        val allButtonsFit = maxWidth >= rowMinWidthForButtons(actionCount = 2)
+        LaunchedEffect(allButtonsFit) { if (allButtonsFit) menuExpanded = false }
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -600,7 +616,8 @@ private fun DocumentRow(
     BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
         // Each action button occupies 48 dp. Reserve 32 dp for horizontal Row padding,
         // 48 dp for the leading document icon, and at least 80 dp for the name text.
-        val allButtonsFit = maxWidth >= (32 + 48 + 80 + 4 * 48).dp
+        val allButtonsFit = maxWidth >= rowMinWidthForButtons(actionCount = 4)
+        LaunchedEffect(allButtonsFit) { if (allButtonsFit) menuExpanded = false }
         Row(
             modifier = Modifier
                 .fillMaxWidth()
