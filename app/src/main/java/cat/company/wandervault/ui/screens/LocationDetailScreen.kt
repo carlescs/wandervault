@@ -1,6 +1,8 @@
 package cat.company.wandervault.ui.screens
 
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -11,15 +13,18 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.FindInPage
 import androidx.compose.material.icons.filled.Hotel
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Notes
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -31,6 +36,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -43,13 +49,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cat.company.wandervault.R
 import cat.company.wandervault.domain.model.Destination
+import cat.company.wandervault.domain.model.HotelInfo
 import cat.company.wandervault.domain.model.Transport
 import cat.company.wandervault.domain.model.TransportLeg
 import cat.company.wandervault.domain.model.TransportType
@@ -90,6 +99,16 @@ fun LocationDetailScreen(
         viewModel.loadDestination(destinationId)
     }
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+
+    val filePicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val mimeType = context.contentResolver.getType(uri) ?: "image/*"
+        viewModel.onScanDocument(uri.toString(), mimeType)
+    }
+
     val saveAndNavigateUp: () -> Unit = {
         viewModel.onSave()
         onNavigateUp()
@@ -104,6 +123,9 @@ fun LocationDetailScreen(
         onHotelAddressChange = viewModel::onHotelAddressChange,
         onHotelReservationNumberChange = viewModel::onHotelReservationNumberChange,
         onNotesChange = viewModel::onNotesChange,
+        onScanDocument = { filePicker.launch(arrayOf("image/*", "application/pdf")) },
+        onApplyScanResult = viewModel::onApplyScanResult,
+        onDismissScan = viewModel::dismissScan,
         modifier = modifier,
     )
 }
@@ -123,6 +145,9 @@ internal fun LocationDetailContent(
     onHotelAddressChange: (String) -> Unit = {},
     onHotelReservationNumberChange: (String) -> Unit = {},
     onNotesChange: (String) -> Unit = {},
+    onScanDocument: () -> Unit = {},
+    onApplyScanResult: () -> Unit = {},
+    onDismissScan: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val title = when (uiState) {
@@ -155,6 +180,19 @@ internal fun LocationDetailContent(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = stringResource(R.string.location_detail_navigate_up),
                         )
+                    }
+                },
+                actions = {
+                    if (uiState is LocationDetailUiState.Success &&
+                        selectedTab == LocationDetailTab.HOTEL &&
+                        !uiState.isFirst && !uiState.isLast
+                    ) {
+                        IconButton(onClick = onScanDocument) {
+                            Icon(
+                                imageVector = Icons.Default.FindInPage,
+                                contentDescription = stringResource(R.string.hotel_scan_button_description),
+                            )
+                        }
                     }
                 },
             )
@@ -212,6 +250,15 @@ internal fun LocationDetailContent(
                         uiState = uiState,
                         innerPadding = innerPadding,
                         onNotesChange = onNotesChange,
+                    )
+                }
+
+                // Show scan dialog when a scan is active.
+                uiState.scanState?.let { scanState ->
+                    HotelScanDialog(
+                        scanState = scanState,
+                        onApply = onApplyScanResult,
+                        onDismiss = onDismissScan,
                     )
                 }
             }
@@ -470,6 +517,156 @@ private val TransportType.labelRes: Int
         TransportType.FLIGHT -> R.string.transport_flight
         TransportType.OTHER -> R.string.transport_other
     }
+
+/**
+ * A dialog that shows the state of an in-progress or completed hotel-reservation document scan.
+ *
+ * - While [scanState] is [DocumentScanUiState.Loading] or [DocumentScanUiState.Downloading], a
+ *   progress indicator is shown.
+ * - When [scanState] is [DocumentScanUiState.Result], the extracted hotel info is displayed and a
+ *   "Fill fields" button is offered when actionable data was found.
+ * - When [scanState] is [DocumentScanUiState.Unavailable] or [DocumentScanUiState.Error], a
+ *   descriptive message is shown.
+ *
+ * @param scanState The current scan state.
+ * @param onApply Called when the user confirms applying the extracted data.
+ * @param onDismiss Called when the user dismisses the dialog.
+ */
+@Composable
+private fun HotelScanDialog(
+    scanState: DocumentScanUiState,
+    onApply: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val isInProgress = scanState is DocumentScanUiState.Loading ||
+        scanState is DocumentScanUiState.Downloading
+    AlertDialog(
+        onDismissRequest = { if (!isInProgress) onDismiss() },
+        title = { Text(stringResource(R.string.scan_document_title)) },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                when (scanState) {
+                    is DocumentScanUiState.Loading -> {
+                        CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
+                        Text(
+                            text = stringResource(R.string.scan_document_analyzing),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+
+                    is DocumentScanUiState.Downloading -> {
+                        CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
+                        Text(
+                            text = stringResource(R.string.scan_document_downloading),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        if (scanState.bytesDownloaded > 0) {
+                            Text(
+                                text = stringResource(
+                                    R.string.scan_document_downloaded_bytes,
+                                    formatHotelScanBytes(scanState.bytesDownloaded),
+                                ),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+
+                    is DocumentScanUiState.Unavailable -> {
+                        Text(
+                            text = stringResource(R.string.scan_document_unavailable),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+
+                    is DocumentScanUiState.Error -> {
+                        Column(
+                            modifier = Modifier.semantics(mergeDescendants = true) {},
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Text(
+                                text = stringResource(R.string.scan_document_error),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                            scanState.message?.let { errorDetail ->
+                                Text(
+                                    text = errorDetail,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error,
+                                )
+                            }
+                        }
+                    }
+
+                    is DocumentScanUiState.Result -> {
+                        val extraction = scanState.extractionResult
+                        extraction.hotelInfo?.let { hotel ->
+                            Text(
+                                text = stringResource(R.string.scan_document_hotel_found),
+                                style = MaterialTheme.typography.labelLarge,
+                            )
+                            buildHotelScanInfoText(hotel)?.let { info ->
+                                Text(
+                                    text = info,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        } ?: run {
+                            Text(
+                                text = stringResource(R.string.scan_document_no_relevant_info),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            val result = scanState as? DocumentScanUiState.Result
+            if (result?.extractionResult?.hotelInfo != null) {
+                TextButton(onClick = onApply) {
+                    Text(stringResource(R.string.scan_document_fill_fields))
+                }
+            }
+        },
+        dismissButton = {
+            if (!isInProgress) {
+                TextButton(onClick = onDismiss) {
+                    Text(stringResource(R.string.dialog_cancel))
+                }
+            }
+        },
+    )
+}
+
+/** Formats [bytes] as a human-readable size string (B / KB / MB). */
+private fun formatHotelScanBytes(bytes: Long): String = when {
+    bytes < 1_024 -> "$bytes B"
+    bytes < 1_048_576 -> "${bytes / 1_024} KB"
+    else -> "${"%.1f".format(bytes / 1_048_576.0)} MB"
+}
+
+/** Builds a short description of the extracted [HotelInfo], or `null` if all fields are blank. */
+private fun buildHotelScanInfoText(hotel: HotelInfo): String? {
+    val parts = listOfNotNull(
+        hotel.name?.ifBlank { null },
+        hotel.address?.ifBlank { null },
+        hotel.bookingReference?.let { "Ref: $it" },
+    )
+    return parts.joinToString(" · ").ifBlank { null }
+}
 
 // ── Previews ─────────────────────────────────────────────────────────────────
 

@@ -9,7 +9,9 @@ import cat.company.wandervault.domain.usecase.GetDestinationByIdUseCase
 import cat.company.wandervault.domain.usecase.GetDestinationsForTripUseCase
 import cat.company.wandervault.domain.usecase.GetHotelForDestinationUseCase
 import cat.company.wandervault.domain.usecase.SaveHotelUseCase
+import cat.company.wandervault.domain.usecase.SummarizeDocumentUseCase
 import cat.company.wandervault.domain.usecase.UpdateDestinationUseCase
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -36,6 +38,7 @@ import kotlinx.coroutines.launch
  * @param saveHotel Use-case that persists a hotel record.
  * @param deleteHotel Use-case that removes a hotel record.
  * @param updateDestination Use-case that persists changes to a destination (e.g. notes).
+ * @param summarizeDocument Use-case that runs ML Kit document extraction for reservation scan.
  */
 class LocationDetailViewModel(
     private val getDestinationById: GetDestinationByIdUseCase,
@@ -45,6 +48,7 @@ class LocationDetailViewModel(
     private val saveHotel: SaveHotelUseCase,
     private val deleteHotel: DeleteHotelUseCase,
     private val updateDestination: UpdateDestinationUseCase,
+    private val summarizeDocument: SummarizeDocumentUseCase,
 ) : ViewModel() {
 
     private val _destinationId = MutableStateFlow<Int?>(null)
@@ -61,6 +65,9 @@ class LocationDetailViewModel(
      * overwrite the notes edit state. Reset to false after a save.
      */
     private var _hasUnsavedNotesEdits = false
+
+    /** The coroutine running the current document scan, kept so it can be cancelled. */
+    private var _scanJob: Job? = null
 
     private val _uiState = MutableStateFlow<LocationDetailUiState>(LocationDetailUiState.Loading)
     val uiState: StateFlow<LocationDetailUiState> = _uiState.asStateFlow()
@@ -99,6 +106,9 @@ class LocationDetailViewModel(
                                 } else {
                                     destination.notes ?: ""
                                 }
+                                // Preserve any active scan dialog across DB emissions.
+                                val currentScanState =
+                                    (_uiState.value as? LocationDetailUiState.Success)?.scanState
                                 LocationDetailUiState.Success(
                                     destination = destination,
                                     arrivalTransport = arrivalTransport,
@@ -106,6 +116,7 @@ class LocationDetailViewModel(
                                     isLast = isLast,
                                     hotelEditState = hotelEditState,
                                     notes = notes,
+                                    scanState = currentScanState,
                                 )
                             }
                         }
@@ -210,6 +221,79 @@ class LocationDetailViewModel(
         _hasUnsavedNotesEdits = false
         val updatedNotes = state.notes.trim().takeIf { it.isNotEmpty() }
         updateDestination(state.destination.copy(notes = updatedNotes))
+    }
+
+    /**
+     * Starts a document scan for hotel-reservation auto-fill.
+     *
+     * Sets [DocumentScanUiState.Loading] immediately, then runs [SummarizeDocumentUseCase] on the
+     * file at [fileUri]. Transitions through [DocumentScanUiState.Downloading] if the on-device AI
+     * model needs to be downloaded, and finally to [DocumentScanUiState.Result],
+     * [DocumentScanUiState.Unavailable], or [DocumentScanUiState.Error].
+     *
+     * Any previously running scan is cancelled before starting a new one.
+     *
+     * @param fileUri URI of the document to scan (image or PDF).
+     * @param mimeType MIME type of the document.
+     */
+    fun onScanDocument(fileUri: String, mimeType: String) {
+        _scanJob?.cancel()
+        updateScanState(DocumentScanUiState.Loading)
+        _scanJob = viewModelScope.launch {
+            val result = try {
+                summarizeDocument(fileUri, mimeType) { bytes ->
+                    updateScanState(DocumentScanUiState.Downloading(bytes))
+                }
+            } catch (e: Exception) {
+                updateScanState(DocumentScanUiState.Error(e.message))
+                return@launch
+            }
+            if (result == null) {
+                updateScanState(DocumentScanUiState.Unavailable)
+            } else {
+                updateScanState(DocumentScanUiState.Result(result))
+            }
+        }
+    }
+
+    /**
+     * Applies the extracted hotel info from the current [DocumentScanUiState.Result] to the
+     * hotel edit state, then dismisses the scan dialog.
+     *
+     * Only blank fields in the current hotel edit state are filled in; existing non-blank values
+     * are preserved so that user-entered data is never overwritten.
+     *
+     * No-op when the current scan state is not [DocumentScanUiState.Result] or the result
+     * contains no [cat.company.wandervault.domain.model.HotelInfo].
+     */
+    fun onApplyScanResult() {
+        val state = _uiState.value as? LocationDetailUiState.Success ?: return
+        val result = (state.scanState as? DocumentScanUiState.Result)?.extractionResult ?: return
+        val hotelInfo = result.hotelInfo ?: run {
+            dismissScan()
+            return
+        }
+        _hasUnsavedHotelEdits = true
+        updateHotelEditState {
+            copy(
+                name = name.ifBlank { hotelInfo.name.orEmpty() },
+                address = address.ifBlank { hotelInfo.address.orEmpty() },
+                reservationNumber = reservationNumber.ifBlank { hotelInfo.bookingReference.orEmpty() },
+            )
+        }
+        dismissScan()
+    }
+
+    /** Cancels any in-progress scan and hides the scan dialog. */
+    fun dismissScan() {
+        _scanJob?.cancel()
+        _scanJob = null
+        updateScanState(null)
+    }
+
+    private fun updateScanState(scanState: DocumentScanUiState?) {
+        val current = _uiState.value as? LocationDetailUiState.Success ?: return
+        _uiState.value = current.copy(scanState = scanState)
     }
 
     companion object {

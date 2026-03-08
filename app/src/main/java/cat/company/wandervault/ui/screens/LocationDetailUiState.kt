@@ -38,6 +38,11 @@ sealed class LocationDetailUiState {
         val hotelEditState: HotelEditState = HotelEditState(),
         /** The current (possibly dirty) notes text. */
         val notes: String = "",
+        /**
+         * The current state of an in-progress or completed document scan, or `null` when no scan
+         * is active. Call [LocationDetailViewModel.dismissScan] to dismiss.
+         */
+        val scanState: DocumentScanUiState? = null,
     ) : LocationDetailUiState()
 
     /** An error occurred (e.g. destination not found). */

@@ -1,6 +1,8 @@
 package cat.company.wandervault.ui.screens
 
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -13,6 +15,7 @@ import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -32,6 +35,7 @@ import androidx.compose.material.icons.filled.DirectionsBoat
 import androidx.compose.material.icons.filled.DirectionsBus
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.DirectionsWalk
+import androidx.compose.material.icons.filled.FindInPage
 import androidx.compose.material.icons.filled.Flight
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -39,6 +43,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Train
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -67,13 +72,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cat.company.wandervault.R
+import cat.company.wandervault.domain.model.FlightInfo
 import cat.company.wandervault.domain.model.TransportType
 import cat.company.wandervault.ui.theme.WanderVaultTheme
 import org.koin.androidx.compose.koinViewModel
@@ -107,6 +115,16 @@ fun TransportDetailScreen(
         viewModel.loadDestination(destinationId)
     }
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+
+    val filePicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val mimeType = context.contentResolver.getType(uri) ?: "image/*"
+        viewModel.onScanDocument(uri.toString(), mimeType)
+    }
+
     // Intercept system back so it follows the same save path as the toolbar up button.
     BackHandler {
         viewModel.onSave()
@@ -127,6 +145,9 @@ fun TransportDetailScreen(
         onCompanyChange = viewModel::onCompanyChange,
         onFlightNumberChange = viewModel::onFlightNumberChange,
         onConfirmationNumberChange = viewModel::onConfirmationNumberChange,
+        onScanDocument = { filePicker.launch(arrayOf("image/*", "application/pdf")) },
+        onApplyScanResult = viewModel::onApplyScanResult,
+        onDismissScan = viewModel::dismissScan,
         modifier = modifier,
     )
 }
@@ -151,6 +172,9 @@ internal fun TransportDetailContent(
     onCompanyChange: (Int, String) -> Unit,
     onFlightNumberChange: (Int, String) -> Unit,
     onConfirmationNumberChange: (Int, String) -> Unit,
+    onScanDocument: () -> Unit = {},
+    onApplyScanResult: () -> Unit = {},
+    onDismissScan: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var selectedTab by rememberSaveable { mutableStateOf(TransportDetailTab.DETAILS) }
@@ -170,6 +194,16 @@ internal fun TransportDetailContent(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = stringResource(R.string.transport_detail_navigate_up),
                         )
+                    }
+                },
+                actions = {
+                    if (uiState is TransportDetailUiState.Success && selectedTab == TransportDetailTab.LEGS) {
+                        IconButton(onClick = onScanDocument) {
+                            Icon(
+                                imageVector = Icons.Default.FindInPage,
+                                contentDescription = stringResource(R.string.transport_detail_scan_button_description),
+                            )
+                        }
                     }
                 },
             )
@@ -222,6 +256,15 @@ internal fun TransportDetailContent(
                         onFlightNumberChange = onFlightNumberChange,
                         onConfirmationNumberChange = onConfirmationNumberChange,
                         innerPadding = innerPadding,
+                    )
+                }
+
+                // Show scan dialog when a scan is active.
+                uiState.scanState?.let { scanState ->
+                    DocumentScanDialog(
+                        scanState = scanState,
+                        onApply = onApplyScanResult,
+                        onDismiss = onDismissScan,
                     )
                 }
             }
@@ -843,6 +886,157 @@ private val TransportType.detailLabelRes: Int
         TransportType.FLIGHT -> R.string.transport_flight
         TransportType.OTHER -> R.string.transport_other
     }
+
+/**
+ * A dialog that shows the state of an in-progress or completed document scan.
+ *
+ * - While [scanState] is [DocumentScanUiState.Loading] or [DocumentScanUiState.Downloading], a
+ *   progress indicator is shown.
+ * - When [scanState] is [DocumentScanUiState.Result], the extracted info is displayed and an
+ *   "Fill fields" button is offered when actionable data was found.
+ * - When [scanState] is [DocumentScanUiState.Unavailable] or [DocumentScanUiState.Error], a
+ *   descriptive message is shown.
+ *
+ * @param scanState The current scan state.
+ * @param onApply Called when the user confirms applying the extracted data.
+ * @param onDismiss Called when the user dismisses the dialog (or when it auto-dismisses).
+ */
+@Composable
+private fun DocumentScanDialog(
+    scanState: DocumentScanUiState,
+    onApply: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val isInProgress = scanState is DocumentScanUiState.Loading ||
+        scanState is DocumentScanUiState.Downloading
+    AlertDialog(
+        onDismissRequest = { if (!isInProgress) onDismiss() },
+        title = { Text(stringResource(R.string.scan_document_title)) },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                when (scanState) {
+                    is DocumentScanUiState.Loading -> {
+                        CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
+                        Text(
+                            text = stringResource(R.string.scan_document_analyzing),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+
+                    is DocumentScanUiState.Downloading -> {
+                        CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
+                        Text(
+                            text = stringResource(R.string.scan_document_downloading),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        if (scanState.bytesDownloaded > 0) {
+                            Text(
+                                text = stringResource(
+                                    R.string.scan_document_downloaded_bytes,
+                                    formatScanBytes(scanState.bytesDownloaded),
+                                ),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+
+                    is DocumentScanUiState.Unavailable -> {
+                        Text(
+                            text = stringResource(R.string.scan_document_unavailable),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+
+                    is DocumentScanUiState.Error -> {
+                        Column(
+                            modifier = Modifier.semantics(mergeDescendants = true) {},
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Text(
+                                text = stringResource(R.string.scan_document_error),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                            scanState.message?.let { errorDetail ->
+                                Text(
+                                    text = errorDetail,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error,
+                                )
+                            }
+                        }
+                    }
+
+                    is DocumentScanUiState.Result -> {
+                        val extraction = scanState.extractionResult
+                        extraction.flightInfo?.let { flight ->
+                            Text(
+                                text = stringResource(R.string.scan_document_flight_found),
+                                style = MaterialTheme.typography.labelLarge,
+                            )
+                            buildFlightScanInfoText(flight)?.let { info ->
+                                Text(
+                                    text = info,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        } ?: run {
+                            Text(
+                                text = stringResource(R.string.scan_document_no_relevant_info),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            val result = scanState as? DocumentScanUiState.Result
+            if (result?.extractionResult?.flightInfo != null) {
+                TextButton(onClick = onApply) {
+                    Text(stringResource(R.string.scan_document_fill_fields))
+                }
+            }
+        },
+        dismissButton = {
+            if (!isInProgress) {
+                TextButton(onClick = onDismiss) {
+                    Text(stringResource(R.string.dialog_cancel))
+                }
+            }
+        },
+    )
+}
+
+/** Formats [bytes] as a human-readable size string (B / KB / MB). */
+private fun formatScanBytes(bytes: Long): String = when {
+    bytes < 1_024 -> "$bytes B"
+    bytes < 1_048_576 -> "${bytes / 1_024} KB"
+    else -> "${"%.1f".format(bytes / 1_048_576.0)} MB"
+}
+
+/** Builds a short description of the extracted [FlightInfo], or `null` if all fields are blank. */
+private fun buildFlightScanInfoText(flight: FlightInfo): String? {
+    val parts = listOfNotNull(
+        listOfNotNull(flight.airline, flight.flightNumber).joinToString(" ").ifBlank { null },
+        flight.bookingReference?.let { "Ref: $it" },
+        flight.departurePlace?.let { "From: $it" },
+        flight.arrivalPlace?.let { "To: $it" },
+    )
+    return parts.joinToString(" · ").ifBlank { null }
+}
 
 // ── Previews ─────────────────────────────────────────────────────────────────
 

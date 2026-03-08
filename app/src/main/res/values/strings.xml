@@ -149,6 +149,8 @@
     <string name="hotel_nights_label">Nights</string>
     <string name="hotel_nights_value">%d</string>
     <string name="hotel_nights_not_available">—</string>
+    <string name="hotel_scan_reservation">Scan reservation</string>
+    <string name="hotel_scan_button_description">Scan a hotel confirmation or reservation voucher to auto-fill the details</string>
     <!-- Notes tab -->
     <string name="notes_label">Notes</string>
     <string name="notes_placeholder">Add your notes here…</string>
@@ -174,6 +176,8 @@
     <string name="transport_detail_destination_label">To</string>
     <string name="transport_detail_stop_name_label">Intermediate stop</string>
     <string name="transport_detail_no_destination">End of trip</string>
+    <string name="transport_detail_scan_boarding_pass">Scan boarding pass</string>
+    <string name="transport_detail_scan_button_description">Scan a boarding pass or e-ticket to auto-fill the leg details</string>
     <string name="editable_label_edit_action">Edit %s</string>
     <string name="editable_label_not_set">—</string>
     <string name="editable_label_save">Save %s</string>
@@ -256,4 +260,16 @@
     <string name="documents_analyze_from">From: %s</string>
     <string name="documents_analyze_to">To: %s</string>
     <string name="documents_analyze_ref">Ref: %s</string>
+
+    <!-- Document scan dialog (used in TransportDetailScreen and LocationDetailScreen) -->
+    <string name="scan_document_title">Scan Document</string>
+    <string name="scan_document_analyzing">Analyzing document…</string>
+    <string name="scan_document_downloading">Downloading AI model…</string>
+    <string name="scan_document_downloaded_bytes">%s downloaded</string>
+    <string name="scan_document_fill_fields">Fill fields</string>
+    <string name="scan_document_flight_found">Flight details found</string>
+    <string name="scan_document_hotel_found">Hotel details found</string>
+    <string name="scan_document_no_relevant_info">No relevant travel info found in this document.</string>
+    <string name="scan_document_error">Could not analyze the document. Please try again.</string>
+    <string name="scan_document_unavailable">AI document analysis is not available on this device.</string>
 </resources>

@@ -40,12 +40,15 @@ sealed class TransportDetailUiState {
      * @param nextDestinationName Name of the next destination in the trip itinerary (the overall
      *   arrival point of the transport), or `null` if this is the last stop.
      * @param legs The current (possibly dirty) list of transport leg editing states.
+     * @param scanState The current state of an in-progress or completed document scan, or `null`
+     *   when no scan is active. Call [TransportDetailViewModel.dismissScan] to dismiss.
      */
     data class Success(
         val destinationName: String,
         val originName: String = destinationName,
         val nextDestinationName: String? = null,
         val legs: List<TransportLegEditState>,
+        val scanState: DocumentScanUiState? = null,
     ) : TransportDetailUiState()
 
     /** An error occurred (e.g. destination not found). */

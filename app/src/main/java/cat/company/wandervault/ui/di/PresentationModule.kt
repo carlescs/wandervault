@@ -35,6 +35,7 @@ val presentationModule = module {
             saveHotel = get(),
             deleteHotel = get(),
             updateDestination = get(),
+            summarizeDocument = get(),
         )
     }
     viewModel {
@@ -46,6 +47,7 @@ val presentationModule = module {
             updateTransportLeg = get(),
             deleteTransportLeg = get(),
             deleteTransport = get(),
+            summarizeDocument = get(),
         )
     }
     viewModel { DataAdminViewModel(androidApplication(), get(), get()) }
