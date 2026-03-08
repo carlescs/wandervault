@@ -1,7 +1,10 @@
 package cat.company.wandervault.data.mlkit
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.pdf.PdfRenderer
 import android.net.Uri
+import android.os.ParcelFileDescriptor
 import android.util.Log
 import cat.company.wandervault.domain.model.DocumentExtractionResult
 import cat.company.wandervault.domain.repository.DocumentSummaryRepository
@@ -10,23 +13,35 @@ import com.google.mlkit.genai.common.FeatureStatus
 import com.google.mlkit.genai.prompt.Generation
 import com.google.mlkit.genai.prompt.TextPart
 import com.google.mlkit.genai.prompt.generateContentRequest
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 /**
  * ML Kit implementation of [DocumentSummaryRepository] that uses the on-device Gemini Nano
  * Prompt API to summarize travel documents and extract relevant trip information.
  *
- * Text extraction is supported for `text/*` MIME types. Documents of other types (e.g. PDF,
- * images) are silently skipped and `null` is returned — a future enhancement could add
- * OCR-based text recognition for images and PDF rendering for PDF files.
+ * Supported MIME types:
+ * - `text/*` — read directly as plain text.
+ * - `application/pdf` — each page is rendered to a [Bitmap] using [PdfRenderer] and then
+ *   passed through ML Kit Text Recognition (OCR) to produce extractable text.
+ *
+ * Documents of unsupported types return `null`.
  */
 class DocumentSummaryRepositoryImpl(private val context: Context) : DocumentSummaryRepository {
 
-    private val client by lazy { Generation.getClient() }
+    private val generationClient by lazy { Generation.getClient() }
+    private val textRecognizer by lazy {
+        TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+    }
 
     override suspend fun extractDocumentInfo(
         fileUri: String,
@@ -34,7 +49,7 @@ class DocumentSummaryRepositoryImpl(private val context: Context) : DocumentSumm
     ): DocumentExtractionResult? {
         val text = readDocumentText(fileUri, mimeType) ?: return null
         return withContext(Dispatchers.IO) {
-            when (client.checkStatus()) {
+            when (generationClient.checkStatus()) {
                 FeatureStatus.UNAVAILABLE -> return@withContext null
                 FeatureStatus.DOWNLOADABLE -> awaitDownload()
                 FeatureStatus.AVAILABLE -> Unit
@@ -43,7 +58,7 @@ class DocumentSummaryRepositoryImpl(private val context: Context) : DocumentSumm
                 val request = generateContentRequest(TextPart(buildPrompt(text))) {
                     maxOutputTokens = MAX_OUTPUT_TOKENS
                 }
-                val response = client.generateContent(request)
+                val response = generationClient.generateContent(request)
                 val rawOutput = response.candidates.firstOrNull()?.text
                     ?.trim() ?: return@withContext null
                 parseResponse(rawOutput)
@@ -59,36 +74,112 @@ class DocumentSummaryRepositoryImpl(private val context: Context) : DocumentSumm
      * [TripDescriptionRepositoryImpl].
      */
     private suspend fun awaitDownload() {
-        val terminal = client.download()
+        val terminal = generationClient.download()
             .first { it is DownloadStatus.DownloadCompleted || it is DownloadStatus.DownloadFailed }
         if (terminal is DownloadStatus.DownloadFailed) throw terminal.e
     }
 
     /**
-     * Attempts to read the document at [fileUri] as a plain-text string.
-     *
-     * Only `text/*` MIME types are supported; other types return `null`.
+     * Dispatches text extraction to the appropriate reader based on [mimeType].
+     * Returns `null` if the MIME type is unsupported or extraction fails.
+     */
+    private suspend fun readDocumentText(fileUri: String, mimeType: String): String? = when {
+        mimeType.startsWith("text/") -> readPlainText(fileUri)
+        mimeType.startsWith("application/pdf") -> readPdfText(fileUri)
+        else -> null
+    }
+
+    /**
+     * Reads [fileUri] as a plain-text string.
      * The content is capped at [MAX_DOCUMENT_CHARS] to stay within model limits.
      * Both `file://` and `content://` URIs are supported.
      */
-    private suspend fun readDocumentText(fileUri: String, mimeType: String): String? {
-        if (!mimeType.startsWith("text/")) return null
-        return withContext(Dispatchers.IO) {
-            try {
-                val uri = Uri.parse(fileUri)
-                val inputStream = if (uri.scheme == "file") {
-                    val path = uri.path ?: return@withContext null
-                    File(path).inputStream()
-                } else {
-                    context.contentResolver.openInputStream(uri) ?: return@withContext null
-                }
-                inputStream.use { it.reader().readText().take(MAX_DOCUMENT_CHARS) }
-            } catch (e: IOException) {
-                Log.w(TAG, "Failed to read document text from $fileUri", e)
-                null
+    private suspend fun readPlainText(fileUri: String): String? = withContext(Dispatchers.IO) {
+        try {
+            val uri = Uri.parse(fileUri)
+            val inputStream = if (uri.scheme == "file") {
+                val path = uri.path ?: return@withContext null
+                File(path).inputStream()
+            } else {
+                context.contentResolver.openInputStream(uri) ?: return@withContext null
             }
+            inputStream.use { it.reader().readText().take(MAX_DOCUMENT_CHARS) }
+        } catch (e: IOException) {
+            Log.w(TAG, "Failed to read document text from $fileUri", e)
+            null
         }
     }
+
+    /**
+     * Extracts text from a PDF at [fileUri] by:
+     * 1. Rendering each page to a [Bitmap] via [PdfRenderer] (Android built-in, API 21+).
+     * 2. Running ML Kit Text Recognition (OCR) on each bitmap.
+     * 3. Concatenating the recognized text from all pages.
+     *
+     * Processing is limited to the first [MAX_PDF_PAGES] pages and the combined text is capped
+     * at [MAX_DOCUMENT_CHARS] characters to stay within Gemini Nano's context window.
+     *
+     * Returns `null` if the file cannot be opened, no text is found, or an error occurs.
+     * Both `file://` and `content://` URIs are supported.
+     */
+    private suspend fun readPdfText(fileUri: String): String? = withContext(Dispatchers.IO) {
+        val uri = Uri.parse(fileUri)
+        val pfd = try {
+            if (uri.scheme == "file") {
+                val path = uri.path ?: return@withContext null
+                ParcelFileDescriptor.open(File(path), ParcelFileDescriptor.MODE_READ_ONLY)
+            } else {
+                context.contentResolver.openFileDescriptor(uri, "r") ?: return@withContext null
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to open PDF descriptor for $fileUri", e)
+            return@withContext null
+        }
+        try {
+            val allText = StringBuilder()
+            PdfRenderer(pfd).use { renderer ->
+                val pageCount = minOf(renderer.pageCount, MAX_PDF_PAGES)
+                for (i in 0 until pageCount) {
+                    if (allText.length >= MAX_DOCUMENT_CHARS) break
+                    renderer.openPage(i).use { page ->
+                        // Render at 2× the native PDF point size for better OCR quality.
+                        val bitmap = Bitmap.createBitmap(
+                            page.width * RENDER_SCALE,
+                            page.height * RENDER_SCALE,
+                            Bitmap.Config.ARGB_8888,
+                        )
+                        page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                        try {
+                            val pageText = recognizeBitmapText(bitmap)
+                            if (pageText.isNotBlank()) {
+                                if (allText.isNotEmpty()) allText.append('\n')
+                                allText.append(pageText)
+                            }
+                        } finally {
+                            bitmap.recycle()
+                        }
+                    }
+                }
+            }
+            allText.toString().take(MAX_DOCUMENT_CHARS).ifBlank { null }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to extract text from PDF $fileUri", e)
+            null
+        } finally {
+            pfd.close()
+        }
+    }
+
+    /**
+     * Runs ML Kit Text Recognition on [bitmap] and returns the recognized text.
+     * Wraps the Task-based ML Kit API in a coroutine.
+     */
+    private suspend fun recognizeBitmapText(bitmap: Bitmap): String =
+        suspendCancellableCoroutine { cont ->
+            textRecognizer.process(InputImage.fromBitmap(bitmap, 0))
+                .addOnSuccessListener { visionText -> cont.resume(visionText.text) }
+                .addOnFailureListener { e -> cont.resumeWithException(e) }
+        }
 
     private fun buildPrompt(documentText: String): String = buildString {
         appendLine(
@@ -137,10 +228,20 @@ class DocumentSummaryRepositoryImpl(private val context: Context) : DocumentSumm
         private const val TAG = "DocumentSummaryRepo"
         private const val SECTION_SEPARATOR = "---"
 
-        /** Maximum characters read from the document to avoid exceeding model context limits. */
+        /** Maximum characters passed to Gemini Nano to stay within context limits. */
         private const val MAX_DOCUMENT_CHARS = 4_000
 
         /** Maximum tokens Gemini Nano may generate for the extraction response. */
         private const val MAX_OUTPUT_TOKENS = 300
+
+        /** Maximum number of PDF pages to process (avoids excessive OCR time on large documents). */
+        private const val MAX_PDF_PAGES = 10
+
+        /**
+         * Scale factor applied when rendering PDF pages to bitmaps.
+         * A value of 2 renders at 144 DPI (2× the 72 DPI PDF point size), which provides
+         * good OCR accuracy without excessive memory usage.
+         */
+        private const val RENDER_SCALE = 2
     }
 }
