@@ -341,8 +341,8 @@ class DocumentSummaryRepositoryImpl(private val context: Context) : DocumentSumm
         /** Maximum characters passed to Gemini Nano to stay within context limits. */
         private const val MAX_DOCUMENT_CHARS = 4_000
 
-        /** Maximum tokens Gemini Nano may generate for the extraction response. */
-        private const val MAX_OUTPUT_TOKENS = 300
+        /** Maximum tokens Gemini Nano may generate for the extraction response (hard limit: 256). */
+        private const val MAX_OUTPUT_TOKENS = 256
 
         /** Maximum number of PDF pages to process (avoids excessive OCR time on large documents). */
         private const val MAX_PDF_PAGES = 10
