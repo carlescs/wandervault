@@ -418,7 +418,7 @@ class TripDocumentsViewModel(
                 analysisResult
             } catch (e: Exception) {
                 Log.w(TAG, "Document analysis failed for ${document.name}", e)
-                _analyzeState.value = AnalyzeDocumentUiState.Error(e.message)
+                _analyzeState.value = AnalyzeDocumentUiState.Error(e.message ?: e.toString())
                 return@launch
             }
 
