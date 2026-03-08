@@ -101,11 +101,13 @@ fun ShareScreen(shareIntent: Intent, onDismiss: () -> Unit) {
         }
     }.ifBlank { stringResource(R.string.share_document_name_fallback) }
 
-    // Use the URI as the key so the same document reuses the same ViewModel instance across
-    // configuration changes while ensuring each distinct document gets its own instance.
-    // This avoids the ViewModel accumulation issue that arises when using System.identityHashCode.
+    // Key the ViewModel by the URI string (stable for a given document, unlike
+    // System.identityHashCode which changes when the Intent object is recreated on configuration
+    // changes). This means the same document reuses the same ViewModel instance across config
+    // changes, while a different document gets its own instance. The hash of the URI is used to
+    // avoid issues with special characters in the key.
     val viewModel: ShareViewModel = koinViewModel(
-        key = "ShareViewModel:$sharedUri",
+        key = "ShareViewModel:${sharedUri.hashCode()}",
         parameters = { parametersOf(sharedUri, mimeType, documentName) },
     )
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
