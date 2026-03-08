@@ -281,13 +281,13 @@ class TripDocumentsViewModel(
         }
         val matchedLeg = allFlightLegs.firstOrNull { leg ->
             flightInfo.flightNumber != null &&
-                leg.flightNumber.equals(flightInfo.flightNumber, ignoreCase = true)
+                leg.flightNumber?.equals(flightInfo.flightNumber, ignoreCase = true) == true
         } ?: allFlightLegs.firstOrNull { leg ->
             flightInfo.bookingReference != null &&
-                leg.reservationConfirmationNumber.equals(
+                leg.reservationConfirmationNumber?.equals(
                     flightInfo.bookingReference,
                     ignoreCase = true,
-                )
+                ) == true
         } ?: allFlightLegs.firstOrNull { leg ->
             leg.flightNumber.isNullOrBlank()
         } ?: allFlightLegs.first()
