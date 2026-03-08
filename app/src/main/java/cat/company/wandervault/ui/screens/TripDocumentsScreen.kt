@@ -932,6 +932,10 @@ private fun AnalyzeDocumentDialog(
                         // Handled separately by AnalyzeHotelDestinationSelectionDialog; not reached here.
                     }
 
+                    is AnalyzeDocumentUiState.FlightLegSelection -> {
+                        // Handled separately by AnalyzeFlightLegSelectionDialog; not reached here.
+                    }
+
                     is AnalyzeDocumentUiState.Result -> {
                         val extraction = analyzeState.extractionResult
                         // Summary section
