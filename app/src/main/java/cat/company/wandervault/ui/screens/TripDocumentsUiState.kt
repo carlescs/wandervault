@@ -46,8 +46,13 @@ sealed class AnalyzeDocumentUiState {
      */
     data object Unavailable : AnalyzeDocumentUiState()
 
-    /** Analysis failed with a transient error. The user may try again. */
-    data object Error : AnalyzeDocumentUiState()
+    /**
+     * Analysis failed with a transient error. The user may try again.
+     *
+     * @param message Optional error detail (e.g. the exception message) that can be shown in
+     *   the dialog to help diagnose the problem.
+     */
+    data class Error(val message: String? = null) : AnalyzeDocumentUiState()
 }
 
 /**

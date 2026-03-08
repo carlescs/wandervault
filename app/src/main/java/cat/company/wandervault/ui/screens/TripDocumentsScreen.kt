@@ -68,6 +68,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -888,7 +889,8 @@ private fun buildFolderPath(
  * - When [analyzeState] is [AnalyzeDocumentUiState.Unavailable], an informational message is
  *   shown explaining that AI analysis is not available on this device.
  * - When [analyzeState] is [AnalyzeDocumentUiState.Error], an error message with a retry hint
- *   is shown.
+ *   is shown. If the error carries a [AnalyzeDocumentUiState.Error.message], it is shown below
+ *   the generic error text to help diagnose the problem.
  */
 @Composable
 private fun AnalyzeDocumentDialog(
@@ -945,11 +947,23 @@ private fun AnalyzeDocumentDialog(
                     }
 
                     is AnalyzeDocumentUiState.Error -> {
-                        Text(
-                            text = stringResource(R.string.documents_analyze_error),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.error,
-                        )
+                        Column(
+                            modifier = Modifier.semantics(mergeDescendants = true) {},
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Text(
+                                text = stringResource(R.string.documents_analyze_error),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                            analyzeState.message?.let { errorDetail ->
+                                Text(
+                                    text = errorDetail,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error,
+                                )
+                            }
+                        }
                     }
 
                     is AnalyzeDocumentUiState.Result -> {
