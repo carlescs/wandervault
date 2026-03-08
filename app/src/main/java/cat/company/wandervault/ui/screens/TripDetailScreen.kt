@@ -83,7 +83,7 @@ private val BASE_IMAGE_HEIGHT = 200.dp
  *
  * @param tripId The ID of the trip to display.
  * @param onNavigateUp Called when the user taps the back/up button.
- * @param onNavigateToDestination Called when the user taps a destination in the itinerary.
+ * @param onNavigateToDestination Called when the user taps a destination in the itinerary or a stay in the calendar legend.
  * @param onNavigateToTransport Called when the user taps the transport icon in the itinerary.
  * @param modifier Optional [Modifier].
  */
@@ -116,7 +116,7 @@ fun TripDetailScreen(
  * Accepts a [TripDetailUiState] snapshot so it can be reused in `@Preview` without a real ViewModel.
  *
  * @param tripId The ID of the trip – forwarded to [ItineraryTabContent] when the Itinerary tab is selected.
- * @param onNavigateToDestination Called when the user taps a destination in the itinerary tab.
+ * @param onNavigateToDestination Called when the user taps a destination in the itinerary tab or a stay in the calendar legend.
  * @param onNavigateToTransport Called when the user taps the transport icon in the itinerary tab.
  */
 @OptIn(ExperimentalMaterial3Api::class)
