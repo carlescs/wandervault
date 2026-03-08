@@ -516,6 +516,7 @@ class TripDocumentsViewModel(
      */
     fun onHotelDestinationSelected(destination: Destination) {
         val hotelInfo = pendingHotelInfo ?: run {
+            Log.w(TAG, "onHotelDestinationSelected called with no pending hotel info; dismissing")
             dismissAnalyze()
             return
         }
