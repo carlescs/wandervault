@@ -1,23 +1,42 @@
 package cat.company.wandervault.ui.screens
 
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.net.Uri
+import android.webkit.MimeTypeMap
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
@@ -25,6 +44,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -35,11 +55,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cat.company.wandervault.R
 import cat.company.wandervault.domain.model.TripDocument
@@ -47,6 +69,7 @@ import cat.company.wandervault.domain.model.TripDocumentFolder
 import cat.company.wandervault.ui.theme.WanderVaultTheme
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
+import java.io.File
 
 /**
  * Documents tab entry point for the Trip Detail screen.
@@ -64,6 +87,28 @@ internal fun TripDocumentsTabContent(
     ),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val noAppMessage = stringResource(R.string.documents_no_app_to_open)
+
+    val filePicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val mimeType = context.contentResolver.getType(uri) ?: "*/*"
+        val fileName = context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+            val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+            if (nameIndex >= 0 && cursor.moveToFirst()) cursor.getString(nameIndex) else null
+        } ?: run {
+            val ext = MimeTypeMap.getSingleton().getExtensionFromMimeType(mimeType) ?: "file"
+            "document.$ext"
+        }
+        viewModel.addDocument(
+            name = fileName,
+            sourceUri = uri.toString(),
+            mimeType = mimeType,
+        )
+    }
+
     TripDocumentsContent(
         uiState = uiState,
         innerPadding = innerPadding,
@@ -74,6 +119,32 @@ internal fun TripDocumentsTabContent(
         onDeleteFolder = viewModel::removeFolder,
         onRenameDocument = viewModel::renameDocument,
         onDeleteDocument = viewModel::removeDocument,
+        onUploadFile = { filePicker.launch(arrayOf("*/*")) },
+        onOpenDocument = { document ->
+            try {
+                val uri = Uri.parse(document.uri)
+                val contentUri = if (uri.scheme == "file") {
+                    val path = uri.path
+                        ?: throw IllegalArgumentException("File URI has no path: $uri")
+                    FileProvider.getUriForFile(
+                        context,
+                        "${context.packageName}.fileprovider",
+                        File(path),
+                    )
+                } else {
+                    uri
+                }
+                val intent = Intent(Intent.ACTION_VIEW).apply {
+                    setDataAndType(contentUri, document.mimeType.ifBlank { "*/*" })
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                context.startActivity(intent)
+            } catch (e: ActivityNotFoundException) {
+                android.widget.Toast.makeText(context, noAppMessage, android.widget.Toast.LENGTH_SHORT).show()
+            } catch (e: IllegalArgumentException) {
+                android.widget.Toast.makeText(context, noAppMessage, android.widget.Toast.LENGTH_SHORT).show()
+            }
+        },
         onErrorDismiss = viewModel::clearError,
     )
 }
@@ -81,7 +152,8 @@ internal fun TripDocumentsTabContent(
 /**
  * Stateless presentation of the Documents tab content.
  *
- * Supports folder navigation, create/rename/delete dialogs, and document rename/delete.
+ * Supports folder navigation, create/rename/delete dialogs, document rename/delete,
+ * file upload (via [onUploadFile]), and document open (via [onOpenDocument]).
  * [onErrorDismiss] is called when the user acknowledges a transient write error.
  */
 @Composable
@@ -95,8 +167,11 @@ internal fun TripDocumentsContent(
     onDeleteFolder: (TripDocumentFolder) -> Unit = {},
     onRenameDocument: (TripDocument, String) -> Unit = { _, _ -> },
     onDeleteDocument: (TripDocument) -> Unit = {},
+    onUploadFile: () -> Unit = {},
+    onOpenDocument: (TripDocument) -> Unit = {},
     onErrorDismiss: () -> Unit = {},
 ) {
+    var isFabExpanded by rememberSaveable { mutableStateOf(false) }
     var showCreateFolderDialog by rememberSaveable { mutableStateOf(false) }
     var folderToRename by remember { mutableStateOf<TripDocumentFolder?>(null) }
     var folderToDelete by remember { mutableStateOf<TripDocumentFolder?>(null) }
@@ -151,6 +226,11 @@ internal fun TripDocumentsContent(
 
                     val isEmpty = uiState.folders.isEmpty() && uiState.documents.isEmpty()
                     if (isEmpty) {
+                        val emptySubtitle = if (uiState.currentFolder == null) {
+                            stringResource(R.string.documents_empty_root_subtitle)
+                        } else {
+                            stringResource(R.string.documents_empty_folder_subtitle)
+                        }
                         Column(
                             modifier = Modifier
                                 .weight(1f)
@@ -164,7 +244,7 @@ internal fun TripDocumentsContent(
                                 textAlign = TextAlign.Center,
                             )
                             Text(
-                                text = stringResource(R.string.documents_empty_subtitle),
+                                text = emptySubtitle,
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = TextAlign.Center,
@@ -185,6 +265,7 @@ internal fun TripDocumentsContent(
                             items(uiState.documents, key = { "doc-${it.id}" }) { document ->
                                 DocumentRow(
                                     document = document,
+                                    onOpen = { onOpenDocument(document) },
                                     onRename = { documentToRename = document },
                                     onDelete = { documentToDelete = document },
                                 )
@@ -194,18 +275,64 @@ internal fun TripDocumentsContent(
                     }
                 }
 
-                // FAB: create a new folder (visible at all levels)
-                FloatingActionButton(
-                    onClick = { showCreateFolderDialog = true },
+                // Speed-dial FAB: expands to show "Upload file" and "New folder" actions.
+                Column(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                         .padding(innerPadding)
                         .padding(16.dp),
+                    horizontalAlignment = Alignment.End,
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = stringResource(R.string.documents_add_folder),
-                    )
+                    AnimatedVisibility(
+                        visible = isFabExpanded,
+                        enter = fadeIn() + scaleIn(),
+                        exit = fadeOut() + scaleOut(),
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.End,
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            SpeedDialItem(
+                                label = stringResource(R.string.documents_upload_file),
+                                icon = {
+                                    Icon(
+                                        imageVector = Icons.Default.UploadFile,
+                                        contentDescription = stringResource(R.string.documents_upload_file),
+                                    )
+                                },
+                                onClick = {
+                                    isFabExpanded = false
+                                    onUploadFile()
+                                },
+                            )
+                            SpeedDialItem(
+                                label = stringResource(R.string.documents_add_folder),
+                                icon = {
+                                    Icon(
+                                        imageVector = Icons.Default.FolderOpen,
+                                        contentDescription = stringResource(R.string.documents_add_folder),
+                                    )
+                                },
+                                onClick = {
+                                    isFabExpanded = false
+                                    showCreateFolderDialog = true
+                                },
+                            )
+                        }
+                    }
+                    FloatingActionButton(
+                        onClick = { isFabExpanded = !isFabExpanded },
+                    ) {
+                        Icon(
+                            imageVector = if (isFabExpanded) Icons.Default.Close else Icons.Default.Add,
+                            contentDescription = if (isFabExpanded) {
+                                stringResource(R.string.dialog_cancel)
+                            } else {
+                                stringResource(R.string.documents_add_action)
+                            },
+                        )
+                    }
                 }
             }
         }
@@ -296,6 +423,38 @@ internal fun TripDocumentsContent(
     }
 }
 
+// ── Speed dial helper ─────────────────────────────────────────────────────────
+
+@Composable
+private fun SpeedDialItem(
+    label: String,
+    icon: @Composable () -> Unit,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Card(
+            modifier = Modifier.clickable(onClick = onClick),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+            ),
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            )
+        }
+        Spacer(modifier = Modifier.width(8.dp))
+        SmallFloatingActionButton(onClick = onClick) {
+            icon()
+        }
+    }
+}
+
 // ── Rows ──────────────────────────────────────────────────────────────────────
 
 @Composable
@@ -346,6 +505,7 @@ private fun FolderRow(
 @Composable
 private fun DocumentRow(
     document: TripDocument,
+    onOpen: () -> Unit,
     onRename: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier,
@@ -356,18 +516,20 @@ private fun DocumentRow(
             .padding(horizontal = 16.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(
-            imageVector = Icons.Default.Description,
-            contentDescription = stringResource(R.string.documents_document_content_desc, document.name),
-            tint = MaterialTheme.colorScheme.secondary,
-            modifier = Modifier.padding(8.dp),
-        )
+        IconButton(onClick = onOpen) {
+            Icon(
+                imageVector = Icons.Default.Description,
+                contentDescription = stringResource(R.string.documents_open_content_desc, document.name),
+                tint = MaterialTheme.colorScheme.secondary,
+            )
+        }
         Text(
             text = document.name,
             style = MaterialTheme.typography.bodyLarge,
             modifier = Modifier
                 .weight(1f)
-                .padding(start = 4.dp),
+                .padding(start = 4.dp)
+                .clickable(onClick = onOpen),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -482,8 +644,8 @@ private fun TripDocumentsFolderListPreview() {
 private fun TripDocumentsDocumentListPreview() {
     val folder = TripDocumentFolder(id = 1, tripId = 1, name = "Flight Tickets")
     val documents = listOf(
-        TripDocument(id = 1, folderId = 1, name = "outbound.pdf", uri = "", mimeType = "application/pdf"),
-        TripDocument(id = 2, folderId = 1, name = "return.pdf", uri = "", mimeType = "application/pdf"),
+        TripDocument(id = 1, tripId = 1, folderId = 1, name = "outbound.pdf", uri = "", mimeType = "application/pdf"),
+        TripDocument(id = 2, tripId = 1, folderId = 1, name = "return.pdf", uri = "", mimeType = "application/pdf"),
     )
     WanderVaultTheme {
         TripDocumentsContent(
@@ -496,3 +658,25 @@ private fun TripDocumentsDocumentListPreview() {
         )
     }
 }
+
+@Preview(showBackground = true)
+@Composable
+private fun TripDocumentsRootWithDocumentsPreview() {
+    val documents = listOf(
+        TripDocument(id = 1, tripId = 1, name = "passport_scan.pdf", uri = "", mimeType = "application/pdf"),
+        TripDocument(id = 2, tripId = 1, name = "travel_insurance.pdf", uri = "", mimeType = "application/pdf"),
+    )
+    val folders = listOf(
+        TripDocumentFolder(id = 1, tripId = 1, name = "Flight Tickets"),
+    )
+    WanderVaultTheme {
+        TripDocumentsContent(
+            uiState = TripDocumentsUiState.Success(
+                documents = documents,
+                folders = folders,
+            ),
+            innerPadding = PaddingValues(0.dp),
+        )
+    }
+}
+

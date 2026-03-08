@@ -55,12 +55,14 @@ val presentationModule = module {
             getRootFolders = get(),
             getSubFolders = get(),
             getDocumentsInFolder = get(),
+            getRootDocuments = get(),
             saveFolder = get(),
             updateFolder = get(),
             deleteFolder = get(),
             saveDocument = get(),
             updateDocument = get(),
             deleteDocument = get(),
+            copyDocumentToInternalStorage = get(),
         )
     }
 }
