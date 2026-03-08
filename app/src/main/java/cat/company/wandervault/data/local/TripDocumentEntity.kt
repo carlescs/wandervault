@@ -44,4 +44,6 @@ data class TripDocumentEntity(
     val uri: String,
     /** MIME type or simple type tag, e.g. "pdf", "image", "note". */
     val mimeType: String,
+    /** AI-generated summary of the document content, or `null` if not yet extracted. */
+    val summary: String? = null,
 )

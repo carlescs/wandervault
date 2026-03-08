@@ -63,6 +63,13 @@ val presentationModule = module {
             updateDocument = get(),
             deleteDocument = get(),
             copyDocumentToInternalStorage = get(),
+            summarizeDocument = get(),
+            getTrip = get(),
+            saveTripDescription = get(),
+            getDestinationsForTrip = get(),
+            getHotelForDestination = get(),
+            saveHotel = get(),
+            updateTransportLeg = get(),
         )
     }
 }

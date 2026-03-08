@@ -1,7 +1,9 @@
 package cat.company.wandervault
 
+import cat.company.wandervault.domain.model.DocumentExtractionResult
 import cat.company.wandervault.domain.model.TripDocument
 import cat.company.wandervault.domain.model.TripDocumentFolder
+import cat.company.wandervault.domain.repository.DocumentSummaryRepository
 import cat.company.wandervault.domain.repository.TripDocumentRepository
 import cat.company.wandervault.domain.usecase.CopyDocumentToInternalStorageUseCase
 import cat.company.wandervault.domain.usecase.DeleteDocumentUseCase
@@ -12,6 +14,7 @@ import cat.company.wandervault.domain.usecase.GetRootFoldersUseCase
 import cat.company.wandervault.domain.usecase.GetSubFoldersUseCase
 import cat.company.wandervault.domain.usecase.SaveDocumentUseCase
 import cat.company.wandervault.domain.usecase.SaveFolderUseCase
+import cat.company.wandervault.domain.usecase.SummarizeDocumentUseCase
 import cat.company.wandervault.domain.usecase.UpdateDocumentUseCase
 import cat.company.wandervault.domain.usecase.UpdateFolderUseCase
 import kotlinx.coroutines.flow.Flow
@@ -19,6 +22,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -164,6 +168,38 @@ class TripDocumentUseCaseTest {
 
         assertEquals("file:///fake/documents/copy.pdf", result)
     }
+
+    // ── SummarizeDocumentUseCase ──────────────────────────────────────────────
+
+    @Test
+    fun `SummarizeDocumentUseCase returns extraction result from repository`() = runTest {
+        val fakeRepo = FakeDocumentSummaryRepository(
+            DocumentExtractionResult(
+                summary = "Flight booking confirmation for Paris trip.",
+                relevantTripInfo = "Dates: 2025-06-01 to 2025-06-10. Destination: Paris.",
+            ),
+        )
+
+        val result = SummarizeDocumentUseCase(fakeRepo)(
+            "file:///documents/booking.txt",
+            "text/plain",
+        )
+
+        assertEquals("Flight booking confirmation for Paris trip.", result?.summary)
+        assertEquals("Dates: 2025-06-01 to 2025-06-10. Destination: Paris.", result?.relevantTripInfo)
+    }
+
+    @Test
+    fun `SummarizeDocumentUseCase returns null when repository returns null`() = runTest {
+        val fakeRepo = FakeDocumentSummaryRepository(null)
+
+        val result = SummarizeDocumentUseCase(fakeRepo)(
+            "file:///documents/photo.jpg",
+            "image/jpeg",
+        )
+
+        assertNull(result)
+    }
 }
 
 private class FakeTripDocumentRepository : TripDocumentRepository {
@@ -225,4 +261,13 @@ private class FakeTripDocumentRepository : TripDocumentRepository {
     override suspend fun deleteDocumentFileByUri(fileUri: String) {
         // no-op in tests
     }
+}
+
+private class FakeDocumentSummaryRepository(
+    private val result: DocumentExtractionResult?,
+) : DocumentSummaryRepository {
+    override suspend fun extractDocumentInfo(
+        fileUri: String,
+        mimeType: String,
+    ): DocumentExtractionResult? = result
 }
