@@ -1,0 +1,338 @@
+package cat.company.wandervault.ui.screens
+
+import android.util.Log
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import cat.company.wandervault.domain.model.Destination
+import cat.company.wandervault.domain.model.FlightInfo
+import cat.company.wandervault.domain.model.Hotel
+import cat.company.wandervault.domain.model.HotelInfo
+import cat.company.wandervault.domain.model.TransportLeg
+import cat.company.wandervault.domain.model.TransportType
+import cat.company.wandervault.domain.model.TripDocument
+import cat.company.wandervault.domain.usecase.CopyDocumentToInternalStorageUseCase
+import cat.company.wandervault.domain.usecase.GetDestinationsForTripUseCase
+import cat.company.wandervault.domain.usecase.GetHotelForDestinationUseCase
+import cat.company.wandervault.domain.usecase.GetRootDocumentsUseCase
+import cat.company.wandervault.domain.usecase.GetTripUseCase
+import cat.company.wandervault.domain.usecase.GetTripsUseCase
+import cat.company.wandervault.domain.usecase.SaveDocumentUseCase
+import cat.company.wandervault.domain.usecase.SaveHotelUseCase
+import cat.company.wandervault.domain.usecase.SaveTripDescriptionUseCase
+import cat.company.wandervault.domain.usecase.SummarizeDocumentUseCase
+import cat.company.wandervault.domain.usecase.UpdateDocumentUseCase
+import cat.company.wandervault.domain.usecase.UpdateTransportLegUseCase
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.takeWhile
+import kotlinx.coroutines.launch
+
+/**
+ * ViewModel that drives the share-to-WanderVault flow.
+ *
+ * Receives the shared document details ([sourceUri], [mimeType], [documentName]) at construction
+ * time (via Koin parameters) and proceeds through the following states:
+ * 1. [ShareUiState.Loading] → [ShareUiState.TripSelection]: trips are loaded, user picks one.
+ * 2. [ShareUiState.Processing]: document is copied and analysed by ML Kit.
+ * 3. (optional) [ShareUiState.FlightLegSelection] or [ShareUiState.HotelDestinationSelection]:
+ *    no confident itinerary match; user selects the target element.
+ * 4. [ShareUiState.Done]: all data applied; the caller should dismiss the share UI.
+ * 5. [ShareUiState.Error]: a non-recoverable error occurred.
+ *
+ * @param sourceUri URI of the shared document (as-received from the intent).
+ * @param mimeType MIME type of the shared document.
+ * @param documentName Display name for the shared document.
+ */
+class ShareViewModel(
+    private val sourceUri: String,
+    private val mimeType: String,
+    private val documentName: String,
+    private val getTrips: GetTripsUseCase,
+    private val copyDocumentToInternalStorage: CopyDocumentToInternalStorageUseCase,
+    private val saveDocument: SaveDocumentUseCase,
+    private val updateDocument: UpdateDocumentUseCase,
+    private val getRootDocuments: GetRootDocumentsUseCase,
+    private val summarizeDocument: SummarizeDocumentUseCase,
+    private val getTrip: GetTripUseCase,
+    private val saveTripDescription: SaveTripDescriptionUseCase,
+    private val getDestinationsForTrip: GetDestinationsForTripUseCase,
+    private val getHotelForDestination: GetHotelForDestinationUseCase,
+    private val saveHotel: SaveHotelUseCase,
+    private val updateTransportLeg: UpdateTransportLegUseCase,
+) : ViewModel() {
+
+    private val _uiState = MutableStateFlow<ShareUiState>(ShareUiState.Loading)
+    val uiState: StateFlow<ShareUiState> = _uiState.asStateFlow()
+
+    /** Pending flight info kept alive across the [ShareUiState.FlightLegSelection] dialog. */
+    private var pendingFlightInfo: FlightInfo? = null
+
+    /** Pending hotel info kept alive across the [ShareUiState.HotelDestinationSelection] dialog. */
+    private var pendingHotelInfo: HotelInfo? = null
+
+    /** The ID of the trip the user selected; set when entering [ShareUiState.Processing]. */
+    private var selectedTripId: Int = NO_TRIP_SELECTED
+
+    init {
+        viewModelScope.launch {
+            getTrips()
+                // Stop collecting once the user has moved past trip selection.
+                .takeWhile {
+                    val state = _uiState.value
+                    state is ShareUiState.Loading || state is ShareUiState.TripSelection
+                }
+                .collect { trips ->
+                    _uiState.value = ShareUiState.TripSelection(
+                        trips = trips,
+                        sourceUri = sourceUri,
+                        mimeType = mimeType,
+                        documentName = documentName,
+                    )
+                }
+        }
+    }
+
+    /**
+     * Called when the user confirms a trip. Begins copying the document, persisting it, and
+     * running ML Kit extraction asynchronously.
+     */
+    fun onTripSelected(tripId: Int) {
+        selectedTripId = tripId
+        _uiState.value = ShareUiState.Processing
+
+        viewModelScope.launch {
+            try {
+                val internalUri = copyDocumentToInternalStorage(sourceUri)
+                    ?: throw IllegalStateException("Failed to copy document to internal storage")
+
+                saveDocument(
+                    TripDocument(
+                        tripId = tripId,
+                        folderId = null,
+                        name = documentName.trim(),
+                        uri = internalUri,
+                        mimeType = mimeType,
+                    ),
+                )
+
+                val result = summarizeDocument(internalUri, mimeType)
+                if (result != null) {
+                    // Persist the extracted summary on the saved document record.
+                    val savedDoc = getRootDocuments(tripId).first().find { it.uri == internalUri }
+                    if (savedDoc != null) {
+                        updateDocument(savedDoc.copy(summary = result.summary))
+                    }
+
+                    when {
+                        result.flightInfo != null ->
+                            handleFlightInfo(result.flightInfo)
+
+                        result.hotelInfo != null ->
+                            handleHotelInfo(result.hotelInfo)
+
+                        else -> {
+                            val relevantInfo = result.relevantTripInfo
+                            if (relevantInfo != null) {
+                                val trip = getTrip(tripId).first()
+                                if (trip != null && trip.aiDescription == null) {
+                                    saveTripDescription(trip, relevantInfo)
+                                }
+                            }
+                            _uiState.value = ShareUiState.Done
+                        }
+                    }
+                } else {
+                    _uiState.value = ShareUiState.Done
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to process shared document", e)
+                _uiState.value = ShareUiState.Error(e.message)
+            }
+        }
+    }
+
+    /**
+     * Called when the user picks a specific [TransportLeg] from the flight disambiguation dialog.
+     * Applies [pendingFlightInfo] to the chosen leg and transitions to [ShareUiState.Done].
+     */
+    fun onFlightLegSelected(leg: TransportLeg) {
+        val flightInfo = pendingFlightInfo ?: run {
+            _uiState.value = ShareUiState.Done
+            return
+        }
+        pendingFlightInfo = null
+        viewModelScope.launch {
+            try {
+                applyFlightInfoToLeg(flightInfo, leg)
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to apply flight info to selected leg", e)
+            } finally {
+                _uiState.value = ShareUiState.Done
+            }
+        }
+    }
+
+    /**
+     * Called when the user picks a [Destination] from the hotel disambiguation dialog.
+     * Applies [pendingHotelInfo] to that destination and transitions to [ShareUiState.Done].
+     */
+    fun onHotelDestinationSelected(destination: Destination) {
+        val hotelInfo = pendingHotelInfo ?: run {
+            _uiState.value = ShareUiState.Done
+            return
+        }
+        pendingHotelInfo = null
+        viewModelScope.launch {
+            try {
+                applyHotelInfoToDestination(hotelInfo, destination)
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to apply hotel info to selected destination", e)
+            } finally {
+                _uiState.value = ShareUiState.Done
+            }
+        }
+    }
+
+    /** Skips the current disambiguation step and moves directly to [ShareUiState.Done]. */
+    fun onDisambiguationSkipped() {
+        pendingFlightInfo = null
+        pendingHotelInfo = null
+        _uiState.value = ShareUiState.Done
+    }
+
+    // -----------------------------------------------------------------
+    // Private helpers
+    // -----------------------------------------------------------------
+
+    /**
+     * Checks [flightInfo] against all FLIGHT-type legs in the selected trip.
+     *
+     * A *confident* match requires the flight number **or** booking reference to match exactly
+     * (case-insensitive).  When there is no confident match but there are candidates, the state
+     * transitions to [ShareUiState.FlightLegSelection].  When there are no flight legs at all
+     * the info is silently skipped.
+     */
+    private suspend fun handleFlightInfo(flightInfo: FlightInfo) {
+        val allFlightLegs = getDestinationsForTrip(selectedTripId).first()
+            .flatMap { dest -> dest.transport?.legs.orEmpty() }
+            .filter { it.type == TransportType.FLIGHT }
+
+        if (allFlightLegs.isEmpty()) {
+            Log.d(TAG, "No flight legs in trip $selectedTripId; skipping extracted flight info")
+            _uiState.value = ShareUiState.Done
+            return
+        }
+
+        val confidentMatch = allFlightLegs.firstOrNull { leg ->
+            flightInfo.flightNumber != null &&
+                leg.flightNumber.equals(flightInfo.flightNumber, ignoreCase = true)
+        } ?: allFlightLegs.firstOrNull { leg ->
+            flightInfo.bookingReference != null &&
+                leg.reservationConfirmationNumber.equals(
+                    flightInfo.bookingReference,
+                    ignoreCase = true,
+                )
+        }
+
+        if (confidentMatch != null) {
+            applyFlightInfoToLeg(flightInfo, confidentMatch)
+            _uiState.value = ShareUiState.Done
+        } else {
+            pendingFlightInfo = flightInfo
+            _uiState.value = ShareUiState.FlightLegSelection(
+                flightInfo = flightInfo,
+                candidates = allFlightLegs,
+            )
+        }
+    }
+
+    /**
+     * Checks [hotelInfo] against all destinations in the selected trip.
+     *
+     * A *confident* match requires the booking reference **or** hotel name to match exactly
+     * (case-insensitive).  When there is no confident match, the state transitions to
+     * [ShareUiState.HotelDestinationSelection].  When there are no destinations at all the info
+     * is silently skipped.
+     */
+    private suspend fun handleHotelInfo(hotelInfo: HotelInfo) {
+        val destinations = getDestinationsForTrip(selectedTripId).first()
+
+        if (destinations.isEmpty()) {
+            Log.d(TAG, "No destinations in trip $selectedTripId; skipping extracted hotel info")
+            _uiState.value = ShareUiState.Done
+            return
+        }
+
+        val destinationHotels = destinations.map { dest ->
+            dest to getHotelForDestination(dest.id).first()
+        }
+
+        val confidentMatch = destinationHotels.firstOrNull { (_, hotel) ->
+            hotel != null && hotelInfo.bookingReference != null &&
+                hotel.reservationNumber.equals(hotelInfo.bookingReference, ignoreCase = true)
+        } ?: destinationHotels.firstOrNull { (_, hotel) ->
+            hotel != null && hotelInfo.name != null &&
+                hotel.name.equals(hotelInfo.name, ignoreCase = true)
+        }
+
+        if (confidentMatch != null) {
+            applyHotelInfoToDestination(hotelInfo, confidentMatch.first)
+            _uiState.value = ShareUiState.Done
+        } else {
+            pendingHotelInfo = hotelInfo
+            _uiState.value = ShareUiState.HotelDestinationSelection(
+                hotelInfo = hotelInfo,
+                candidates = destinations,
+            )
+        }
+    }
+
+    private suspend fun applyFlightInfoToLeg(flightInfo: FlightInfo, leg: TransportLeg) {
+        val updatedLeg = leg.copy(
+            company = leg.company?.ifBlank { null } ?: flightInfo.airline,
+            flightNumber = leg.flightNumber?.ifBlank { null } ?: flightInfo.flightNumber,
+            reservationConfirmationNumber = leg.reservationConfirmationNumber
+                ?.ifBlank { null } ?: flightInfo.bookingReference,
+            stopName = leg.stopName?.ifBlank { null } ?: flightInfo.arrivalPlace,
+        )
+        if (updatedLeg != leg) {
+            updateTransportLeg(updatedLeg)
+        }
+    }
+
+    private suspend fun applyHotelInfoToDestination(hotelInfo: HotelInfo, destination: Destination) {
+        val existingHotel = getHotelForDestination(destination.id).first()
+        if (existingHotel != null) {
+            val updatedHotel = existingHotel.copy(
+                name = existingHotel.name.ifBlank { null } ?: hotelInfo.name.orEmpty(),
+                address = existingHotel.address.ifBlank { null } ?: hotelInfo.address.orEmpty(),
+                reservationNumber = existingHotel.reservationNumber.ifBlank { null }
+                    ?: hotelInfo.bookingReference.orEmpty(),
+            )
+            if (updatedHotel != existingHotel) {
+                saveHotel(updatedHotel)
+            }
+        } else {
+            if (hotelInfo.name.isNullOrBlank() && hotelInfo.address.isNullOrBlank() &&
+                hotelInfo.bookingReference.isNullOrBlank()
+            ) {
+                return
+            }
+            saveHotel(
+                Hotel(
+                    destinationId = destination.id,
+                    name = hotelInfo.name ?: "",
+                    address = hotelInfo.address ?: "",
+                    reservationNumber = hotelInfo.bookingReference ?: "",
+                ),
+            )
+        }
+    }
+
+    companion object {
+        private const val TAG = "ShareViewModel"
+        private const val NO_TRIP_SELECTED = -1
+    }
+}

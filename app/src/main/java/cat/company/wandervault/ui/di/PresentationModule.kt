@@ -5,6 +5,7 @@ import cat.company.wandervault.ui.screens.FavoritesViewModel
 import cat.company.wandervault.ui.screens.HomeViewModel
 import cat.company.wandervault.ui.screens.ItineraryViewModel
 import cat.company.wandervault.ui.screens.LocationDetailViewModel
+import cat.company.wandervault.ui.screens.ShareViewModel
 import cat.company.wandervault.ui.screens.TransportDetailViewModel
 import cat.company.wandervault.ui.screens.TripDetailViewModel
 import cat.company.wandervault.ui.screens.TripDocumentsViewModel
@@ -63,6 +64,25 @@ val presentationModule = module {
             updateDocument = get(),
             deleteDocument = get(),
             copyDocumentToInternalStorage = get(),
+            summarizeDocument = get(),
+            getTrip = get(),
+            saveTripDescription = get(),
+            getDestinationsForTrip = get(),
+            getHotelForDestination = get(),
+            saveHotel = get(),
+            updateTransportLeg = get(),
+        )
+    }
+    viewModel { params ->
+        ShareViewModel(
+            sourceUri = params.component1(),
+            mimeType = params.component2(),
+            documentName = params.component3(),
+            getTrips = get(),
+            copyDocumentToInternalStorage = get(),
+            saveDocument = get(),
+            updateDocument = get(),
+            getRootDocuments = get(),
             summarizeDocument = get(),
             getTrip = get(),
             saveTripDescription = get(),
