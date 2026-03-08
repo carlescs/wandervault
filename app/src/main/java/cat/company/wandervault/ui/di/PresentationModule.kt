@@ -65,6 +65,7 @@ val presentationModule = module {
             deleteDocument = get(),
             copyDocumentToInternalStorage = get(),
             summarizeDocument = get(),
+            getAllFoldersForTrip = get(),
             getTrip = get(),
             saveTripDescription = get(),
             getDestinationsForTrip = get(),
