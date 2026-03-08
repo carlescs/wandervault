@@ -27,7 +27,7 @@ sealed class TripDocumentsUiState {
      * Data loaded successfully.
      *
      * @param folders Sub-folders of the current level (root folders or sub-folders of [currentFolder]).
-     * @param documents Documents in the current folder (empty when at root level, as root has no documents directly).
+     * @param documents Documents in the current folder (including root-level documents when [currentFolder] is `null`).
      * @param currentFolder The folder currently being viewed, or `null` when at the root level.
      * @param folderStack Navigation path of folders from the root to the current folder (last element = current folder).
      * @param allFolders All folders in the trip regardless of depth, used for the move-document picker.

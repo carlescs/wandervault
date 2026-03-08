@@ -81,6 +81,9 @@ class TripDocumentsViewModel(
 
     init {
         viewModelScope.launch {
+            // allFoldersFlow is independent of navigation level, so it is hoisted outside
+            // flatMapLatest to avoid creating a new Room observer on every folder navigation.
+            val allFoldersFlow = getAllFoldersForTrip(tripId)
             _folderStack.flatMapLatest { stack ->
                 val currentFolder = stack.lastOrNull()
                 val foldersFlow = if (currentFolder == null) {
@@ -93,7 +96,6 @@ class TripDocumentsViewModel(
                 } else {
                     getDocumentsInFolder(currentFolder.id)
                 }
-                val allFoldersFlow = getAllFoldersForTrip(tripId)
                 combine(foldersFlow, documentsFlow, allFoldersFlow) { folders, documents, allFolders ->
                     TripDocumentsUiState.Success(
                         folders = folders,

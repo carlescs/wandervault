@@ -639,9 +639,10 @@ private fun ConfirmDeleteDialog(
 /**
  * A dialog that lets the user pick a destination folder when moving a document.
  *
- * Shows a "Root (no folder)" option followed by all folders in the trip. Tapping an option
- * immediately calls [onMove] with the selected folder ID (or `null` for root) and dismisses
- * the dialog.
+ * Shows a "Root (no folder)" option followed by all folders in the trip. Each folder is labelled
+ * with its full ancestor path (e.g. "Travel / Documents") to disambiguate folders that share the
+ * same name under different parents. Tapping an option immediately calls [onMove] with the
+ * selected folder ID (or `null` for root) and dismisses the dialog.
  */
 @Composable
 private fun MoveFolderPickerDialog(
@@ -649,6 +650,7 @@ private fun MoveFolderPickerDialog(
     onMove: (targetFolderId: Int?) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val folderMap = remember(allFolders) { allFolders.associateBy { it.id } }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.documents_move_document_title)) },
@@ -689,9 +691,9 @@ private fun MoveFolderPickerDialog(
                         )
                         Spacer(modifier = Modifier.width(12.dp))
                         Text(
-                            text = folder.name,
+                            text = buildFolderPath(folder, folderMap),
                             style = MaterialTheme.typography.bodyLarge,
-                            maxLines = 1,
+                            maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
@@ -706,6 +708,27 @@ private fun MoveFolderPickerDialog(
             }
         },
     )
+}
+
+/**
+ * Builds a human-readable path for [folder] by walking up the [folderMap] via [TripDocumentFolder.parentFolderId].
+ * Example: "Travel / Flights / Tickets".
+ *
+ * A visited-ID set guards against cycles in case of data corruption so the loop always terminates.
+ */
+private fun buildFolderPath(
+    folder: TripDocumentFolder,
+    folderMap: Map<Int, TripDocumentFolder>,
+): String {
+    val parts = mutableListOf<String>()
+    val visited = mutableSetOf<Int>()
+    var current: TripDocumentFolder? = folder
+    while (current != null && visited.add(current.id)) {
+        parts.add(current.name)
+        current = current.parentFolderId?.let { folderMap[it] }
+    }
+    parts.reverse()
+    return parts.joinToString(" / ")
 }
 
 // ── Previews ──────────────────────────────────────────────────────────────────
