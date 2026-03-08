@@ -31,6 +31,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.DriveFileMove
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AirplanemodeActive
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
@@ -81,6 +82,8 @@ import cat.company.wandervault.domain.model.Destination
 import cat.company.wandervault.domain.model.DocumentExtractionResult
 import cat.company.wandervault.domain.model.FlightInfo
 import cat.company.wandervault.domain.model.HotelInfo
+import cat.company.wandervault.domain.model.TransportLeg
+import cat.company.wandervault.domain.model.TransportType
 import cat.company.wandervault.domain.model.TripDocument
 import cat.company.wandervault.domain.model.TripDocumentFolder
 import cat.company.wandervault.ui.theme.WanderVaultTheme
@@ -165,6 +168,7 @@ internal fun TripDocumentsTabContent(
         },
         onAnalyzeDocument = viewModel::analyzeDocument,
         onAnalyzeApplyChanges = viewModel::applyAnalysisChanges,
+        onAnalyzeFlightLegSelected = viewModel::onFlightLegSelected,
         onAnalyzeHotelDestinationSelected = viewModel::onHotelDestinationSelected,
         onAnalyzeDismiss = viewModel::dismissAnalyze,
         onErrorDismiss = viewModel::clearError,
@@ -194,6 +198,7 @@ internal fun TripDocumentsContent(
     onOpenDocument: (TripDocument) -> Unit = {},
     onAnalyzeDocument: (TripDocument) -> Unit = {},
     onAnalyzeApplyChanges: () -> Unit = {},
+    onAnalyzeFlightLegSelected: (TransportLeg) -> Unit = {},
     onAnalyzeHotelDestinationSelected: (Destination) -> Unit = {},
     onAnalyzeDismiss: () -> Unit = {},
     onErrorDismiss: () -> Unit = {},
@@ -448,9 +453,17 @@ internal fun TripDocumentsContent(
     }
 
     // Show the analysis dialog when an analysis is in progress or has a result.
-    // When the state is HotelDestinationSelection, show a dedicated destination picker instead.
+    // When the state is FlightLegSelection or HotelDestinationSelection, show dedicated pickers.
     val analyzeState = (uiState as? TripDocumentsUiState.Success)?.analyzeState
     when {
+        analyzeState is AnalyzeDocumentUiState.FlightLegSelection -> {
+            AnalyzeFlightLegSelectionDialog(
+                flightInfo = analyzeState.flightInfo,
+                candidates = analyzeState.candidates,
+                onLegSelected = onAnalyzeFlightLegSelected,
+                onSkip = onAnalyzeDismiss,
+            )
+        }
         analyzeState is AnalyzeDocumentUiState.HotelDestinationSelection -> {
             AnalyzeHotelDestinationSelectionDialog(
                 hotelInfo = analyzeState.hotelInfo,
@@ -991,6 +1004,106 @@ private fun AnalyzeDocumentDialog(
             }
         },
     )
+}
+
+/**
+ * A dialog shown when ML Kit extracted flight information from an analyzed document but could not
+ * confidently determine which flight leg to update. The user selects one of [candidates] or skips.
+ */
+@Composable
+private fun AnalyzeFlightLegSelectionDialog(
+    flightInfo: FlightInfo,
+    candidates: List<TransportLeg>,
+    onLegSelected: (TransportLeg) -> Unit,
+    onSkip: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onSkip,
+        title = { Text(stringResource(R.string.share_flight_selection_title)) },
+        text = {
+            Column {
+                AnalyzeFlightInfoSummary(flightInfo = flightInfo)
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = stringResource(R.string.share_flight_selection_message),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                LazyColumn(modifier = Modifier.heightIn(max = 280.dp)) {
+                    items(candidates) { leg ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onLegSelected(leg) }
+                                .padding(vertical = 10.dp, horizontal = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AirplanemodeActive,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.secondary,
+                                modifier = Modifier.padding(end = 12.dp),
+                            )
+                            Column {
+                                val label = listOfNotNull(leg.company, leg.flightNumber)
+                                    .joinToString(" ")
+                                    .ifBlank { stringResource(R.string.share_unnamed_flight_leg) }
+                                Text(text = label, style = MaterialTheme.typography.bodyMedium)
+                                if (!leg.reservationConfirmationNumber.isNullOrBlank()) {
+                                    Text(
+                                        text = stringResource(
+                                            R.string.documents_analyze_ref,
+                                            leg.reservationConfirmationNumber,
+                                        ),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                        }
+                        HorizontalDivider()
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onSkip) {
+                Text(stringResource(R.string.share_skip))
+            }
+        },
+    )
+}
+
+@Composable
+private fun AnalyzeFlightInfoSummary(flightInfo: FlightInfo, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = Icons.Default.AirplanemodeActive,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(end = 8.dp),
+        )
+        Column {
+            val flightLabel = listOfNotNull(flightInfo.airline, flightInfo.flightNumber)
+                .joinToString(" ")
+                .ifBlank { stringResource(R.string.share_unknown_flight) }
+            Text(text = flightLabel, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+            if (!flightInfo.bookingReference.isNullOrBlank()) {
+                Text(
+                    text = stringResource(R.string.documents_analyze_ref, flightInfo.bookingReference),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
 }
 
 /**
