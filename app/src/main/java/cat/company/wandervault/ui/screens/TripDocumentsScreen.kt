@@ -90,6 +90,8 @@ import cat.company.wandervault.ui.theme.WanderVaultTheme
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
 import java.io.File
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 
 /**
  * Documents tab entry point for the Trip Detail screen.
@@ -1117,6 +1119,7 @@ private fun AnalyzeHotelDestinationSelectionDialog(
     onDestinationSelected: (Destination) -> Unit,
     onSkip: () -> Unit,
 ) {
+    val dateFormatter = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
     AlertDialog(
         onDismissRequest = onSkip,
         title = { Text(stringResource(R.string.share_hotel_selection_title)) },
@@ -1146,10 +1149,27 @@ private fun AnalyzeHotelDestinationSelectionDialog(
                                 modifier = Modifier
                                     .padding(end = 12.dp),
                             )
-                            Text(
-                                text = destination.name,
-                                style = MaterialTheme.typography.bodyMedium,
-                            )
+                            Column {
+                                Text(
+                                    text = destination.name,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                                val arrival = destination.arrivalDateTime?.toLocalDate()
+                                val departure = destination.departureDateTime?.toLocalDate()
+                                if (arrival != null || departure != null) {
+                                    val dateRange = when {
+                                        arrival != null && departure != null ->
+                                            "${arrival.format(dateFormatter)} – ${departure.format(dateFormatter)}"
+                                        arrival != null -> arrival.format(dateFormatter)
+                                        else -> requireNotNull(departure).format(dateFormatter)
+                                    }
+                                    Text(
+                                        text = dateRange,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
                         }
                         HorizontalDivider()
                     }

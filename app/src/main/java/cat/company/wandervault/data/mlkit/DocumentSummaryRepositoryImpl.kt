@@ -26,6 +26,8 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.InputStream
+import java.time.LocalDate
+import java.time.format.DateTimeParseException
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
@@ -256,7 +258,8 @@ class DocumentSummaryRepositoryImpl(private val context: Context) : DocumentSumm
         )
         appendLine(
             "- If it is a HOTEL document (booking confirmation, reservation, hotel voucher), " +
-                "output exactly one line: ${HOTEL_MARKER}<hotel name>|<address>|<booking reference>",
+                "output exactly one line: " +
+                "${HOTEL_MARKER}<hotel name>|<address>|<booking reference>|<check-in date (YYYY-MM-DD)>|<check-out date (YYYY-MM-DD)>",
         )
         appendLine(
             "- Otherwise, list any trip-relevant info (travel dates, destinations, " +
@@ -325,6 +328,8 @@ class DocumentSummaryRepositoryImpl(private val context: Context) : DocumentSumm
                     name = fields.getOrNull(0)?.trim()?.ifBlank { null },
                     address = fields.getOrNull(1)?.trim()?.ifBlank { null },
                     bookingReference = fields.getOrNull(2)?.trim()?.ifBlank { null },
+                    checkInDate = fields.getOrNull(3)?.trim()?.ifBlank { null }?.parseLocalDateOrNull(),
+                    checkOutDate = fields.getOrNull(4)?.trim()?.ifBlank { null }?.parseLocalDateOrNull(),
                 ),
             )
         }
@@ -353,5 +358,15 @@ class DocumentSummaryRepositoryImpl(private val context: Context) : DocumentSumm
          * good OCR accuracy without excessive memory usage.
          */
         private const val RENDER_SCALE = 2
+
+        /**
+         * Parses an ISO-8601 date string (YYYY-MM-DD) into a [LocalDate], returning `null` if
+         * the string is malformed or represents an invalid date.
+         */
+        private fun String.parseLocalDateOrNull(): LocalDate? = try {
+            LocalDate.parse(this)
+        } catch (_: DateTimeParseException) {
+            null
+        }
     }
 }
