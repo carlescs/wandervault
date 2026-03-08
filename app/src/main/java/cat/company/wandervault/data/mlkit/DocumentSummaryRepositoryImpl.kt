@@ -8,6 +8,8 @@ import android.net.Uri
 import android.os.ParcelFileDescriptor
 import android.util.Log
 import cat.company.wandervault.domain.model.DocumentExtractionResult
+import cat.company.wandervault.domain.model.FlightInfo
+import cat.company.wandervault.domain.model.HotelInfo
 import cat.company.wandervault.domain.repository.DocumentSummaryRepository
 import com.google.mlkit.genai.common.DownloadStatus
 import com.google.mlkit.genai.common.FeatureStatus
@@ -233,10 +235,22 @@ class DocumentSummaryRepositoryImpl(private val context: Context) : DocumentSumm
         appendLine(
             "Section 1: A brief summary (2–3 sentences) of what this document contains.",
         )
+        appendLine("Section 2: Identify the document type and extract structured info:")
         appendLine(
-            "Section 2: Any trip-relevant information found in the document " +
-                "(such as travel dates, destinations, airline/hotel names, or booking reference " +
-                "numbers). If nothing trip-relevant is found, write \"None\".",
+            "- If it is a FLIGHT document (boarding pass, e-ticket, flight itinerary), " +
+                "output exactly one line: " +
+                "${FLIGHT_MARKER}<airline>|<flight number>|<booking reference>|<departure city>|<arrival city>",
+        )
+        appendLine(
+            "- If it is a HOTEL document (booking confirmation, reservation, hotel voucher), " +
+                "output exactly one line: ${HOTEL_MARKER}<hotel name>|<address>|<booking reference>",
+        )
+        appendLine(
+            "- Otherwise, list any trip-relevant info (travel dates, destinations, " +
+                "booking references). If none, write \"None\".",
+        )
+        appendLine(
+            "Leave a field blank (empty between pipes) if the information is not found.",
         )
         appendLine()
         appendLine("Document text:")
@@ -250,27 +264,66 @@ class DocumentSummaryRepositoryImpl(private val context: Context) : DocumentSumm
      * ```
      * <summary text>
      * ---
-     * <trip info text or "None">
+     * FLIGHT|<airline>|<flight number>|<booking ref>|<departure>|<arrival>
+     * ```
+     * or
+     * ```
+     * <summary text>
+     * ---
+     * HOTEL|<hotel name>|<address>|<booking ref>
+     * ```
+     * or
+     * ```
+     * <summary text>
+     * ---
+     * <general trip info text or "None">
      * ```
      */
     private fun parseResponse(raw: String): DocumentExtractionResult {
         val parts = raw.split(SECTION_SEPARATOR, limit = 2)
         val summary = parts.getOrNull(0)?.trim()?.ifBlank { null } ?: raw.trim()
-        val tripInfoRaw = parts.getOrNull(1)?.trim()
-        val relevantTripInfo = if (tripInfoRaw.isNullOrBlank() || tripInfoRaw.equals("None", ignoreCase = true)) {
-            null
-        } else {
-            tripInfoRaw
+        val infoRaw = parts.getOrNull(1)?.trim()
+        if (infoRaw.isNullOrBlank() || infoRaw.equals("None", ignoreCase = true)) {
+            return DocumentExtractionResult(summary = summary)
         }
-        return DocumentExtractionResult(
-            summary = summary,
-            relevantTripInfo = relevantTripInfo,
-        )
+        // Use only the first non-blank line of section 2 to check for structured markers.
+        val infoFirstLine = infoRaw.lines().firstOrNull { it.isNotBlank() }?.trim()
+        if (infoFirstLine.isNullOrBlank()) {
+            return DocumentExtractionResult(summary = summary)
+        }
+        if (infoFirstLine.startsWith(FLIGHT_MARKER, ignoreCase = true)) {
+            val fields = infoFirstLine.substring(FLIGHT_MARKER.length).split("|")
+            return DocumentExtractionResult(
+                summary = summary,
+                flightInfo = FlightInfo(
+                    airline = fields.getOrNull(0)?.trim()?.ifBlank { null },
+                    flightNumber = fields.getOrNull(1)?.trim()?.ifBlank { null },
+                    bookingReference = fields.getOrNull(2)?.trim()?.ifBlank { null },
+                    departurePlace = fields.getOrNull(3)?.trim()?.ifBlank { null },
+                    arrivalPlace = fields.getOrNull(4)?.trim()?.ifBlank { null },
+                ),
+            )
+        }
+        if (infoFirstLine.startsWith(HOTEL_MARKER, ignoreCase = true)) {
+            val fields = infoFirstLine.substring(HOTEL_MARKER.length).split("|")
+            return DocumentExtractionResult(
+                summary = summary,
+                hotelInfo = HotelInfo(
+                    name = fields.getOrNull(0)?.trim()?.ifBlank { null },
+                    address = fields.getOrNull(1)?.trim()?.ifBlank { null },
+                    bookingReference = fields.getOrNull(2)?.trim()?.ifBlank { null },
+                ),
+            )
+        }
+        // Fallback: treat the entire section 2 as general trip-relevant info (legacy behaviour).
+        return DocumentExtractionResult(summary = summary, relevantTripInfo = infoRaw)
     }
 
     companion object {
         private const val TAG = "DocumentSummaryRepo"
         private const val SECTION_SEPARATOR = "---"
+        private const val FLIGHT_MARKER = "FLIGHT|"
+        private const val HOTEL_MARKER = "HOTEL|"
 
         /** Maximum characters passed to Gemini Nano to stay within context limits. */
         private const val MAX_DOCUMENT_CHARS = 4_000
