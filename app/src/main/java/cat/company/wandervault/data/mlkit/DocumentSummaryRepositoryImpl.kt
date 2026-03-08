@@ -21,6 +21,7 @@ import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -60,12 +61,13 @@ class DocumentSummaryRepositoryImpl(private val context: Context) : DocumentSumm
     override suspend fun extractDocumentInfo(
         fileUri: String,
         mimeType: String,
+        onDownloadProgress: ((bytesDownloaded: Long) -> Unit)?,
     ): DocumentExtractionResult? {
         val text = readDocumentText(fileUri, mimeType) ?: return null
         return withContext(Dispatchers.IO) {
             when (generationClient.checkStatus()) {
                 FeatureStatus.UNAVAILABLE -> return@withContext null
-                FeatureStatus.DOWNLOADABLE -> awaitDownload()
+                FeatureStatus.DOWNLOADABLE -> awaitDownload(onDownloadProgress)
                 FeatureStatus.AVAILABLE -> Unit
             }
             val request = generateContentRequest(TextPart(buildPrompt(text))) {
@@ -79,11 +81,18 @@ class DocumentSummaryRepositoryImpl(private val context: Context) : DocumentSumm
     }
 
     /**
-     * Waits for the Gemini Nano model to finish downloading, mirroring the pattern used in
-     * [TripDescriptionRepositoryImpl].
+     * Waits for the Gemini Nano model to finish downloading.
+     *
+     * Uses [onEach] to forward [DownloadStatus.DownloadProgress] events to [onProgress] while
+     * the flow is still running, then [first] to suspend until a terminal state is reached.
      */
-    private suspend fun awaitDownload() {
+    private suspend fun awaitDownload(onProgress: ((Long) -> Unit)?) {
         val terminal = generationClient.download()
+            .onEach { status ->
+                if (status is DownloadStatus.DownloadProgress) {
+                    onProgress?.invoke(status.totalBytesDownloaded)
+                }
+            }
             .first { it is DownloadStatus.DownloadCompleted || it is DownloadStatus.DownloadFailed }
         if (terminal is DownloadStatus.DownloadFailed) throw terminal.e
     }

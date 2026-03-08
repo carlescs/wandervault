@@ -19,8 +19,15 @@ enum class DocumentsWriteError {
  * State of an in-progress or completed document analysis, shown in the document analysis dialog.
  */
 sealed class AnalyzeDocumentUiState {
-    /** ML Kit analysis is running. */
+    /** ML Kit analysis is running (reading the document and sending it to the model). */
     data object Loading : AnalyzeDocumentUiState()
+
+    /**
+     * The Gemini Nano model weights are being downloaded to the device before analysis can begin.
+     *
+     * @param bytesDownloaded Total bytes of model data downloaded so far.
+     */
+    data class Downloading(val bytesDownloaded: Long) : AnalyzeDocumentUiState()
 
     /**
      * Analysis completed successfully.
