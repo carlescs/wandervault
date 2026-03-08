@@ -926,6 +926,10 @@ private fun AnalyzeDocumentDialog(
                         }
                     }
 
+                    is AnalyzeDocumentUiState.FlightLegSelection -> {
+                        // Handled separately by AnalyzeFlightLegSelectionDialog; not reached here.
+                    }
+
                     is AnalyzeDocumentUiState.HotelDestinationSelection -> {
                         // Handled separately by AnalyzeHotelDestinationSelectionDialog; not reached here.
                     }
