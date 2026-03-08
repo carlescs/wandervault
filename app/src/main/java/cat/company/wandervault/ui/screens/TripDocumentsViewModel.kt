@@ -404,8 +404,8 @@ class TripDocumentsViewModel(
             val result = try {
                 val analysisResult = summarizeDocument(document.uri, document.mimeType)
                 if (analysisResult == null) {
-                    Log.w(TAG, "summarizeDocument returned null for ${document.name}; skipping analysis")
-                    _analyzeState.value = AnalyzeDocumentUiState.Error
+                    Log.w(TAG, "summarizeDocument returned null for ${document.name}; AI unavailable or unsupported type")
+                    _analyzeState.value = AnalyzeDocumentUiState.Unavailable
                     return@launch
                 }
                 // Set the result immediately so the UI shows the analysis without waiting for DB.

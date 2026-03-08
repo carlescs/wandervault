@@ -33,7 +33,13 @@ sealed class AnalyzeDocumentUiState {
         val extractionResult: DocumentExtractionResult,
     ) : AnalyzeDocumentUiState()
 
-    /** Analysis failed with an error. */
+    /**
+     * AI analysis is not available on this device or the document content could not be read.
+     * This is a permanent state — retrying will not help.
+     */
+    data object Unavailable : AnalyzeDocumentUiState()
+
+    /** Analysis failed with a transient error. The user may try again. */
     data object Error : AnalyzeDocumentUiState()
 }
 

@@ -883,7 +883,10 @@ private fun buildFolderPath(
  * - When [analyzeState] is [AnalyzeDocumentUiState.Result], the document summary and any
  *   proposed trip changes are displayed. If there are applicable changes, [onApplyChanges] is
  *   offered as an action.
- * - When [analyzeState] is [AnalyzeDocumentUiState.Error], an error message is shown.
+ * - When [analyzeState] is [AnalyzeDocumentUiState.Unavailable], an informational message is
+ *   shown explaining that AI analysis is not available on this device.
+ * - When [analyzeState] is [AnalyzeDocumentUiState.Error], an error message with a retry hint
+ *   is shown.
  */
 @Composable
 private fun AnalyzeDocumentDialog(
@@ -907,6 +910,14 @@ private fun AnalyzeDocumentDialog(
                         CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
                         Text(
                             text = stringResource(R.string.documents_analyze_analyzing),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+
+                    is AnalyzeDocumentUiState.Unavailable -> {
+                        Text(
+                            text = stringResource(R.string.documents_analyze_unavailable),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

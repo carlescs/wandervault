@@ -247,6 +247,7 @@
     <string name="documents_analyze_proposed_changes_label">Proposed trip changes</string>
     <string name="documents_analyze_apply_changes">Apply changes</string>
     <string name="documents_analyze_error">Could not analyze the document. Please try again.</string>
+    <string name="documents_analyze_unavailable">AI document analysis is not available on this device.</string>
     <string name="documents_analyze_flight_info_label">Flight info</string>
     <string name="documents_analyze_hotel_info_label">Hotel info</string>
     <string name="documents_analyze_trip_info_label">Trip info</string>
