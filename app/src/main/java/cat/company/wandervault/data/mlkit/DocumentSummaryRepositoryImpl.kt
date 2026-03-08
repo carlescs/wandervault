@@ -2,6 +2,7 @@ package cat.company.wandervault.data.mlkit
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.pdf.PdfRenderer
 import android.net.Uri
 import android.os.ParcelFileDescriptor
@@ -21,6 +22,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.InputStream
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
@@ -29,9 +31,11 @@ import kotlin.coroutines.resumeWithException
  * Prompt API to summarize travel documents and extract relevant trip information.
  *
  * Supported MIME types:
- * - `text/*` — read directly as plain text.
+ * - MIME types starting with `text/` — read directly as plain text.
  * - `application/pdf` — each page is rendered to a [Bitmap] using [PdfRenderer] and then
  *   passed through ML Kit Text Recognition (OCR) to produce extractable text.
+ * - MIME types starting with `image/` — loaded as a [Bitmap] and passed through ML Kit
+ *   Text Recognition (OCR) to extract any text visible in the image.
  *
  * Documents of unsupported types return `null`.
  */
@@ -85,7 +89,21 @@ class DocumentSummaryRepositoryImpl(private val context: Context) : DocumentSumm
     private suspend fun readDocumentText(fileUri: String, mimeType: String): String? = when {
         mimeType.startsWith("text/") -> readPlainText(fileUri)
         mimeType.startsWith("application/pdf") -> readPdfText(fileUri)
+        mimeType.startsWith("image/") -> readImageText(fileUri)
         else -> null
+    }
+
+    /**
+     * Opens an [InputStream] for [uri], supporting both `file://` and `content://` schemes.
+     * Returns `null` if [uri] has no path (for `file://` URIs) or if the content resolver returns
+     * no stream. May throw [java.io.FileNotFoundException] or [SecurityException] — callers are
+     * responsible for catching these exceptions.
+     */
+    private fun openInputStream(uri: Uri): InputStream? = if (uri.scheme == "file") {
+        val path = uri.path ?: return null
+        File(path).inputStream()
+    } else {
+        context.contentResolver.openInputStream(uri)
     }
 
     /**
@@ -95,17 +113,44 @@ class DocumentSummaryRepositoryImpl(private val context: Context) : DocumentSumm
      */
     private suspend fun readPlainText(fileUri: String): String? = withContext(Dispatchers.IO) {
         try {
-            val uri = Uri.parse(fileUri)
-            val inputStream = if (uri.scheme == "file") {
-                val path = uri.path ?: return@withContext null
-                File(path).inputStream()
-            } else {
-                context.contentResolver.openInputStream(uri) ?: return@withContext null
-            }
+            val inputStream = openInputStream(Uri.parse(fileUri)) ?: return@withContext null
             inputStream.use { it.reader().readText().take(MAX_DOCUMENT_CHARS) }
         } catch (e: Exception) {
             Log.w(TAG, "Failed to read document text from $fileUri", e)
             null
+        }
+    }
+
+    /**
+     * Extracts text from an image at [fileUri] using ML Kit Text Recognition (OCR).
+     * The image is decoded to a [Bitmap] and passed through [recognizeBitmapText].
+     * Returns `null` if the image cannot be decoded or no text is found.
+     * Both `file://` and `content://` URIs are supported.
+     */
+    private suspend fun readImageText(fileUri: String): String? {
+        val bitmap = withContext(Dispatchers.IO) {
+            try {
+                val inputStream = openInputStream(Uri.parse(fileUri)) ?: return@withContext null
+                inputStream.use { stream ->
+                    BitmapFactory.decodeStream(stream) ?: run {
+                        Log.w(TAG, "BitmapFactory returned null for $fileUri (unsupported or corrupt image)")
+                        null
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to decode image from $fileUri", e)
+                null
+            }
+        } ?: return null
+        // recognizeBitmapText is a suspend function; the bitmap is guaranteed to be
+        // safe to recycle once it returns (whether successfully or with an exception).
+        return try {
+            recognizeBitmapText(bitmap).ifBlank { null }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to recognize text in image $fileUri", e)
+            null
+        } finally {
+            bitmap.recycle()
         }
     }
 
