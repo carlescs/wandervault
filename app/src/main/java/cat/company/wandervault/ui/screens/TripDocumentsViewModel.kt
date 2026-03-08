@@ -322,8 +322,9 @@ class TripDocumentsViewModel(
      * Matching priority:
      * 1. Existing hotel whose [Hotel.reservationNumber] matches the extracted booking reference.
      * 2. Existing hotel whose [Hotel.name] matches the extracted hotel name.
-     * 3. First destination that has no hotel yet (a new [Hotel] is created for it).
-     * 4. First destination's hotel (last resort).
+     * 3. Destination whose arrival date matches the extracted check-in date.
+     * 4. First destination that has no hotel yet (a new [Hotel] is created for it).
+     * 5. First destination's hotel (last resort).
      *
      * Only blank fields on the matched hotel are updated; existing non-blank values are preserved.
      */
@@ -346,6 +347,9 @@ class TripDocumentsViewModel(
         } ?: destinationHotels.firstOrNull { (_, hotel) ->
             hotel != null && hotelInfo.name != null &&
                 hotel.name.equals(hotelInfo.name, ignoreCase = true)
+        } ?: destinationHotels.firstOrNull { (dest, _) ->
+            hotelInfo.checkInDate != null &&
+                dest.arrivalDateTime?.toLocalDate() == hotelInfo.checkInDate
         } ?: destinationHotels.firstOrNull { (_, hotel) ->
             hotel == null
         } ?: destinationHotels.first()
@@ -570,10 +574,13 @@ class TripDocumentsViewModel(
     /**
      * Checks [hotelInfo] against all destinations in this trip.
      *
-     * A *confident* match requires the booking reference **or** hotel name to match exactly
-     * (case-insensitive). When there is a confident match the dialog is dismissed and the hotel
-     * is updated immediately. When there is no confident match, the state transitions to
-     * [AnalyzeDocumentUiState.HotelDestinationSelection] so the user can pick the destination.
+     * A *confident* match requires the booking reference, hotel name, **or** check-in date to
+     * match exactly (case-insensitive for text; exact date equality for dates). When there is a
+     * confident match the dialog is dismissed and the hotel is updated immediately. When there is
+     * no confident match, the state transitions to
+     * [AnalyzeDocumentUiState.HotelDestinationSelection] with candidates filtered to destinations
+     * whose stay period overlaps the hotel dates (or all destinations when no dates are
+     * available), so the user can pick the destination.
      */
     private suspend fun applyOrDisambiguateHotelInfo(hotelInfo: HotelInfo, documentName: String) {
         val destinations = getDestinationsForTrip(tripId).first()
@@ -593,16 +600,28 @@ class TripDocumentsViewModel(
         } ?: destinationHotels.firstOrNull { (_, hotel) ->
             hotel != null && hotelInfo.name != null &&
                 hotel.name.equals(hotelInfo.name, ignoreCase = true)
+        } ?: destinationHotels.firstOrNull { (dest, _) ->
+            hotelInfo.checkInDate != null &&
+                dest.arrivalDateTime?.toLocalDate() == hotelInfo.checkInDate
         }
 
         if (confidentMatch != null) {
             applyHotelInfoToDestination(hotelInfo, confidentMatch.first)
             dismissAnalyze()
         } else {
+            // Filter candidates to those whose stay period overlaps the hotel dates when
+            // dates are available, so the user is presented with the most relevant options.
+            val candidates = if (hotelInfo.checkInDate != null || hotelInfo.checkOutDate != null) {
+                destinations.filter { dest ->
+                    dest.overlapsHotelDates(hotelInfo)
+                }.takeUnless { it.isEmpty() } ?: destinations
+            } else {
+                destinations
+            }
             pendingHotelInfo = hotelInfo
             _analyzeState.value = AnalyzeDocumentUiState.HotelDestinationSelection(
                 hotelInfo = hotelInfo,
-                candidates = destinations,
+                candidates = candidates,
             )
         }
     }

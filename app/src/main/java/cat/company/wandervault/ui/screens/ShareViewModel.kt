@@ -263,10 +263,12 @@ class ShareViewModel(
     /**
      * Checks [hotelInfo] against all destinations in the selected trip.
      *
-     * A *confident* match requires the booking reference **or** hotel name to match exactly
-     * (case-insensitive).  When there is no confident match, the state transitions to
-     * [ShareUiState.HotelDestinationSelection].  When there are no destinations at all the info
-     * is silently skipped.
+     * A *confident* match requires the booking reference, hotel name, **or** check-in date to
+     * match exactly (case-insensitive for text; exact date equality for dates). When there is no
+     * confident match, the state transitions to [ShareUiState.HotelDestinationSelection] with the
+     * candidates filtered to destinations whose stay period overlaps with the extracted hotel
+     * dates (or all destinations when no dates are available). When there are no destinations at
+     * all the info is silently skipped.
      */
     private suspend fun handleHotelInfo(hotelInfo: HotelInfo) {
         val destinations = getDestinationsForTrip(selectedTripId).first()
@@ -287,16 +289,27 @@ class ShareViewModel(
         } ?: destinationHotels.firstOrNull { (_, hotel) ->
             hotel != null && hotelInfo.name != null &&
                 hotel.name.equals(hotelInfo.name, ignoreCase = true)
+        } ?: destinationHotels.firstOrNull { (dest, _) ->
+            hotelInfo.checkInDate != null &&
+                dest.arrivalDateTime?.toLocalDate() == hotelInfo.checkInDate
         }
 
         if (confidentMatch != null) {
             applyHotelInfoToDestination(hotelInfo, confidentMatch.first)
             _uiState.value = ShareUiState.Done
         } else {
+            // Filter candidates to those whose stay period overlaps the hotel dates when
+            // dates are available, so the user is presented with the most relevant options.
+            val candidates = if (hotelInfo.checkInDate != null || hotelInfo.checkOutDate != null) {
+                destinations.filter { dest -> dest.overlapsHotelDates(hotelInfo) }
+                    .takeUnless { it.isEmpty() } ?: destinations
+            } else {
+                destinations
+            }
             pendingHotelInfo = hotelInfo
             _uiState.value = ShareUiState.HotelDestinationSelection(
                 hotelInfo = hotelInfo,
-                candidates = destinations,
+                candidates = candidates,
             )
         }
     }

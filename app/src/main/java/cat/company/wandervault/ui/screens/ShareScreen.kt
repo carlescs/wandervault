@@ -51,6 +51,8 @@ import cat.company.wandervault.ui.theme.WanderVaultTheme
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
 import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 
 /**
  * Overlay dialog that handles sharing a document into WanderVault.
@@ -469,6 +471,7 @@ private fun DestinationItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val dateFormatter = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -483,12 +486,29 @@ private fun DestinationItem(
             modifier = Modifier.size(18.dp),
         )
         Spacer(Modifier.width(12.dp))
-        Text(
-            text = destination.name,
-            style = MaterialTheme.typography.bodyMedium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+        Column {
+            Text(
+                text = destination.name,
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            val arrival = destination.arrivalDateTime?.toLocalDate()
+            val departure = destination.departureDateTime?.toLocalDate()
+            if (arrival != null || departure != null) {
+                val dateRange = when {
+                    arrival != null && departure != null ->
+                        "${arrival.format(dateFormatter)} – ${departure.format(dateFormatter)}"
+                    arrival != null -> arrival.format(dateFormatter)
+                    else -> requireNotNull(departure).format(dateFormatter)
+                }
+                Text(
+                    text = dateRange,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
     }
 }
 
