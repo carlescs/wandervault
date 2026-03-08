@@ -913,6 +913,10 @@ private fun AnalyzeDocumentDialog(
                         }
                     }
 
+                    is AnalyzeDocumentUiState.HotelDestinationSelection -> {
+                        // Handled separately by AnalyzeHotelDestinationSelectionDialog; not reached here.
+                    }
+
                     is AnalyzeDocumentUiState.Result -> {
                         val extraction = analyzeState.extractionResult
                         // Summary section
