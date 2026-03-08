@@ -75,7 +75,7 @@ class TripDocumentRepositoryImpl(
                 val inputStream = context.contentResolver.openInputStream(uri)
                     ?: return@withContext null
                 val documentsDir = File(context.filesDir, "documents")
-                if (!documentsDir.exists() && !documentsDir.mkdirs()) return@withContext null
+                if (!(documentsDir.exists() || documentsDir.mkdirs())) return@withContext null
                 val file = File(documentsDir, "${UUID.randomUUID()}.$extension")
                 inputStream.use { input ->
                     file.outputStream().use { output ->

@@ -45,14 +45,12 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SmallFloatingActionButton
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -69,7 +67,6 @@ import cat.company.wandervault.R
 import cat.company.wandervault.domain.model.TripDocument
 import cat.company.wandervault.domain.model.TripDocumentFolder
 import cat.company.wandervault.ui.theme.WanderVaultTheme
-import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
 import java.io.File
@@ -91,8 +88,6 @@ internal fun TripDocumentsTabContent(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val snackbarHostState = remember { SnackbarHostState() }
     val noAppMessage = stringResource(R.string.documents_no_app_to_open)
 
     val filePicker = rememberLauncherForActivityResult(
@@ -102,8 +97,7 @@ internal fun TripDocumentsTabContent(
         val mimeType = context.contentResolver.getType(uri) ?: "*/*"
         val fileName = context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
             val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
-            cursor.moveToFirst()
-            if (nameIndex >= 0) cursor.getString(nameIndex) else null
+            if (nameIndex >= 0 && cursor.moveToFirst()) cursor.getString(nameIndex) else null
         } ?: run {
             val ext = MimeTypeMap.getSingleton().getExtensionFromMimeType(mimeType) ?: "file"
             "document.$ext"
@@ -130,10 +124,12 @@ internal fun TripDocumentsTabContent(
             try {
                 val uri = Uri.parse(document.uri)
                 val contentUri = if (uri.scheme == "file") {
+                    val path = uri.path
+                        ?: throw IllegalArgumentException("File URI has no path: $uri")
                     FileProvider.getUriForFile(
                         context,
                         "${context.packageName}.fileprovider",
-                        File(uri.path!!),
+                        File(path),
                     )
                 } else {
                     uri
@@ -144,9 +140,9 @@ internal fun TripDocumentsTabContent(
                 }
                 context.startActivity(intent)
             } catch (e: ActivityNotFoundException) {
-                scope.launch { snackbarHostState.showSnackbar(noAppMessage) }
+                android.widget.Toast.makeText(context, noAppMessage, android.widget.Toast.LENGTH_SHORT).show()
             } catch (e: IllegalArgumentException) {
-                scope.launch { snackbarHostState.showSnackbar(noAppMessage) }
+                android.widget.Toast.makeText(context, noAppMessage, android.widget.Toast.LENGTH_SHORT).show()
             }
         },
         onErrorDismiss = viewModel::clearError,
