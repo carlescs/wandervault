@@ -233,9 +233,11 @@ internal fun TripDocumentsContent(
                                 )
                             }
                             Text(
-                                text = uiState.currentFolder.name,
+                                text = uiState.folderStack
+                                    .joinToString(" / ") { it.name }
+                                    .ifEmpty { uiState.currentFolder.name },
                                 style = MaterialTheme.typography.titleMedium,
-                                maxLines = 1,
+                                maxLines = 2,
                                 overflow = TextOverflow.Ellipsis,
                             )
                         }
@@ -962,6 +964,23 @@ private fun TripDocumentsDocumentListPreview() {
                 documents = documents,
                 currentFolder = folder,
                 folderStack = listOf(folder),
+            ),
+            innerPadding = PaddingValues(0.dp),
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun TripDocumentsNestedFolderPathPreview() {
+    val root = TripDocumentFolder(id = 1, tripId = 1, name = "Travel")
+    val mid = TripDocumentFolder(id = 2, tripId = 1, name = "Flights", parentFolderId = 1)
+    val leaf = TripDocumentFolder(id = 3, tripId = 1, name = "Tickets", parentFolderId = 2)
+    WanderVaultTheme {
+        TripDocumentsContent(
+            uiState = TripDocumentsUiState.Success(
+                currentFolder = leaf,
+                folderStack = listOf(root, mid, leaf),
             ),
             innerPadding = PaddingValues(0.dp),
         )
