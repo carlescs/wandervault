@@ -1,5 +1,6 @@
 package cat.company.wandervault.domain.di
 
+import cat.company.wandervault.domain.usecase.CopyDocumentToInternalStorageUseCase
 import cat.company.wandervault.domain.usecase.GetFavoriteTripsUseCase
 import cat.company.wandervault.domain.usecase.ToggleFavoriteTripUseCase
 import cat.company.wandervault.domain.usecase.CopyImageToInternalStorageUseCase
@@ -20,6 +21,7 @@ import cat.company.wandervault.domain.usecase.GetNextDestinationUseCase
 import cat.company.wandervault.domain.usecase.GetOrCreateTransportForDestinationUseCase
 import cat.company.wandervault.domain.usecase.DeleteHotelUseCase
 import cat.company.wandervault.domain.usecase.GetHotelForDestinationUseCase
+import cat.company.wandervault.domain.usecase.GetRootDocumentsUseCase
 import cat.company.wandervault.domain.usecase.GetRootFoldersUseCase
 import cat.company.wandervault.domain.usecase.GetSubFoldersUseCase
 import cat.company.wandervault.domain.usecase.SaveDocumentUseCase
@@ -71,10 +73,12 @@ val domainModule = module {
     factory { GetRootFoldersUseCase(get()) }
     factory { GetSubFoldersUseCase(get()) }
     factory { GetDocumentsInFolderUseCase(get()) }
+    factory { GetRootDocumentsUseCase(get()) }
     factory { SaveFolderUseCase(get()) }
     factory { UpdateFolderUseCase(get()) }
     factory { DeleteFolderUseCase(get()) }
     factory { SaveDocumentUseCase(get()) }
     factory { UpdateDocumentUseCase(get()) }
     factory { DeleteDocumentUseCase(get()) }
+    factory { CopyDocumentToInternalStorageUseCase(get()) }
 }

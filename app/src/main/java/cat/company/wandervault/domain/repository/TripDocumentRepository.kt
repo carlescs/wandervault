@@ -15,6 +15,9 @@ interface TripDocumentRepository {
     /** Returns a [Flow] emitting documents inside [folderId], ordered by name. */
     fun getDocumentsInFolder(folderId: Int): Flow<List<TripDocument>>
 
+    /** Returns a [Flow] emitting root-level documents (no folder) for [tripId], ordered by name. */
+    fun getRootDocuments(tripId: Int): Flow<List<TripDocument>>
+
     /** Persists a new [folder]. */
     suspend fun saveFolder(folder: TripDocumentFolder)
 
@@ -32,4 +35,10 @@ interface TripDocumentRepository {
 
     /** Removes a [document] from the data store. */
     suspend fun deleteDocument(document: TripDocument)
+
+    /**
+     * Copies the file at [sourceUri] to the app's internal documents directory.
+     * @return The internal file URI string, or `null` if the copy fails.
+     */
+    suspend fun copyDocumentToInternalStorage(sourceUri: String): String?
 }

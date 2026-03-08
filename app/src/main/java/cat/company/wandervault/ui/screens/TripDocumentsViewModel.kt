@@ -6,9 +6,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import cat.company.wandervault.domain.model.TripDocument
 import cat.company.wandervault.domain.model.TripDocumentFolder
+import cat.company.wandervault.domain.usecase.CopyDocumentToInternalStorageUseCase
 import cat.company.wandervault.domain.usecase.DeleteDocumentUseCase
 import cat.company.wandervault.domain.usecase.DeleteFolderUseCase
 import cat.company.wandervault.domain.usecase.GetDocumentsInFolderUseCase
+import cat.company.wandervault.domain.usecase.GetRootDocumentsUseCase
 import cat.company.wandervault.domain.usecase.GetRootFoldersUseCase
 import cat.company.wandervault.domain.usecase.GetSubFoldersUseCase
 import cat.company.wandervault.domain.usecase.SaveDocumentUseCase
@@ -21,7 +23,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 
 /**
@@ -41,12 +42,14 @@ class TripDocumentsViewModel(
     private val getRootFolders: GetRootFoldersUseCase,
     private val getSubFolders: GetSubFoldersUseCase,
     private val getDocumentsInFolder: GetDocumentsInFolderUseCase,
+    private val getRootDocuments: GetRootDocumentsUseCase,
     private val saveFolder: SaveFolderUseCase,
     private val updateFolder: UpdateFolderUseCase,
     private val deleteFolder: DeleteFolderUseCase,
     private val saveDocument: SaveDocumentUseCase,
     private val updateDocument: UpdateDocumentUseCase,
     private val deleteDocument: DeleteDocumentUseCase,
+    private val copyDocumentToInternalStorage: CopyDocumentToInternalStorageUseCase,
 ) : ViewModel() {
 
     /** Stack of folders the user has navigated into; empty = at root. */
@@ -65,7 +68,7 @@ class TripDocumentsViewModel(
                     getSubFolders(currentFolder.id)
                 }
                 val documentsFlow = if (currentFolder == null) {
-                    flowOf(emptyList())
+                    getRootDocuments(tripId)
                 } else {
                     getDocumentsInFolder(currentFolder.id)
                 }
@@ -135,20 +138,24 @@ class TripDocumentsViewModel(
     }
 
     /**
-     * Attaches a document to the currently open folder.
+     * Copies the file at [sourceUri] to internal storage and attaches the resulting document to
+     * the current folder, or to the trip root when no folder is open.
      *
-     * Documents can only be added to a folder, not at the root level. This method is a no-op
-     * when no folder is currently open (i.e. the user is at the root level).
-     * The UI should only expose this action when the user has navigated into a folder.
+     * [name] will be used as the document display name. [mimeType] should be the MIME type of
+     * the file (e.g. "application/pdf"). If the file copy fails the error is surfaced via
+     * [DocumentsWriteError.Generic].
      */
-    fun addDocument(name: String, uri: String, mimeType: String) {
-        val currentFolder = _folderStack.value.lastOrNull() ?: return
+    fun addDocument(name: String, sourceUri: String, mimeType: String) {
+        val currentFolder = _folderStack.value.lastOrNull()
         launchWrite {
+            val internalUri = copyDocumentToInternalStorage(sourceUri)
+                ?: throw IllegalStateException("Failed to copy document to internal storage")
             saveDocument(
                 TripDocument(
-                    folderId = currentFolder.id,
+                    tripId = tripId,
+                    folderId = currentFolder?.id,
                     name = name.trim(),
-                    uri = uri,
+                    uri = internalUri,
                     mimeType = mimeType,
                 ),
             )

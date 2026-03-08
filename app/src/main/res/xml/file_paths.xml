@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Expose files from filesDir/documents/ for opening with external viewers. -->
+    <files-path name="documents" path="documents/" />
+</paths>

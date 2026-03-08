@@ -6,6 +6,7 @@ import cat.company.wandervault.domain.repository.TripDocumentRepository
 import cat.company.wandervault.domain.usecase.DeleteDocumentUseCase
 import cat.company.wandervault.domain.usecase.DeleteFolderUseCase
 import cat.company.wandervault.domain.usecase.GetDocumentsInFolderUseCase
+import cat.company.wandervault.domain.usecase.GetRootDocumentsUseCase
 import cat.company.wandervault.domain.usecase.GetRootFoldersUseCase
 import cat.company.wandervault.domain.usecase.GetSubFoldersUseCase
 import cat.company.wandervault.domain.usecase.SaveDocumentUseCase
@@ -57,10 +58,22 @@ class TripDocumentUseCaseTest {
 
     @Test
     fun `GetDocumentsInFolderUseCase returns documents for folder`() = runTest {
-        val doc = TripDocument(id = 1, folderId = 5, name = "boarding.pdf", uri = "uri", mimeType = "application/pdf")
+        val doc = TripDocument(id = 1, tripId = 1, folderId = 5, name = "boarding.pdf", uri = "uri", mimeType = "application/pdf")
         repository.documents[5] = mutableListOf(doc)
 
         val result = GetDocumentsInFolderUseCase(repository)(5).first()
+
+        assertEquals(listOf(doc), result)
+    }
+
+    // ── GetRootDocumentsUseCase ───────────────────────────────────────────────
+
+    @Test
+    fun `GetRootDocumentsUseCase returns root-level documents for trip`() = runTest {
+        val doc = TripDocument(id = 1, tripId = 7, name = "passport.pdf", uri = "uri", mimeType = "application/pdf")
+        repository.rootDocuments[7] = mutableListOf(doc)
+
+        val result = GetRootDocumentsUseCase(repository)(7).first()
 
         assertEquals(listOf(doc), result)
     }
@@ -102,7 +115,16 @@ class TripDocumentUseCaseTest {
 
     @Test
     fun `SaveDocumentUseCase delegates to repository`() = runTest {
-        val doc = TripDocument(folderId = 1, name = "ticket.pdf", uri = "uri", mimeType = "application/pdf")
+        val doc = TripDocument(tripId = 1, folderId = 1, name = "ticket.pdf", uri = "uri", mimeType = "application/pdf")
+
+        SaveDocumentUseCase(repository)(doc)
+
+        assertTrue(repository.savedDocuments.contains(doc))
+    }
+
+    @Test
+    fun `SaveDocumentUseCase delegates to repository for root-level document`() = runTest {
+        val doc = TripDocument(tripId = 1, name = "passport.pdf", uri = "uri", mimeType = "application/pdf")
 
         SaveDocumentUseCase(repository)(doc)
 
@@ -113,7 +135,7 @@ class TripDocumentUseCaseTest {
 
     @Test
     fun `UpdateDocumentUseCase delegates to repository`() = runTest {
-        val doc = TripDocument(id = 2, folderId = 1, name = "renamed.pdf", uri = "uri", mimeType = "application/pdf")
+        val doc = TripDocument(id = 2, tripId = 1, folderId = 1, name = "renamed.pdf", uri = "uri", mimeType = "application/pdf")
 
         UpdateDocumentUseCase(repository)(doc)
 
@@ -124,7 +146,7 @@ class TripDocumentUseCaseTest {
 
     @Test
     fun `DeleteDocumentUseCase delegates to repository`() = runTest {
-        val doc = TripDocument(id = 3, folderId = 1, name = "old.pdf", uri = "uri", mimeType = "application/pdf")
+        val doc = TripDocument(id = 3, tripId = 1, folderId = 1, name = "old.pdf", uri = "uri", mimeType = "application/pdf")
 
         DeleteDocumentUseCase(repository)(doc)
 
@@ -136,6 +158,7 @@ private class FakeTripDocumentRepository : TripDocumentRepository {
     val rootFolders: MutableMap<Int, MutableList<TripDocumentFolder>> = mutableMapOf()
     val subFolders: MutableMap<Int, MutableList<TripDocumentFolder>> = mutableMapOf()
     val documents: MutableMap<Int, MutableList<TripDocument>> = mutableMapOf()
+    val rootDocuments: MutableMap<Int, MutableList<TripDocument>> = mutableMapOf()
 
     val savedFolders = mutableListOf<TripDocumentFolder>()
     val updatedFolders = mutableListOf<TripDocumentFolder>()
@@ -152,6 +175,9 @@ private class FakeTripDocumentRepository : TripDocumentRepository {
 
     override fun getDocumentsInFolder(folderId: Int): Flow<List<TripDocument>> =
         flowOf(documents[folderId] ?: emptyList())
+
+    override fun getRootDocuments(tripId: Int): Flow<List<TripDocument>> =
+        flowOf(rootDocuments[tripId] ?: emptyList())
 
     override suspend fun saveFolder(folder: TripDocumentFolder) {
         savedFolders.add(folder)
@@ -176,4 +202,7 @@ private class FakeTripDocumentRepository : TripDocumentRepository {
     override suspend fun deleteDocument(document: TripDocument) {
         deletedDocuments.add(document)
     }
+
+    override suspend fun copyDocumentToInternalStorage(sourceUri: String): String? =
+        "file:///fake/documents/copy.pdf"
 }

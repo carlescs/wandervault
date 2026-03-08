@@ -209,4 +209,10 @@
     <string name="documents_duplicate_name_error">A folder or document with that name already exists.</string>
     <string name="documents_write_error">Could not complete the operation. Please try again.</string>
     <string name="documents_write_error_title">Operation failed</string>
+    <string name="documents_upload_file">Upload file</string>
+    <string name="documents_open_action">Open</string>
+    <string name="documents_open_content_desc">Open document: %s</string>
+    <string name="documents_no_app_to_open">No app available to open this document</string>
+    <string name="documents_empty_root_subtitle">Create a folder or upload a file to get started</string>
+    <string name="documents_empty_folder_subtitle">Upload a file or create a sub-folder</string>
 </resources>

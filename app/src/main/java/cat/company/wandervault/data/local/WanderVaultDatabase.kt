@@ -16,7 +16,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         TripDocumentFolderEntity::class,
         TripDocumentEntity::class,
     ],
-    version = 14,
+    version = 15,
 )
 @TypeConverters(DateConverters::class)
 abstract class WanderVaultDatabase : RoomDatabase() {
@@ -293,6 +293,42 @@ abstract class WanderVaultDatabase : RoomDatabase() {
                     )
                     """.trimIndent(),
                 )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_trip_documents_folderId` ON `trip_documents` (`folderId`)")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_trip_documents_folderId_name` ON `trip_documents` (`folderId`, `name`)")
+            }
+        }
+        val MIGRATION_14_15 = object : Migration(14, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Recreate trip_documents to add non-null tripId column and make folderId nullable.
+                // SQLite does not support ALTER COLUMN, so we rename, recreate, copy, and drop.
+                db.execSQL("ALTER TABLE `trip_documents` RENAME TO `trip_documents_old`")
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `trip_documents` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `tripId` INTEGER NOT NULL,
+                        `folderId` INTEGER,
+                        `name` TEXT NOT NULL,
+                        `uri` TEXT NOT NULL,
+                        `mimeType` TEXT NOT NULL,
+                        FOREIGN KEY(`tripId`) REFERENCES `trips`(`id`)
+                            ON UPDATE NO ACTION ON DELETE CASCADE,
+                        FOREIGN KEY(`folderId`) REFERENCES `trip_document_folders`(`id`)
+                            ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent(),
+                )
+                // Copy existing rows; derive tripId from the folder's tripId via a join.
+                db.execSQL(
+                    """
+                    INSERT INTO `trip_documents` (`id`, `tripId`, `folderId`, `name`, `uri`, `mimeType`)
+                    SELECT d.`id`, f.`tripId`, d.`folderId`, d.`name`, d.`uri`, d.`mimeType`
+                    FROM `trip_documents_old` d
+                    JOIN `trip_document_folders` f ON f.`id` = d.`folderId`
+                    """.trimIndent(),
+                )
+                db.execSQL("DROP TABLE `trip_documents_old`")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_trip_documents_tripId` ON `trip_documents` (`tripId`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_trip_documents_folderId` ON `trip_documents` (`folderId`)")
                 db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_trip_documents_folderId_name` ON `trip_documents` (`folderId`, `name`)")
             }

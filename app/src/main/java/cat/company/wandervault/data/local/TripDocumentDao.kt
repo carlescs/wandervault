@@ -21,4 +21,17 @@ interface TripDocumentDao {
     /** Returns all documents inside [folderId], ordered by name. */
     @Query("SELECT * FROM trip_documents WHERE folderId = :folderId ORDER BY name ASC")
     fun getByFolderId(folderId: Int): Flow<List<TripDocumentEntity>>
+
+    /** Returns all root-level documents (folderId IS NULL) for [tripId], ordered by name. */
+    @Query("SELECT * FROM trip_documents WHERE tripId = :tripId AND folderId IS NULL ORDER BY name ASC")
+    fun getRootDocuments(tripId: Int): Flow<List<TripDocumentEntity>>
+
+    /**
+     * Returns the number of root-level documents with [name] for [tripId], excluding [excludeId].
+     * Used for manual uniqueness enforcement since SQLite unique indexes treat NULLs as distinct.
+     */
+    @Query(
+        "SELECT COUNT(*) FROM trip_documents WHERE tripId = :tripId AND folderId IS NULL AND name = :name AND id != :excludeId",
+    )
+    suspend fun countRootDocumentsByName(tripId: Int, name: String, excludeId: Int = 0): Int
 }
