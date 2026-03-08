@@ -242,11 +242,14 @@
     <string name="documents_analyze_content_desc">Analyze document: %s</string>
     <string name="documents_analyze_title">Document Analysis</string>
     <string name="documents_analyze_analyzing">Analyzing document…</string>
+    <string name="documents_analyze_downloading">Downloading AI model…</string>
+    <string name="documents_analyze_downloaded_bytes">%s downloaded</string>
     <string name="documents_analyze_summary_label">Summary</string>
     <string name="documents_analyze_no_summary">No summary available for this document.</string>
     <string name="documents_analyze_proposed_changes_label">Proposed trip changes</string>
     <string name="documents_analyze_apply_changes">Apply changes</string>
     <string name="documents_analyze_error">Could not analyze the document. Please try again.</string>
+    <string name="documents_analyze_unavailable">AI document analysis is not available on this device.</string>
     <string name="documents_analyze_flight_info_label">Flight info</string>
     <string name="documents_analyze_hotel_info_label">Hotel info</string>
     <string name="documents_analyze_trip_info_label">Trip info</string>

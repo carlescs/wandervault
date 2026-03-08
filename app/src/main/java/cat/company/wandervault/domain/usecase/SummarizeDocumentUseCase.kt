@@ -8,6 +8,10 @@ import cat.company.wandervault.domain.repository.DocumentSummaryRepository
  * on-device ML Kit.
  */
 class SummarizeDocumentUseCase(private val repository: DocumentSummaryRepository) {
-    suspend operator fun invoke(fileUri: String, mimeType: String): DocumentExtractionResult? =
-        repository.extractDocumentInfo(fileUri, mimeType)
+    suspend operator fun invoke(
+        fileUri: String,
+        mimeType: String,
+        onDownloadProgress: ((bytesDownloaded: Long) -> Unit)? = null,
+    ): DocumentExtractionResult? =
+        repository.extractDocumentInfo(fileUri, mimeType, onDownloadProgress)
 }

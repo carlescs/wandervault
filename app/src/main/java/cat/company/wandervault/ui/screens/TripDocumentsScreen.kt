@@ -880,10 +880,15 @@ private fun buildFolderPath(
  * A dialog that shows the result of an in-progress or completed ML Kit document analysis.
  *
  * - While [analyzeState] is [AnalyzeDocumentUiState.Loading], a progress indicator is shown.
+ * - While [analyzeState] is [AnalyzeDocumentUiState.Downloading], a progress indicator is shown
+ *   together with the amount of model data downloaded so far.
  * - When [analyzeState] is [AnalyzeDocumentUiState.Result], the document summary and any
  *   proposed trip changes are displayed. If there are applicable changes, [onApplyChanges] is
  *   offered as an action.
- * - When [analyzeState] is [AnalyzeDocumentUiState.Error], an error message is shown.
+ * - When [analyzeState] is [AnalyzeDocumentUiState.Unavailable], an informational message is
+ *   shown explaining that AI analysis is not available on this device.
+ * - When [analyzeState] is [AnalyzeDocumentUiState.Error], an error message with a retry hint
+ *   is shown.
  */
 @Composable
 private fun AnalyzeDocumentDialog(
@@ -907,6 +912,33 @@ private fun AnalyzeDocumentDialog(
                         CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
                         Text(
                             text = stringResource(R.string.documents_analyze_analyzing),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+
+                    is AnalyzeDocumentUiState.Downloading -> {
+                        CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
+                        Text(
+                            text = stringResource(R.string.documents_analyze_downloading),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        if (analyzeState.bytesDownloaded > 0) {
+                            Text(
+                                text = stringResource(
+                                    R.string.documents_analyze_downloaded_bytes,
+                                    formatBytes(analyzeState.bytesDownloaded),
+                                ),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+
+                    is AnalyzeDocumentUiState.Unavailable -> {
+                        Text(
+                            text = stringResource(R.string.documents_analyze_unavailable),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -1033,6 +1065,19 @@ private fun buildHotelInfoText(hotel: HotelInfo, formattedRef: String?): String 
 
 private fun DocumentExtractionResult.hasProposedChanges(): Boolean =
     flightInfo != null || hotelInfo != null || relevantTripInfo != null
+
+/**
+ * Formats [bytes] as a human-readable file size string (B / KB / MB).
+ * Used to display Gemini Nano model download progress in the analyze dialog.
+ */
+private fun formatBytes(bytes: Long): String = when {
+    bytes < BYTES_PER_KB -> "$bytes B"
+    bytes < BYTES_PER_MB -> "${bytes / BYTES_PER_KB} KB"
+    else -> "%.1f MB".format(bytes.toFloat() / BYTES_PER_MB.toFloat())
+}
+
+private const val BYTES_PER_KB = 1_024L
+private const val BYTES_PER_MB = 1_024L * 1_024L
 
 // ── Previews ──────────────────────────────────────────────────────────────────
 

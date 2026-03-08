@@ -281,13 +281,13 @@ class TripDocumentsViewModel(
         }
         val matchedLeg = allFlightLegs.firstOrNull { leg ->
             flightInfo.flightNumber != null &&
-                leg.flightNumber.equals(flightInfo.flightNumber, ignoreCase = true)
+                leg.flightNumber?.equals(flightInfo.flightNumber, ignoreCase = true) == true
         } ?: allFlightLegs.firstOrNull { leg ->
             flightInfo.bookingReference != null &&
-                leg.reservationConfirmationNumber.equals(
+                leg.reservationConfirmationNumber?.equals(
                     flightInfo.bookingReference,
                     ignoreCase = true,
-                )
+                ) == true
         } ?: allFlightLegs.firstOrNull { leg ->
             leg.flightNumber.isNullOrBlank()
         } ?: allFlightLegs.first()
@@ -390,9 +390,12 @@ class TripDocumentsViewModel(
     /**
      * Runs ML Kit analysis on [document] and updates the UI with the results.
      *
-     * Sets [AnalyzeDocumentUiState.Loading] immediately, then on success sets
-     * [AnalyzeDocumentUiState.Result] with the extraction result. On failure sets
-     * [AnalyzeDocumentUiState.Error].
+     * Sets [AnalyzeDocumentUiState.Loading] immediately while the document is being read.
+     * If the Gemini Nano model needs to be downloaded first, transitions to
+     * [AnalyzeDocumentUiState.Downloading] with live byte-count updates.
+     * On success sets [AnalyzeDocumentUiState.Result] with the extraction result.
+     * On permanent unavailability sets [AnalyzeDocumentUiState.Unavailable].
+     * On transient failure sets [AnalyzeDocumentUiState.Error].
      *
      * Also updates the document's stored summary if a new one is extracted (best-effort:
      * a DB failure persisting the summary does not affect the displayed result).
@@ -402,10 +405,12 @@ class TripDocumentsViewModel(
         _analyzeState.value = AnalyzeDocumentUiState.Loading
         analyzeJob = viewModelScope.launch {
             val result = try {
-                val analysisResult = summarizeDocument(document.uri, document.mimeType)
+                val analysisResult = summarizeDocument(document.uri, document.mimeType) { bytesDownloaded ->
+                    _analyzeState.value = AnalyzeDocumentUiState.Downloading(bytesDownloaded)
+                }
                 if (analysisResult == null) {
-                    Log.w(TAG, "summarizeDocument returned null for ${document.name}; skipping analysis")
-                    _analyzeState.value = AnalyzeDocumentUiState.Error
+                    Log.w(TAG, "summarizeDocument returned null for ${document.name}; AI unavailable or unsupported type")
+                    _analyzeState.value = AnalyzeDocumentUiState.Unavailable
                     return@launch
                 }
                 // Set the result immediately so the UI shows the analysis without waiting for DB.

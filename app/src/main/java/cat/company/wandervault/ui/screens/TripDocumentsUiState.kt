@@ -19,8 +19,15 @@ enum class DocumentsWriteError {
  * State of an in-progress or completed document analysis, shown in the document analysis dialog.
  */
 sealed class AnalyzeDocumentUiState {
-    /** ML Kit analysis is running. */
+    /** ML Kit analysis is running (reading the document and sending it to the model). */
     data object Loading : AnalyzeDocumentUiState()
+
+    /**
+     * The Gemini Nano model weights are being downloaded to the device before analysis can begin.
+     *
+     * @param bytesDownloaded Total bytes of model data downloaded so far.
+     */
+    data class Downloading(val bytesDownloaded: Long) : AnalyzeDocumentUiState()
 
     /**
      * Analysis completed successfully.
@@ -33,7 +40,13 @@ sealed class AnalyzeDocumentUiState {
         val extractionResult: DocumentExtractionResult,
     ) : AnalyzeDocumentUiState()
 
-    /** Analysis failed with an error. */
+    /**
+     * AI analysis is not available on this device or the document content could not be read.
+     * This is a permanent state — retrying will not help.
+     */
+    data object Unavailable : AnalyzeDocumentUiState()
+
+    /** Analysis failed with a transient error. The user may try again. */
     data object Error : AnalyzeDocumentUiState()
 }
 

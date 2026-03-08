@@ -21,6 +21,7 @@ import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -48,38 +49,50 @@ class DocumentSummaryRepositoryImpl(private val context: Context) : DocumentSumm
         TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
     }
 
+    /**
+     * Reads the document at [fileUri] and uses on-device Gemini Nano to extract a summary and
+     * any trip-relevant information.
+     *
+     * Returns `null` only when the on-device AI feature is permanently
+     * [FeatureStatus.UNAVAILABLE] on this device, or when the document text cannot be read.
+     * Any transient failure (model download error, generation error, etc.) is thrown as an
+     * exception so callers can distinguish permanent unavailability from retriable errors.
+     */
     override suspend fun extractDocumentInfo(
         fileUri: String,
         mimeType: String,
+        onDownloadProgress: ((bytesDownloaded: Long) -> Unit)?,
     ): DocumentExtractionResult? {
         val text = readDocumentText(fileUri, mimeType) ?: return null
         return withContext(Dispatchers.IO) {
             when (generationClient.checkStatus()) {
                 FeatureStatus.UNAVAILABLE -> return@withContext null
-                FeatureStatus.DOWNLOADABLE -> awaitDownload()
+                FeatureStatus.DOWNLOADABLE -> awaitDownload(onDownloadProgress)
                 FeatureStatus.AVAILABLE -> Unit
             }
-            try {
-                val request = generateContentRequest(TextPart(buildPrompt(text))) {
-                    maxOutputTokens = MAX_OUTPUT_TOKENS
-                }
-                val response = generationClient.generateContent(request)
-                val rawOutput = response.candidates.firstOrNull()?.text
-                    ?.trim() ?: return@withContext null
-                parseResponse(rawOutput)
-            } catch (e: Exception) {
-                Log.w(TAG, "Gemini Nano document extraction failed", e)
-                null
+            val request = generateContentRequest(TextPart(buildPrompt(text))) {
+                maxOutputTokens = MAX_OUTPUT_TOKENS
             }
+            val response = generationClient.generateContent(request)
+            val rawOutput = response.candidates.firstOrNull()?.text
+                ?.trim() ?: return@withContext null
+            parseResponse(rawOutput)
         }
     }
 
     /**
-     * Waits for the Gemini Nano model to finish downloading, mirroring the pattern used in
-     * [TripDescriptionRepositoryImpl].
+     * Waits for the Gemini Nano model to finish downloading.
+     *
+     * Uses [onEach] to forward [DownloadStatus.DownloadProgress] events to [onProgress] while
+     * the flow is still running, then [first] to suspend until a terminal state is reached.
      */
-    private suspend fun awaitDownload() {
+    private suspend fun awaitDownload(onProgress: ((Long) -> Unit)?) {
         val terminal = generationClient.download()
+            .onEach { status ->
+                if (status is DownloadStatus.DownloadProgress) {
+                    onProgress?.invoke(status.totalBytesDownloaded)
+                }
+            }
             .first { it is DownloadStatus.DownloadCompleted || it is DownloadStatus.DownloadFailed }
         if (terminal is DownloadStatus.DownloadFailed) throw terminal.e
     }
