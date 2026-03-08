@@ -3,6 +3,7 @@ package cat.company.wandervault
 import cat.company.wandervault.domain.model.TripDocument
 import cat.company.wandervault.domain.model.TripDocumentFolder
 import cat.company.wandervault.domain.repository.TripDocumentRepository
+import cat.company.wandervault.domain.usecase.CopyDocumentToInternalStorageUseCase
 import cat.company.wandervault.domain.usecase.DeleteDocumentUseCase
 import cat.company.wandervault.domain.usecase.DeleteFolderUseCase
 import cat.company.wandervault.domain.usecase.GetDocumentsInFolderUseCase
@@ -151,6 +152,17 @@ class TripDocumentUseCaseTest {
         DeleteDocumentUseCase(repository)(doc)
 
         assertTrue(repository.deletedDocuments.contains(doc))
+    }
+
+    // ── CopyDocumentToInternalStorageUseCase ──────────────────────────────────
+
+    @Test
+    fun `CopyDocumentToInternalStorageUseCase delegates to repository`() = runTest {
+        val sourceUri = "content://com.example/document/42"
+
+        val result = CopyDocumentToInternalStorageUseCase(repository)(sourceUri)
+
+        assertEquals("file:///fake/documents/copy.pdf", result)
     }
 }
 

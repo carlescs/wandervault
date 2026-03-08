@@ -34,4 +34,23 @@ interface TripDocumentDao {
         "SELECT COUNT(*) FROM trip_documents WHERE tripId = :tripId AND folderId IS NULL AND name = :name AND id != :excludeId",
     )
     suspend fun countRootDocumentsByName(tripId: Int, name: String, excludeId: Int = 0): Int
+
+    /**
+     * Returns the URI strings of all documents whose [folderId] is in the entire sub-tree rooted at
+     * [rootFolderId], including documents directly inside [rootFolderId] (the base case of the
+     * recursive CTE). Uses a recursive CTE to walk the folder hierarchy so that orphaned internal
+     * files can be deleted before the folder (and its DB descendants) are cascade-deleted.
+     */
+    @Query(
+        """
+        WITH RECURSIVE folder_tree(id) AS (
+            SELECT :rootFolderId
+            UNION ALL
+            SELECT f.id FROM trip_document_folders f
+            INNER JOIN folder_tree ft ON f.parentFolderId = ft.id
+        )
+        SELECT uri FROM trip_documents WHERE folderId IN (SELECT id FROM folder_tree)
+        """,
+    )
+    suspend fun getDocumentUrisInFolderTree(rootFolderId: Int): List<String>
 }

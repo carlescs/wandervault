@@ -24,6 +24,14 @@ class TripDocumentRepositoryImpl(
     private val documentDao: TripDocumentDao,
 ) : TripDocumentRepository {
 
+    /**
+     * Resolved canonical path of the internal documents directory.
+     * Computed once to avoid repeated file-system calls on every deletion.
+     */
+    private val internalDocsDirPath by lazy {
+        File(context.filesDir, "documents").canonicalFile.toPath()
+    }
+
     override fun getRootFolders(tripId: Int): Flow<List<TripDocumentFolder>> =
         folderDao.getRootFolders(tripId).map { list -> list.map { it.toDomain() } }
 
@@ -47,7 +55,10 @@ class TripDocumentRepositoryImpl(
     }
 
     override suspend fun deleteFolder(folder: TripDocumentFolder) {
+        // Collect all document URIs in the folder tree before the cascade-delete wipes them from DB.
+        val urisToDelete = documentDao.getDocumentUrisInFolderTree(folder.id)
         folderDao.delete(folder.toEntity())
+        urisToDelete.forEach { deleteFileFromInternalStorage(it) }
     }
 
     override suspend fun saveDocument(document: TripDocument) {
@@ -62,6 +73,7 @@ class TripDocumentRepositoryImpl(
 
     override suspend fun deleteDocument(document: TripDocument) {
         documentDao.delete(document.toEntity())
+        deleteFileFromInternalStorage(document.uri)
     }
 
     override suspend fun copyDocumentToInternalStorage(sourceUri: String): String? =
@@ -121,6 +133,28 @@ class TripDocumentRepositoryImpl(
             }
         }
     }
+
+    /**
+     * Deletes the physical file at [fileUri] from internal documents storage.
+     * Only files residing under `filesDir/documents/` are deleted; external URIs are ignored.
+     * Deletion failures are silently ignored — a missing or inaccessible file must never prevent
+     * the DB cleanup that already completed.
+     *
+     * Note: [file.canonicalFile] resolves symlinks via a filesystem call. This is intentional for
+     * security (path-traversal prevention) and is safe since all calls run on [Dispatchers.IO].
+     */
+    private suspend fun deleteFileFromInternalStorage(fileUri: String) =
+        withContext(Dispatchers.IO) {
+            try {
+                val path = Uri.parse(fileUri).path ?: return@withContext
+                val file = File(path)
+                if (file.canonicalFile.toPath().startsWith(internalDocsDirPath)) {
+                    file.delete()
+                }
+            } catch (e: IOException) {
+                // Ignore: file may already be deleted or inaccessible; DB cleanup must proceed.
+            }
+        }
 }
 
 private fun TripDocumentFolderEntity.toDomain() = TripDocumentFolder(

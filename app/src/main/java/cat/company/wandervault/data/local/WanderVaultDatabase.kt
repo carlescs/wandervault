@@ -299,38 +299,63 @@ abstract class WanderVaultDatabase : RoomDatabase() {
         }
         val MIGRATION_14_15 = object : Migration(14, 15) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                // Recreate trip_documents to add non-null tripId column and make folderId nullable.
-                // SQLite does not support ALTER COLUMN, so we rename, recreate, copy, and drop.
-                db.execSQL("ALTER TABLE `trip_documents` RENAME TO `trip_documents_old`")
-                db.execSQL(
-                    """
-                    CREATE TABLE IF NOT EXISTS `trip_documents` (
-                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-                        `tripId` INTEGER NOT NULL,
-                        `folderId` INTEGER,
-                        `name` TEXT NOT NULL,
-                        `uri` TEXT NOT NULL,
-                        `mimeType` TEXT NOT NULL,
-                        FOREIGN KEY(`tripId`) REFERENCES `trips`(`id`)
-                            ON UPDATE NO ACTION ON DELETE CASCADE,
-                        FOREIGN KEY(`folderId`) REFERENCES `trip_document_folders`(`id`)
-                            ON UPDATE NO ACTION ON DELETE CASCADE
+                // Explicitly disable foreign key enforcement during this complex migration,
+                // mirroring the pattern used in other migrations that rename, recreate, and drop tables.
+                db.execSQL("PRAGMA foreign_keys=OFF")
+                try {
+                    // Recreate trip_documents to add non-null tripId column and make folderId nullable.
+                    // SQLite does not support ALTER COLUMN, so we rename, recreate, copy, and drop.
+                    db.execSQL("ALTER TABLE `trip_documents` RENAME TO `trip_documents_old`")
+                    db.execSQL(
+                        """
+                        CREATE TABLE IF NOT EXISTS `trip_documents` (
+                            `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                            `tripId` INTEGER NOT NULL,
+                            `folderId` INTEGER,
+                            `name` TEXT NOT NULL,
+                            `uri` TEXT NOT NULL,
+                            `mimeType` TEXT NOT NULL,
+                            FOREIGN KEY(`tripId`) REFERENCES `trips`(`id`)
+                                ON UPDATE NO ACTION ON DELETE CASCADE,
+                            FOREIGN KEY(`folderId`) REFERENCES `trip_document_folders`(`id`)
+                                ON UPDATE NO ACTION ON DELETE CASCADE
+                        )
+                        """.trimIndent(),
                     )
-                    """.trimIndent(),
-                )
-                // Copy existing rows; derive tripId from the folder's tripId via a join.
-                db.execSQL(
-                    """
-                    INSERT INTO `trip_documents` (`id`, `tripId`, `folderId`, `name`, `uri`, `mimeType`)
-                    SELECT d.`id`, f.`tripId`, d.`folderId`, d.`name`, d.`uri`, d.`mimeType`
-                    FROM `trip_documents_old` d
-                    JOIN `trip_document_folders` f ON f.`id` = d.`folderId`
-                    """.trimIndent(),
-                )
-                db.execSQL("DROP TABLE `trip_documents_old`")
-                db.execSQL("CREATE INDEX IF NOT EXISTS `index_trip_documents_tripId` ON `trip_documents` (`tripId`)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS `index_trip_documents_folderId` ON `trip_documents` (`folderId`)")
-                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_trip_documents_folderId_name` ON `trip_documents` (`folderId`, `name`)")
+                    // Copy existing rows; derive tripId from the folder's tripId via a join.
+                    db.execSQL(
+                        """
+                        INSERT INTO `trip_documents` (`id`, `tripId`, `folderId`, `name`, `uri`, `mimeType`)
+                        SELECT d.`id`, f.`tripId`, d.`folderId`, d.`name`, d.`uri`, d.`mimeType`
+                        FROM `trip_documents_old` d
+                        JOIN `trip_document_folders` f ON f.`id` = d.`folderId`
+                        """.trimIndent(),
+                    )
+                    db.execSQL("DROP TABLE `trip_documents_old`")
+
+                    // Verify that the new schema does not violate any foreign key constraints.
+                    // foreign_key_check returns columns: table, rowid, parent, fkid.
+                    // We extract the first three to build an actionable error message.
+                    db.query("PRAGMA foreign_key_check").use { cursor ->
+                        if (cursor.moveToFirst()) {
+                            val table = cursor.getString(0)
+                            val rowId = cursor.getString(1)
+                            val parent = cursor.getString(2)
+                            error(
+                                "MIGRATION_14_15: foreign key constraint violation — " +
+                                    "row $rowId in '$table' has no matching record in '$parent'. " +
+                                    "This indicates corrupt data before migration. " +
+                                    "Consider clearing app data and restoring from backup.",
+                            )
+                        }
+                    }
+
+                    db.execSQL("CREATE INDEX IF NOT EXISTS `index_trip_documents_tripId` ON `trip_documents` (`tripId`)")
+                    db.execSQL("CREATE INDEX IF NOT EXISTS `index_trip_documents_folderId` ON `trip_documents` (`folderId`)")
+                    db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_trip_documents_folderId_name` ON `trip_documents` (`folderId`, `name`)")
+                } finally {
+                    db.execSQL("PRAGMA foreign_keys=ON")
+                }
             }
         }
     }

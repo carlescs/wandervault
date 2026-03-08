@@ -329,7 +329,7 @@ internal fun TripDocumentsContent(
                             contentDescription = if (isFabExpanded) {
                                 stringResource(R.string.dialog_cancel)
                             } else {
-                                stringResource(R.string.documents_add_folder)
+                                stringResource(R.string.documents_add_action)
                             },
                         )
                     }
@@ -433,10 +433,11 @@ private fun SpeedDialItem(
     modifier: Modifier = Modifier,
 ) {
     Row(
-        modifier = modifier.clickable(onClick = onClick),
+        modifier = modifier,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Card(
+            modifier = Modifier.clickable(onClick = onClick),
             colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surfaceVariant,
             ),
