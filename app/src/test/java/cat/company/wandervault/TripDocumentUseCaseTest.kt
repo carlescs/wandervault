@@ -272,5 +272,6 @@ private class FakeDocumentSummaryRepository(
     override suspend fun extractDocumentInfo(
         fileUri: String,
         mimeType: String,
+        onDownloadProgress: ((bytesDownloaded: Long) -> Unit)?,
     ): DocumentExtractionResult? = result
 }

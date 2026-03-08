@@ -120,4 +120,22 @@ class FlightLegMatchingTest {
 
         assertFalse(matches)
     }
+
+    @Test
+    fun `null extracted bookingReference returns false`() {
+        val leg = TransportLeg(
+            transportId = 1,
+            type = TransportType.FLIGHT,
+            reservationConfirmationNumber = "ABCD1234",
+        )
+        val flightInfo = FlightInfo(bookingReference = null)
+
+        val matches = flightInfo.bookingReference != null &&
+            leg.reservationConfirmationNumber?.equals(
+                flightInfo.bookingReference,
+                ignoreCase = true,
+            ) == true
+
+        assertFalse(matches)
+    }
 }

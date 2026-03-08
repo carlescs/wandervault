@@ -1073,12 +1073,11 @@ private fun DocumentExtractionResult.hasProposedChanges(): Boolean =
 private fun formatBytes(bytes: Long): String = when {
     bytes < BYTES_PER_KB -> "$bytes B"
     bytes < BYTES_PER_MB -> "${bytes / BYTES_PER_KB} KB"
-    else -> "%.1f MB".format(bytes.toFloat() / BYTES_PER_MB_F)
+    else -> "%.1f MB".format(bytes.toFloat() / BYTES_PER_MB.toFloat())
 }
 
 private const val BYTES_PER_KB = 1_024L
 private const val BYTES_PER_MB = 1_024L * 1_024L
-private const val BYTES_PER_MB_F = 1_048_576f
 
 // ── Previews ──────────────────────────────────────────────────────────────────
 
