@@ -68,6 +68,6 @@ sealed class ShareUiState {
     /** The document has been attached and all extracted info applied successfully. */
     data object Done : ShareUiState()
 
-    /** A non-recoverable error occurred during processing. */
-    data class Error(val message: String? = null) : ShareUiState()
+    /** A non-recoverable error occurred during processing (copy or save failed). */
+    data object Error : ShareUiState()
 }

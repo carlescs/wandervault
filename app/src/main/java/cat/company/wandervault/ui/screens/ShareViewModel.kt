@@ -103,10 +103,14 @@ class ShareViewModel(
         _uiState.value = ShareUiState.Processing
 
         viewModelScope.launch {
-            try {
-                val internalUri = copyDocumentToInternalStorage(sourceUri)
-                    ?: throw IllegalStateException("Failed to copy document to internal storage")
+            // Copy and save the document – these failures are fatal.
+            val internalUri = copyDocumentToInternalStorage(sourceUri) ?: run {
+                Log.e(TAG, "Failed to copy document to internal storage")
+                _uiState.value = ShareUiState.Error
+                return@launch
+            }
 
+            try {
                 saveDocument(
                     TripDocument(
                         tripId = tripId,
@@ -116,7 +120,15 @@ class ShareViewModel(
                         mimeType = mimeType,
                     ),
                 )
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to save document", e)
+                _uiState.value = ShareUiState.Error
+                return@launch
+            }
 
+            // ML extraction + itinerary updates – failure here is non-fatal; the document has
+            // already been saved successfully so we still transition to Done.
+            try {
                 val result = summarizeDocument(internalUri, mimeType)
                 if (result != null) {
                     // Persist the extracted summary on the saved document record.
@@ -147,8 +159,8 @@ class ShareViewModel(
                     _uiState.value = ShareUiState.Done
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to process shared document", e)
-                _uiState.value = ShareUiState.Error(e.message)
+                Log.w(TAG, "ML extraction failed; document was saved successfully", e)
+                _uiState.value = ShareUiState.Done
             }
         }
     }

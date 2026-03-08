@@ -68,37 +68,40 @@ import java.time.LocalDate
  */
 @Composable
 fun ShareScreen(shareIntent: Intent, onDismiss: () -> Unit) {
-    val context = LocalContext.current
-
-    // Extract the shared URI and MIME type from the intent.
     val sharedUri: String = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         shareIntent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)?.toString() ?: ""
     } else {
         @Suppress("DEPRECATION")
         shareIntent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)?.toString() ?: ""
     }
-    val mimeType: String = if (sharedUri.isNotEmpty()) {
-        context.contentResolver.getType(Uri.parse(sharedUri)) ?: (shareIntent.type ?: "*/*")
+
+    if (sharedUri.isBlank()) {
+        // The intent has no stream URI (e.g. plain-text share). Show an error for the user to dismiss.
+        ShareErrorDialog(onDismiss = onDismiss)
     } else {
-        shareIntent.type ?: "*/*"
+        ShareScreenContent(shareIntent = shareIntent, sharedUri = sharedUri, onDismiss = onDismiss)
     }
+}
+
+@Composable
+private fun ShareScreenContent(shareIntent: Intent, sharedUri: String, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+
+    val mimeType: String = context.contentResolver.getType(Uri.parse(sharedUri))
+        ?: (shareIntent.type ?: "*/*")
     val documentName: String = remember(sharedUri) {
-        if (sharedUri.isNotEmpty()) {
-            runCatching {
-                context.contentResolver.query(
-                    Uri.parse(sharedUri),
-                    arrayOf(android.provider.OpenableColumns.DISPLAY_NAME),
-                    null,
-                    null,
-                    null,
-                )?.use { cursor ->
-                    val idx = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
-                    if (idx >= 0 && cursor.moveToFirst()) cursor.getString(idx) else null
-                }
-            }.getOrNull() ?: ""
-        } else {
-            ""
-        }
+        runCatching {
+            context.contentResolver.query(
+                Uri.parse(sharedUri),
+                arrayOf(android.provider.OpenableColumns.DISPLAY_NAME),
+                null,
+                null,
+                null,
+            )?.use { cursor ->
+                val idx = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                if (idx >= 0 && cursor.moveToFirst()) cursor.getString(idx) else null
+            }
+        }.getOrNull() ?: ""
     }.ifBlank { stringResource(R.string.share_document_name_fallback) }
 
     // Key the ViewModel by the URI string (stable for a given document, unlike
@@ -155,11 +158,11 @@ fun ShareScreen(shareIntent: Intent, onDismiss: () -> Unit) {
             )
         }
 
-        is ShareUiState.Done -> {
+        ShareUiState.Done -> {
             // Handled by the LaunchedEffect above – no UI needed.
         }
 
-        is ShareUiState.Error -> {
+        ShareUiState.Error -> {
             ShareErrorDialog(onDismiss = onDismiss)
         }
     }
