@@ -76,6 +76,9 @@ class TripDocumentsViewModel(
     /** Stack of folders the user has navigated into; empty = at root. */
     private val _folderStack = MutableStateFlow<List<TripDocumentFolder>>(emptyList())
 
+    /** Current document analysis state; decoupled from the DB flow to avoid race conditions. */
+    private val _analyzeState = MutableStateFlow<AnalyzeDocumentUiState?>(null)
+
     private val _uiState = MutableStateFlow<TripDocumentsUiState>(TripDocumentsUiState.Loading)
     val uiState: StateFlow<TripDocumentsUiState> = _uiState.asStateFlow()
 
@@ -96,13 +99,15 @@ class TripDocumentsViewModel(
                 } else {
                     getDocumentsInFolder(currentFolder.id)
                 }
-                combine(foldersFlow, documentsFlow, allFoldersFlow) { folders, documents, allFolders ->
+                combine(foldersFlow, documentsFlow, allFoldersFlow, _analyzeState) {
+                        folders, documents, allFolders, analyzeState ->
                     TripDocumentsUiState.Success(
                         folders = folders,
                         documents = documents,
                         currentFolder = currentFolder,
                         folderStack = stack,
                         allFolders = allFolders,
+                        analyzeState = analyzeState,
                         // writeError is not preserved across data refreshes: a successful write
                         // triggers a new DB emission which clears any prior error naturally.
                     )
@@ -376,6 +381,78 @@ class TripDocumentsViewModel(
     /** Permanently removes [document]. */
     fun removeDocument(document: TripDocument) {
         launchWrite { deleteDocument(document) }
+    }
+
+    /**
+     * Runs ML Kit analysis on [document] and updates the UI with the results.
+     *
+     * Sets [AnalyzeDocumentUiState.Loading] immediately, then on success sets
+     * [AnalyzeDocumentUiState.Result] with the extraction result. On failure sets
+     * [AnalyzeDocumentUiState.Error].
+     *
+     * Also updates the document's stored summary if a new one is extracted.
+     */
+    fun analyzeDocument(document: TripDocument) {
+        _analyzeState.value = AnalyzeDocumentUiState.Loading
+        viewModelScope.launch {
+            try {
+                val result = summarizeDocument(document.uri, document.mimeType)
+                if (result == null) {
+                    Log.w(TAG, "summarizeDocument returned null for ${document.name}; skipping analysis")
+                    _analyzeState.value = AnalyzeDocumentUiState.Error
+                    return@launch
+                }
+                // Set the result before persisting so the UI immediately shows the analysis.
+                _analyzeState.value = AnalyzeDocumentUiState.Result(document, result)
+                // Persist the refreshed summary on the document record (best-effort).
+                updateDocument(document.copy(summary = result.summary))
+            } catch (e: Exception) {
+                Log.w(TAG, "Document analysis failed for ${document.name}", e)
+                _analyzeState.value = AnalyzeDocumentUiState.Error
+            }
+        }
+    }
+
+    /**
+     * Applies the trip changes proposed in the current [AnalyzeDocumentUiState.Result] and then
+     * dismisses the dialog.
+     *
+     * No-op when the analyze state is not [AnalyzeDocumentUiState.Result].
+     */
+    fun applyAnalysisChanges() {
+        val analyzeResult = _analyzeState.value as? AnalyzeDocumentUiState.Result ?: return
+        dismissAnalyze()
+        viewModelScope.launch {
+            try {
+                val result = analyzeResult.extractionResult
+                val documentName = analyzeResult.document.name
+                when {
+                    result.flightInfo != null -> applyFlightInfo(result.flightInfo, documentName)
+                    result.hotelInfo != null -> applyHotelInfo(result.hotelInfo, documentName)
+                    else -> {
+                        val relevantInfo = result.relevantTripInfo ?: return@launch
+                        val trip = getTrip(tripId).first()
+                        if (trip == null) {
+                            Log.w(TAG, "Trip $tripId not found; skipping description update for $documentName")
+                            return@launch
+                        }
+                        // Only set the AI description if one has not been set yet; preserve any
+                        // description the user or a previous document upload may have stored.
+                        if (trip.aiDescription == null) {
+                            saveTripDescription(trip, relevantInfo)
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to apply analysis changes for trip $tripId", e)
+                setWriteError(DocumentsWriteError.Generic)
+            }
+        }
+    }
+
+    /** Dismisses the document analysis dialog. */
+    fun dismissAnalyze() {
+        _analyzeState.value = null
     }
 
     /**

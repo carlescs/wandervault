@@ -1,5 +1,6 @@
 package cat.company.wandervault.ui.screens
 
+import cat.company.wandervault.domain.model.DocumentExtractionResult
 import cat.company.wandervault.domain.model.TripDocument
 import cat.company.wandervault.domain.model.TripDocumentFolder
 
@@ -12,6 +13,28 @@ enum class DocumentsWriteError {
     DuplicateName,
     /** A generic, unclassified write failure. */
     Generic,
+}
+
+/**
+ * State of an in-progress or completed document analysis, shown via [AnalyzeDocumentDialog].
+ */
+sealed class AnalyzeDocumentUiState {
+    /** ML Kit analysis is running. */
+    data object Loading : AnalyzeDocumentUiState()
+
+    /**
+     * Analysis completed successfully.
+     *
+     * @param document The document that was analyzed.
+     * @param extractionResult The full extraction result from ML Kit.
+     */
+    data class Result(
+        val document: TripDocument,
+        val extractionResult: DocumentExtractionResult,
+    ) : AnalyzeDocumentUiState()
+
+    /** Analysis failed with an error. */
+    data object Error : AnalyzeDocumentUiState()
 }
 
 /**
@@ -33,6 +56,8 @@ sealed class TripDocumentsUiState {
      * @param allFolders All folders in the trip regardless of depth, used for the move-document picker.
      * @param writeError A one-off error from a failed write operation (create/rename/delete),
      *   or `null` when there is no pending error. Call [TripDocumentsViewModel.clearError] to dismiss.
+     * @param analyzeState The current state of an in-progress or completed document analysis,
+     *   or `null` when no analysis is active. Call [TripDocumentsViewModel.dismissAnalyze] to dismiss.
      */
     data class Success(
         val folders: List<TripDocumentFolder> = emptyList(),
@@ -41,5 +66,6 @@ sealed class TripDocumentsUiState {
         val folderStack: List<TripDocumentFolder> = emptyList(),
         val allFolders: List<TripDocumentFolder> = emptyList(),
         val writeError: DocumentsWriteError? = null,
+        val analyzeState: AnalyzeDocumentUiState? = null,
     ) : TripDocumentsUiState()
 }

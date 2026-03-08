@@ -21,6 +21,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -36,6 +38,7 @@ import androidx.compose.material.icons.filled.DriveFileMove
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.FindInPage
 import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -67,6 +70,9 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cat.company.wandervault.R
+import cat.company.wandervault.domain.model.DocumentExtractionResult
+import cat.company.wandervault.domain.model.FlightInfo
+import cat.company.wandervault.domain.model.HotelInfo
 import cat.company.wandervault.domain.model.TripDocument
 import cat.company.wandervault.domain.model.TripDocumentFolder
 import cat.company.wandervault.ui.theme.WanderVaultTheme
@@ -149,6 +155,9 @@ internal fun TripDocumentsTabContent(
                 android.widget.Toast.makeText(context, noAppMessage, android.widget.Toast.LENGTH_SHORT).show()
             }
         },
+        onAnalyzeDocument = viewModel::analyzeDocument,
+        onAnalyzeApplyChanges = viewModel::applyAnalysisChanges,
+        onAnalyzeDismiss = viewModel::dismissAnalyze,
         onErrorDismiss = viewModel::clearError,
     )
 }
@@ -156,7 +165,7 @@ internal fun TripDocumentsTabContent(
 /**
  * Stateless presentation of the Documents tab content.
  *
- * Supports folder navigation, create/rename/delete dialogs, document rename/delete,
+ * Supports folder navigation, create/rename/delete dialogs, document rename/delete/move/analyze,
  * file upload (via [onUploadFile]), and document open (via [onOpenDocument]).
  * [onErrorDismiss] is called when the user acknowledges a transient write error.
  */
@@ -174,6 +183,9 @@ internal fun TripDocumentsContent(
     onDeleteDocument: (TripDocument) -> Unit = {},
     onUploadFile: () -> Unit = {},
     onOpenDocument: (TripDocument) -> Unit = {},
+    onAnalyzeDocument: (TripDocument) -> Unit = {},
+    onAnalyzeApplyChanges: () -> Unit = {},
+    onAnalyzeDismiss: () -> Unit = {},
     onErrorDismiss: () -> Unit = {},
 ) {
     var isFabExpanded by rememberSaveable { mutableStateOf(false) }
@@ -275,6 +287,7 @@ internal fun TripDocumentsContent(
                                     onRename = { documentToRename = document },
                                     onMove = { documentToMove = document },
                                     onDelete = { documentToDelete = document },
+                                    onAnalyze = { onAnalyzeDocument(document) },
                                 )
                                 HorizontalDivider()
                             }
@@ -422,6 +435,16 @@ internal fun TripDocumentsContent(
         )
     }
 
+    // Show the analyze dialog when an analysis is in progress or has a result.
+    val analyzeState = (uiState as? TripDocumentsUiState.Success)?.analyzeState
+    if (analyzeState != null) {
+        AnalyzeDocumentDialog(
+            analyzeState = analyzeState,
+            onApplyChanges = onAnalyzeApplyChanges,
+            onDismiss = onAnalyzeDismiss,
+        )
+    }
+
     // Show a dialog when a write operation fails (e.g. duplicate name).
     val writeError = (uiState as? TripDocumentsUiState.Success)?.writeError
     if (writeError != null) {
@@ -528,6 +551,7 @@ private fun DocumentRow(
     onRename: () -> Unit,
     onMove: () -> Unit,
     onDelete: () -> Unit,
+    onAnalyze: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -553,6 +577,12 @@ private fun DocumentRow(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
+        IconButton(onClick = onAnalyze) {
+            Icon(
+                imageVector = Icons.Default.FindInPage,
+                contentDescription = stringResource(R.string.documents_analyze_content_desc, document.name),
+            )
+        }
         IconButton(onClick = onRename) {
             Icon(
                 imageVector = Icons.Default.Edit,
@@ -730,6 +760,156 @@ private fun buildFolderPath(
     parts.reverse()
     return parts.joinToString(" / ")
 }
+
+/**
+ * A dialog that shows the result of an in-progress or completed ML Kit document analysis.
+ *
+ * - While [analyzeState] is [AnalyzeDocumentUiState.Loading], a progress indicator is shown.
+ * - When [analyzeState] is [AnalyzeDocumentUiState.Result], the document summary and any
+ *   proposed trip changes are displayed. If there are applicable changes, [onApplyChanges] is
+ *   offered as an action.
+ * - When [analyzeState] is [AnalyzeDocumentUiState.Error], an error message is shown.
+ */
+@Composable
+private fun AnalyzeDocumentDialog(
+    analyzeState: AnalyzeDocumentUiState,
+    onApplyChanges: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.documents_analyze_title)) },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                when (analyzeState) {
+                    is AnalyzeDocumentUiState.Loading -> {
+                        CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
+                        Text(
+                            text = stringResource(R.string.documents_analyze_analyzing),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+
+                    is AnalyzeDocumentUiState.Error -> {
+                        Text(
+                            text = stringResource(R.string.documents_analyze_error),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+
+                    is AnalyzeDocumentUiState.Result -> {
+                        val extraction = analyzeState.extractionResult
+                        // Summary section
+                        Text(
+                            text = stringResource(R.string.documents_analyze_summary_label),
+                            style = MaterialTheme.typography.labelLarge,
+                        )
+                        Text(
+                            text = extraction.summary.ifBlank {
+                                stringResource(R.string.documents_analyze_no_summary)
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        // Proposed changes section
+                        val hasChanges = extraction.hasProposedChanges()
+                        if (hasChanges) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = stringResource(R.string.documents_analyze_proposed_changes_label),
+                                style = MaterialTheme.typography.labelLarge,
+                            )
+                            extraction.flightInfo?.let { flight ->
+                                AnalyzeInfoSection(
+                                    label = stringResource(R.string.documents_analyze_flight_info_label),
+                                    info = buildFlightInfoText(
+                                        flight = flight,
+                                        fromLabel = stringResource(R.string.documents_analyze_from),
+                                        toLabel = stringResource(R.string.documents_analyze_to),
+                                        refLabel = stringResource(R.string.documents_analyze_ref),
+                                    ),
+                                )
+                            }
+                            extraction.hotelInfo?.let { hotel ->
+                                AnalyzeInfoSection(
+                                    label = stringResource(R.string.documents_analyze_hotel_info_label),
+                                    info = buildHotelInfoText(
+                                        hotel = hotel,
+                                        refLabel = stringResource(R.string.documents_analyze_ref),
+                                    ),
+                                )
+                            }
+                            extraction.relevantTripInfo?.let { tripInfo ->
+                                AnalyzeInfoSection(
+                                    label = stringResource(R.string.documents_analyze_trip_info_label),
+                                    info = tripInfo,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            val result = analyzeState as? AnalyzeDocumentUiState.Result
+            if (result?.extractionResult?.hasProposedChanges() == true) {
+                TextButton(onClick = onApplyChanges) {
+                    Text(stringResource(R.string.documents_analyze_apply_changes))
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.dialog_cancel))
+            }
+        },
+    )
+}
+
+@Composable
+private fun AnalyzeInfoSection(label: String, info: String) {
+    Text(
+        text = label,
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.primary,
+    )
+    Text(
+        text = info,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+private fun buildFlightInfoText(
+    flight: FlightInfo,
+    fromLabel: String,
+    toLabel: String,
+    refLabel: String,
+): String =
+    listOfNotNull(
+        flight.airline,
+        flight.flightNumber,
+        flight.departurePlace?.let { fromLabel.format(it) },
+        flight.arrivalPlace?.let { toLabel.format(it) },
+        flight.bookingReference?.let { refLabel.format(it) },
+    ).joinToString(" · ")
+
+private fun buildHotelInfoText(hotel: HotelInfo, refLabel: String): String =
+    listOfNotNull(
+        hotel.name,
+        hotel.address,
+        hotel.bookingReference?.let { refLabel.format(it) },
+    ).joinToString(" · ")
+
+private fun DocumentExtractionResult.hasProposedChanges(): Boolean =
+    flightInfo != null || hotelInfo != null || relevantTripInfo != null
 
 // ── Previews ──────────────────────────────────────────────────────────────────
 
