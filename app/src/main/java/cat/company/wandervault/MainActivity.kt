@@ -1,5 +1,6 @@
 package cat.company.wandervault
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -23,6 +24,8 @@ import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
@@ -32,16 +35,41 @@ import androidx.navigation.compose.rememberNavController
 import cat.company.wandervault.ui.LocalSharedTransitionScope
 import cat.company.wandervault.ui.navigation.AppRoutes
 import cat.company.wandervault.ui.navigation.WanderVaultNavHost
+import cat.company.wandervault.ui.screens.ShareScreen
 import cat.company.wandervault.ui.theme.WanderVaultTheme
 
 class MainActivity : ComponentActivity() {
+
+    /** Non-null while there is a pending `ACTION_SEND` intent waiting to be handled. */
+    private var shareIntentState: Intent? by mutableStateOf(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        handleIncomingIntent(intent)
         setContent {
             WanderVaultTheme {
-                WanderVaultApp()
+                WanderVaultApp(
+                    shareIntent = shareIntentState,
+                    onShareHandled = {
+                        shareIntentState = null
+                        // Clear the intent so a configuration change does not re-open the share
+                        // overlay with the same document.
+                        setIntent(Intent(Intent.ACTION_MAIN))
+                    },
+                )
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleIncomingIntent(intent)
+    }
+
+    private fun handleIncomingIntent(intent: Intent?) {
+        if (intent?.action == Intent.ACTION_SEND) {
+            shareIntentState = intent
         }
     }
 }
@@ -49,7 +77,10 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalSharedTransitionApi::class)
 @PreviewScreenSizes
 @Composable
-fun WanderVaultApp() {
+fun WanderVaultApp(
+    shareIntent: Intent? = null,
+    onShareHandled: () -> Unit = {},
+) {
     val navController = rememberNavController()
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = currentBackStackEntry?.destination?.route ?: AppRoutes.HOME
@@ -101,6 +132,14 @@ fun WanderVaultApp() {
                 }
             }
         }
+    }
+
+    // Overlay the share flow when a document was shared into the app.
+    if (shareIntent != null) {
+        ShareScreen(
+            shareIntent = shareIntent,
+            onDismiss = onShareHandled,
+        )
     }
 }
 

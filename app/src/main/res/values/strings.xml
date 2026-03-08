@@ -216,6 +216,24 @@
     <string name="documents_no_app_to_open">No app available to open this document</string>
     <string name="documents_empty_root_subtitle">Create a folder or upload a file to get started</string>
     <string name="documents_empty_folder_subtitle">Upload a file or create a sub-folder</string>
+
+    <!-- Share-to-WanderVault flow -->
+    <string name="share_title">Attach to Trip</string>
+    <string name="share_select_trip_label">Select a trip to attach "%s" to:</string>
+    <string name="share_no_trips">No trips found. Create a trip first.</string>
+    <string name="share_processing">Analysing document…</string>
+    <string name="share_document_name_fallback">Shared document</string>
+    <string name="share_flight_selection_title">Apply flight info</string>
+    <string name="share_flight_selection_message">Select which flight leg to update with the extracted details:</string>
+    <string name="share_hotel_selection_title">Apply hotel info</string>
+    <string name="share_hotel_selection_message">Select which destination to update with the extracted hotel details:</string>
+    <string name="share_skip">Skip</string>
+    <string name="share_error_title">Could not attach document</string>
+    <string name="share_error_message">Something went wrong while processing the document. Please try again.</string>
+    <string name="share_booking_ref">Ref: %s</string>
+    <string name="share_unknown_flight">Unknown flight</string>
+    <string name="share_unknown_hotel">Unknown hotel</string>
+    <string name="share_unnamed_flight_leg">Unnamed leg</string>
     <string name="documents_move_action">Move</string>
     <string name="documents_move_document_title">Move Document</string>
     <string name="documents_move_to_root">Root (no folder)</string>
