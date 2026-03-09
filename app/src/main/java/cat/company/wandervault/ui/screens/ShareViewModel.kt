@@ -263,15 +263,16 @@ class ShareViewModel(
     /**
      * Checks [hotelInfo] against all destinations in the selected trip.
      *
-     * A *confident* match requires the booking reference **or** hotel name to match exactly
+     * A *confident* match requires that the destination already has a hotel record and that
+     * the booking reference **or** hotel name matches that existing hotel exactly
      * (case-insensitive). The check-in date is intentionally excluded from the confident-match
      * criteria: an arrival date coincidence is not reliable enough to auto-apply changes because
      * two different hotels can share the same check-in date, which would silently match the wrong
-     * destination and suppress the selection dialog. When there is no confident match, the state
-     * transitions to [ShareUiState.HotelDestinationSelection] with the candidates filtered to
-     * destinations whose stay period overlaps with the extracted hotel dates (or all destinations
-     * when no dates are available). When there are no destinations at all the info is silently
-     * skipped.
+     * destination and suppress the selection dialog. When there is no confident match but there
+     * are destinations, the state transitions to [ShareUiState.HotelDestinationSelection] with
+     * the candidates filtered to destinations whose stay period overlaps with the extracted hotel
+     * dates (or all destinations when no dates are available). When there are no destinations at
+     * all the info is silently skipped.
      */
     private suspend fun handleHotelInfo(hotelInfo: HotelInfo) {
         val destinations = getDestinationsForTrip(selectedTripId).first()

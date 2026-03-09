@@ -5,6 +5,7 @@ import cat.company.wandervault.domain.model.Hotel
 import cat.company.wandervault.domain.model.HotelInfo
 import cat.company.wandervault.ui.screens.overlapsHotelDates
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
@@ -13,9 +14,12 @@ import java.time.LocalDate
  * Unit tests for the hotel-matching predicates used in
  * TripDocumentsViewModel.applyOrDisambiguateHotelInfo and ShareViewModel.handleHotelInfo.
  *
- * These tests verify that a "confident match" is detected correctly (by booking reference or
- * hotel name only — check-in date is intentionally excluded from confident-match criteria) and
- * that null fields on either side are handled safely.
+ * These tests verify two things:
+ *  - that a "confident match" is detected correctly by booking reference or hotel name only
+ *    (check-in date is intentionally excluded from the confident-match criteria), and
+ *  - that date-based filtering/overlap heuristics (e.g. overlapsHotelDates) behave as expected,
+ *    including scenarios where arrival/check-in dates are equal or overlapping, and
+ *    that null fields on either side are handled safely in all of the above cases.
  */
 class HotelMatchingTest {
 
@@ -133,7 +137,12 @@ class HotelMatchingTest {
         assertFalse(matchByName)
     }
 
-    // ── check-in date matching ────────────────────────────────────────────────
+    // ── check-in date as upload-path heuristic (not a confident-match criterion) ────────────
+    //
+    // The upload path (applyHotelInfo) still uses arrival date == check-in date as a priority-3
+    // heuristic to pick the right destination silently. These tests verify that date equality
+    // predicate. The confident-match paths (applyOrDisambiguateHotelInfo / handleHotelInfo)
+    // intentionally omit this criterion — see the regression test below.
 
     private fun destination(
         arrival: LocalDate? = null,
@@ -181,38 +190,35 @@ class HotelMatchingTest {
         assertFalse(matches)
     }
 
-    // ── check-in date is NOT a confident match criterion ──────────────────────
+    // ── check-in date alone never triggers a confident match ─────────────────
     //
-    // Check-in date alone must NOT be used to auto-apply hotel info: an arrival date
-    // coincidence could silently match the wrong destination (e.g. two different hotels
-    // checking in on the same date) and suppress the disambiguation dialog, leaving the
-    // hotel un-updated without any user feedback. Instead, the check-in date is only used
-    // to filter the candidates shown in the HotelDestinationSelection dialog.
+    // Even when the check-in date aligns exactly with a destination's arrival date, the
+    // confident-match logic (applyOrDisambiguateHotelInfo / handleHotelInfo) must find no
+    // match — forcing the disambiguation dialog to be shown.
 
     @Test
-    fun `matching checkInDate alone does not constitute a confident match`() {
-        // Even when the check-in date aligns exactly with the destination's arrival date,
-        // this must NOT be treated as a confident match so the disambiguation dialog is shown.
+    fun `check-in date alone does not yield a confident match when booking ref and name differ`() {
         val checkIn = LocalDate.of(2024, 6, 10)
         val dest = destination(arrival = checkIn, departure = LocalDate.of(2024, 6, 14))
         val hotel = Hotel(id = 1, destinationId = 1, name = "Hotel Paris", reservationNumber = "BOOK1")
         val hotelInfo = HotelInfo(name = "Different Hotel", bookingReference = "OTHER2", checkInDate = checkIn)
 
-        // Booking reference does not match.
-        val matchByRef = hotelInfo.bookingReference != null &&
-            hotel.reservationNumber.equals(hotelInfo.bookingReference, ignoreCase = true)
-        // Hotel name does not match.
-        val matchByName = hotelInfo.name != null &&
-            hotel.name.equals(hotelInfo.name, ignoreCase = true)
-        // Check-in date does match the arrival date — but this should not yield a confident match.
-        val checkInMatchesArrival = hotelInfo.checkInDate != null &&
-            dest.arrivalDateTime?.toLocalDate() == hotelInfo.checkInDate
+        // Build a candidate list exactly as the ViewModels do.
+        val destinationHotels = listOf(dest to hotel)
 
-        assertFalse("booking reference must not match", matchByRef)
-        assertFalse("hotel name must not match", matchByName)
-        assertTrue("check-in date coincidentally matches arrival", checkInMatchesArrival)
-        // Neither booking reference nor hotel name matches → no confident match, dialog must show.
-        assertFalse("no confident match when only check-in date aligns", matchByRef || matchByName)
+        // Apply the same confident-match selection logic used by applyOrDisambiguateHotelInfo
+        // and handleHotelInfo: only booking reference or hotel name qualifies as a confident match.
+        val confidentMatch = destinationHotels.firstOrNull { (_, h) ->
+            h != null && hotelInfo.bookingReference != null &&
+                h.reservationNumber.equals(hotelInfo.bookingReference, ignoreCase = true)
+        } ?: destinationHotels.firstOrNull { (_, h) ->
+            h != null && hotelInfo.name != null &&
+                h.name.equals(hotelInfo.name, ignoreCase = true)
+        }
+
+        // Even though check-in date == arrival date, no confident match must be found,
+        // so the disambiguation dialog will be shown.
+        assertNull(confidentMatch)
     }
 
     // ── overlapsHotelDates ───────────────────────────────────────────────────

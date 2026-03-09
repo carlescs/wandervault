@@ -668,15 +668,17 @@ class TripDocumentsViewModel(
     /**
      * Checks [hotelInfo] against all destinations in this trip.
      *
-     * A *confident* match requires the booking reference **or** hotel name to match exactly
-     * (case-insensitive). The check-in date is intentionally excluded from the confident-match
-     * criteria: an arrival date coincidence is not reliable enough to auto-apply changes because
-     * two different hotels can share the same check-in date, which would silently match the wrong
-     * destination and suppress the selection dialog. When there is a confident match the dialog is
-     * dismissed and the hotel is updated immediately. When there is no confident match, the state
-     * transitions to [AnalyzeDocumentUiState.HotelDestinationSelection] with candidates filtered
-     * to destinations whose stay period overlaps the hotel dates (or all destinations when no
-     * dates are available), so the user can pick the destination.
+     * A *confident* match requires that there is already an existing [Hotel] record for a
+     * destination in this trip, and that the booking reference **or** hotel name matches that
+     * record exactly (case-insensitive). The check-in date is intentionally excluded from the
+     * confident-match criteria: an arrival date coincidence is not reliable enough to auto-apply
+     * changes because two different hotels can share the same check-in date, which would silently
+     * match the wrong destination and suppress the selection dialog. When there is such a
+     * confident match the dialog is dismissed and the hotel is updated immediately. When there is
+     * no existing hotel record or no confident match, the state transitions to
+     * [AnalyzeDocumentUiState.HotelDestinationSelection] with candidates filtered to destinations
+     * whose stay period overlaps the hotel dates (or all destinations when no dates are
+     * available), so the user can pick the destination.
      */
     private suspend fun applyOrDisambiguateHotelInfo(hotelInfo: HotelInfo, documentName: String) {
         val destinations = getDestinationsForTrip(tripId).first()
