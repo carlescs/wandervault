@@ -38,6 +38,8 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.Train
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -127,6 +129,7 @@ fun TransportDetailScreen(
         onCompanyChange = viewModel::onCompanyChange,
         onFlightNumberChange = viewModel::onFlightNumberChange,
         onConfirmationNumberChange = viewModel::onConfirmationNumberChange,
+        onSetDefaultLeg = viewModel::onSetDefaultLeg,
         modifier = modifier,
     )
 }
@@ -151,6 +154,7 @@ internal fun TransportDetailContent(
     onCompanyChange: (Int, String) -> Unit,
     onFlightNumberChange: (Int, String) -> Unit,
     onConfirmationNumberChange: (Int, String) -> Unit,
+    onSetDefaultLeg: (Int) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var selectedTab by rememberSaveable { mutableStateOf(TransportDetailTab.DETAILS) }
@@ -221,6 +225,7 @@ internal fun TransportDetailContent(
                         onCompanyChange = onCompanyChange,
                         onFlightNumberChange = onFlightNumberChange,
                         onConfirmationNumberChange = onConfirmationNumberChange,
+                        onSetDefaultLeg = onSetDefaultLeg,
                         innerPadding = innerPadding,
                     )
                 }
@@ -414,6 +419,7 @@ private fun TransportLegsTabContent(
     onCompanyChange: (Int, String) -> Unit,
     onFlightNumberChange: (Int, String) -> Unit,
     onConfirmationNumberChange: (Int, String) -> Unit,
+    onSetDefaultLeg: (Int) -> Unit,
     innerPadding: PaddingValues,
     modifier: Modifier = Modifier,
 ) {
@@ -453,6 +459,7 @@ private fun TransportLegsTabContent(
                     onCompanyChange = { value -> onCompanyChange(index, value) },
                     onFlightNumberChange = { value -> onFlightNumberChange(index, value) },
                     onConfirmationNumberChange = { value -> onConfirmationNumberChange(index, value) },
+                    onSetDefault = { onSetDefaultLeg(index) },
                 )
 
                 // Editable intermediate stop shown only between legs.
@@ -582,6 +589,7 @@ private fun TransportLegSection(
     onCompanyChange: (String) -> Unit,
     onFlightNumberChange: (String) -> Unit,
     onConfirmationNumberChange: (String) -> Unit,
+    onSetDefault: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val selectedType = leg.typeName?.let { name ->
@@ -598,7 +606,7 @@ private fun TransportLegSection(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            // Leg header: leg number + move up/down controls
+            // Leg header: leg number + set-default toggle (multi-leg only) + move up/down controls
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -614,6 +622,27 @@ private fun TransportLegSection(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f),
                 )
+                if (totalLegs > 1) {
+                    IconButton(onClick = onSetDefault, enabled = !leg.isDefault) {
+                        Icon(
+                            imageVector = if (leg.isDefault) {
+                                Icons.Default.Star
+                            } else {
+                                Icons.Default.StarBorder
+                            },
+                            contentDescription = if (leg.isDefault) {
+                                stringResource(R.string.transport_detail_default_leg)
+                            } else {
+                                stringResource(R.string.transport_detail_set_default_leg)
+                            },
+                            tint = if (leg.isDefault) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                        )
+                    }
+                }
                 IconButton(onClick = onMoveUp, enabled = index > 0) {
                     Icon(
                         imageVector = Icons.Default.KeyboardArrowUp,

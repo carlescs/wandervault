@@ -13,6 +13,7 @@ package cat.company.wandervault.ui.screens
  * @param company The carrier or company name.
  * @param flightNumber The flight, train, or route number.
  * @param confirmationNumber The booking or reservation confirmation code.
+ * @param isDefault When `true` this leg's icon is shown in the itinerary timeline.
  */
 data class TransportLegEditState(
     val id: Int = 0,
@@ -22,6 +23,7 @@ data class TransportLegEditState(
     val company: String = "",
     val flightNumber: String = "",
     val confirmationNumber: String = "",
+    val isDefault: Boolean = false,
 )
 
 /**

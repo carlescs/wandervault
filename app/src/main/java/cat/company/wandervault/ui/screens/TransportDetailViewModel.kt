@@ -180,6 +180,19 @@ class TransportDetailViewModel(
         updateLeg(index) { copy(confirmationNumber = value) }
     }
 
+    /**
+     * Sets the leg at [index] as the default leg for the timeline icon.
+     * All other legs have their [TransportLegEditState.isDefault] cleared to `false`.
+     */
+    fun onSetDefaultLeg(index: Int) {
+        _hasUnsavedEdits = true
+        val current = _uiState.value as? TransportDetailUiState.Success ?: return
+        if (index !in current.legs.indices) return
+        _uiState.value = current.copy(
+            legs = current.legs.mapIndexed { i, leg -> leg.copy(isDefault = i == index) },
+        )
+    }
+
     /** Moves the leg at [index] one position up (swaps with the leg at [index] - 1). */
     fun onMoveLegUp(index: Int) {
         updateLegs {
@@ -268,6 +281,7 @@ class TransportDetailViewModel(
                             company = leg.company.trim().takeIf { it.isNotBlank() },
                             flightNumber = leg.flightNumber.trim().takeIf { it.isNotBlank() },
                             reservationConfirmationNumber = leg.confirmationNumber.trim().takeIf { it.isNotBlank() },
+                            isDefault = leg.isDefault,
                         ),
                     )
                 }
@@ -282,6 +296,7 @@ class TransportDetailViewModel(
                         company = leg.company.trim().takeIf { it.isNotBlank() },
                         flightNumber = leg.flightNumber.trim().takeIf { it.isNotBlank() },
                         reservationConfirmationNumber = leg.confirmationNumber.trim().takeIf { it.isNotBlank() },
+                        isDefault = leg.isDefault,
                     ),
                 )
             }
@@ -336,5 +351,6 @@ private fun TransportLeg.toEditState() = TransportLegEditState(
     company = company ?: "",
     flightNumber = flightNumber ?: "",
     confirmationNumber = reservationConfirmationNumber ?: "",
+    isDefault = isDefault,
 )
 

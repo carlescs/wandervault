@@ -298,7 +298,7 @@ private fun DestinationTimelineItem(
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
-                            imageVector = destination.transport?.legs?.firstOrNull()?.type?.icon ?: Icons.Default.Add,
+                            imageVector = destination.transport?.legs?.timelineLeg()?.type?.icon ?: Icons.Default.Add,
                             contentDescription = stringResource(
                                 if (hasTransport) R.string.itinerary_change_transport
                                 else R.string.itinerary_add_transport,
@@ -472,6 +472,12 @@ private val TransportType.icon: ImageVector
         TransportType.FLIGHT -> Icons.Default.Flight
         TransportType.OTHER -> Icons.Default.MoreHoriz
     }
+
+/**
+ * Returns the leg that should be represented in the itinerary timeline: the leg explicitly
+ * marked as default, or the first leg if none is marked.
+ */
+private fun List<TransportLeg>.timelineLeg(): TransportLeg? = firstOrNull { it.isDefault } ?: firstOrNull()
 
 /** Returns the string resource ID for the human-readable label of a [TransportType]. */
 private val TransportType.labelRes: Int
