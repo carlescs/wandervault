@@ -243,7 +243,7 @@ class DocumentSummaryRepositoryImpl(private val context: Context) : DocumentSumm
                 .addOnFailureListener { e -> cont.resumeWithException(e) }
         }
 
-    private fun buildPrompt(documentText: String, tripYear: Int? = null): String = buildString {
+    private fun buildPrompt(documentText: String, tripYear: Int?): String = buildString {
         appendLine(
             "Analyze the following travel document and respond with exactly two sections " +
                 "separated by the marker \"---\":",

@@ -222,11 +222,12 @@ class TripDocumentUseCaseTest {
             DocumentExtractionResult(summary = "Some document."),
         )
 
-        SummarizeDocumentUseCase(fakeRepo)(
+        val result = SummarizeDocumentUseCase(fakeRepo)(
             "file:///documents/misc.txt",
             "text/plain",
         )
 
+        assertEquals("Some document.", result?.summary)
         assertNull(fakeRepo.lastTripYear)
     }
 }
