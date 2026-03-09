@@ -11,7 +11,8 @@ class SummarizeDocumentUseCase(private val repository: DocumentSummaryRepository
     suspend operator fun invoke(
         fileUri: String,
         mimeType: String,
+        tripYear: Int? = null,
         onDownloadProgress: ((bytesDownloaded: Long) -> Unit)? = null,
     ): DocumentExtractionResult? =
-        repository.extractDocumentInfo(fileUri, mimeType, onDownloadProgress)
+        repository.extractDocumentInfo(fileUri, mimeType, tripYear, onDownloadProgress)
 }

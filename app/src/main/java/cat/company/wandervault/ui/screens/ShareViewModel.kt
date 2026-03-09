@@ -129,7 +129,8 @@ class ShareViewModel(
             // ML extraction + itinerary updates – failure here is non-fatal; the document has
             // already been saved successfully so we still transition to Done.
             try {
-                val result = summarizeDocument(internalUri, mimeType)
+                val tripYear = getTrip(tripId).first()?.startDate?.year
+                val result = summarizeDocument(internalUri, mimeType, tripYear)
                 if (result != null) {
                     // Persist the extracted summary on the saved document record.
                     val savedDoc = getRootDocuments(tripId).first().find { it.uri == internalUri }

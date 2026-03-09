@@ -63,6 +63,7 @@ class DocumentSummaryRepositoryImpl(private val context: Context) : DocumentSumm
     override suspend fun extractDocumentInfo(
         fileUri: String,
         mimeType: String,
+        tripYear: Int?,
         onDownloadProgress: ((bytesDownloaded: Long) -> Unit)?,
     ): DocumentExtractionResult? {
         val text = readDocumentText(fileUri, mimeType) ?: return null
@@ -72,7 +73,7 @@ class DocumentSummaryRepositoryImpl(private val context: Context) : DocumentSumm
                 FeatureStatus.DOWNLOADABLE -> awaitDownload(onDownloadProgress)
                 FeatureStatus.AVAILABLE -> Unit
             }
-            val request = generateContentRequest(TextPart(buildPrompt(text))) {
+            val request = generateContentRequest(TextPart(buildPrompt(text, tripYear))) {
                 maxOutputTokens = MAX_OUTPUT_TOKENS
             }
             val response = generationClient.generateContent(request)
@@ -242,7 +243,7 @@ class DocumentSummaryRepositoryImpl(private val context: Context) : DocumentSumm
                 .addOnFailureListener { e -> cont.resumeWithException(e) }
         }
 
-    private fun buildPrompt(documentText: String): String = buildString {
+    private fun buildPrompt(documentText: String, tripYear: Int? = null): String = buildString {
         appendLine(
             "Analyze the following travel document and respond with exactly two sections " +
                 "separated by the marker \"---\":",
@@ -268,6 +269,11 @@ class DocumentSummaryRepositoryImpl(private val context: Context) : DocumentSumm
         appendLine(
             "Leave a field blank (empty between pipes) if the information is not found.",
         )
+        if (tripYear != null) {
+            appendLine(
+                "When a date in the document has no explicit year, assume the year is $tripYear.",
+            )
+        }
         appendLine()
         appendLine("Document text:")
         append(documentText)
