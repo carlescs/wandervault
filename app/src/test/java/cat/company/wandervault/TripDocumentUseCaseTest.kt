@@ -200,6 +200,36 @@ class TripDocumentUseCaseTest {
 
         assertNull(result)
     }
+
+    @Test
+    fun `SummarizeDocumentUseCase forwards tripYear to repository`() = runTest {
+        val fakeRepo = FakeDocumentSummaryRepository(
+            DocumentExtractionResult(summary = "Hotel confirmation."),
+        )
+
+        SummarizeDocumentUseCase(fakeRepo)(
+            "file:///documents/hotel.pdf",
+            "application/pdf",
+            tripYear = 2026,
+        )
+
+        assertEquals(2026, fakeRepo.lastTripYear)
+    }
+
+    @Test
+    fun `SummarizeDocumentUseCase forwards null tripYear to repository when not provided`() = runTest {
+        val fakeRepo = FakeDocumentSummaryRepository(
+            DocumentExtractionResult(summary = "Some document."),
+        )
+
+        val result = SummarizeDocumentUseCase(fakeRepo)(
+            "file:///documents/misc.txt",
+            "text/plain",
+        )
+
+        assertEquals("Some document.", result?.summary)
+        assertNull(fakeRepo.lastTripYear)
+    }
 }
 
 private class FakeTripDocumentRepository : TripDocumentRepository {
@@ -269,9 +299,15 @@ private class FakeTripDocumentRepository : TripDocumentRepository {
 private class FakeDocumentSummaryRepository(
     private val result: DocumentExtractionResult?,
 ) : DocumentSummaryRepository {
+    var lastTripYear: Int? = null
+
     override suspend fun extractDocumentInfo(
         fileUri: String,
         mimeType: String,
+        tripYear: Int?,
         onDownloadProgress: ((bytesDownloaded: Long) -> Unit)?,
-    ): DocumentExtractionResult? = result
+    ): DocumentExtractionResult? {
+        lastTripYear = tripYear
+        return result
+    }
 }

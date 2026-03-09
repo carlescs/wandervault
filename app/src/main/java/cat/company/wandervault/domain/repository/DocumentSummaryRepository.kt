@@ -13,6 +13,9 @@ interface DocumentSummaryRepository {
      *
      * @param fileUri URI of the document file in internal storage.
      * @param mimeType MIME type of the document (e.g. "text/plain", "application/pdf").
+     * @param tripYear The calendar year of the trip the document belongs to, used to resolve
+     *   dates that appear in the document without an explicit year component. `null` means no
+     *   year hint is provided and the AI will infer the year from context.
      * @param onDownloadProgress Optional callback invoked with the number of bytes downloaded
      *   so far while the Gemini Nano model is being downloaded to the device. Not invoked when
      *   the model is already available.
@@ -25,6 +28,7 @@ interface DocumentSummaryRepository {
     suspend fun extractDocumentInfo(
         fileUri: String,
         mimeType: String,
+        tripYear: Int? = null,
         onDownloadProgress: ((bytesDownloaded: Long) -> Unit)? = null,
     ): DocumentExtractionResult?
 }

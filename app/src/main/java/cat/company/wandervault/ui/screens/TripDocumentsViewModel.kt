@@ -246,7 +246,8 @@ class TripDocumentsViewModel(
         folderId: Int?,
     ) {
         try {
-            val result = summarizeDocument(internalUri, mimeType) ?: return
+            val tripYear = getTrip(tripId).first()?.startDate?.year
+            val result = summarizeDocument(internalUri, mimeType, tripYear) ?: return
             // Update the saved document with the extracted summary.
             // Lookup by URI is safe because internalUri is a UUID-based filename.
             val currentDocuments = if (folderId == null) {
@@ -511,7 +512,8 @@ class TripDocumentsViewModel(
         _analyzeState.value = AnalyzeDocumentUiState.Loading
         analyzeJob = viewModelScope.launch {
             val result = try {
-                val analysisResult = summarizeDocument(document.uri, document.mimeType) { bytesDownloaded ->
+                val tripYear = getTrip(tripId).first()?.startDate?.year
+                val analysisResult = summarizeDocument(document.uri, document.mimeType, tripYear) { bytesDownloaded ->
                     _analyzeState.value = AnalyzeDocumentUiState.Downloading(bytesDownloaded)
                 }
                 if (analysisResult == null) {
