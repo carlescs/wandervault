@@ -462,6 +462,10 @@ class TripDocumentsViewModel(
     /**
      * Moves all currently selected documents to [targetFolderId], or to the trip root when `null`.
      * The selection is cleared immediately before the write operations begin.
+     *
+     * Each document is moved independently; a failure for one item (e.g. a name conflict in the
+     * target folder) is logged and recorded, but the remaining documents are still processed.
+     * If any moves fail, a [DocumentsWriteError.Generic] error is surfaced after the loop.
      */
     fun moveSelectedDocuments(targetFolderId: Int?) {
         val current = _uiState.value as? TripDocumentsUiState.Success ?: return
@@ -469,8 +473,23 @@ class TripDocumentsViewModel(
         if (selectedIds.isEmpty()) return
         val documentsToMove = current.documents.filter { it.id in selectedIds }
         _selectedDocumentIds.value = emptySet()
-        launchWrite {
-            documentsToMove.forEach { updateDocument(it.copy(folderId = targetFolderId)) }
+        viewModelScope.launch {
+            val failedMoves = mutableListOf<TripDocument>()
+            documentsToMove.forEach { document ->
+                try {
+                    updateDocument(document.copy(folderId = targetFolderId))
+                } catch (e: Exception) {
+                    Log.e(
+                        TAG,
+                        "Failed to move document ${document.id} ('${document.name}') to folder $targetFolderId",
+                        e,
+                    )
+                    failedMoves.add(document)
+                }
+            }
+            if (failedMoves.isNotEmpty()) {
+                setWriteError(DocumentsWriteError.Generic)
+            }
         }
     }
 

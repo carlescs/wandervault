@@ -73,7 +73,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -513,7 +517,7 @@ internal fun TripDocumentsContent(
         val count = (uiState as? TripDocumentsUiState.Success)?.selectedDocumentIds?.size ?: 0
         ConfirmDeleteDialog(
             title = stringResource(R.string.documents_delete_selected_title),
-            message = stringResource(R.string.documents_delete_selected_message, count),
+            message = pluralStringResource(R.plurals.documents_delete_selected_message, count, count),
             onConfirm = {
                 showDeleteSelectedDialog = false
                 onDeleteSelectedDocuments()
@@ -646,7 +650,7 @@ private fun SelectionBar(
             )
         }
         Text(
-            text = stringResource(R.string.documents_selection_count, selectedCount),
+            text = pluralStringResource(R.plurals.documents_selection_count, selectedCount, selectedCount),
             style = MaterialTheme.typography.titleMedium,
             modifier = Modifier.weight(1f),
         )
@@ -787,6 +791,16 @@ private fun DocumentRow(
             .combinedClickable(
                 onClick = { if (isSelectionMode) onToggleSelect() else onOpen() },
                 onLongClick = { onToggleSelect() },
+            )
+            .then(
+                if (isSelectionMode) {
+                    Modifier.semantics(mergeDescendants = true) {
+                        selected = isSelected
+                        role = Role.Checkbox
+                    }
+                } else {
+                    Modifier
+                },
             )
             .padding(horizontal = 16.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
