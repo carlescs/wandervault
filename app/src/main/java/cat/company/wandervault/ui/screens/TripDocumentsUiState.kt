@@ -104,6 +104,8 @@ sealed class TripDocumentsUiState {
      *   or `null` when there is no pending error. Call [TripDocumentsViewModel.clearError] to dismiss.
      * @param analyzeState The current state of an in-progress or completed document analysis,
      *   or `null` when no analysis is active. Call [TripDocumentsViewModel.dismissAnalyze] to dismiss.
+     * @param selectedDocumentIds IDs of documents currently selected in multi-select mode.
+     *   Empty when no selection is active. Call [TripDocumentsViewModel.clearSelection] to exit selection mode.
      */
     data class Success(
         val folders: List<TripDocumentFolder> = emptyList(),
@@ -113,5 +115,6 @@ sealed class TripDocumentsUiState {
         val allFolders: List<TripDocumentFolder> = emptyList(),
         val writeError: DocumentsWriteError? = null,
         val analyzeState: AnalyzeDocumentUiState? = null,
+        val selectedDocumentIds: Set<Int> = emptySet(),
     ) : TripDocumentsUiState()
 }

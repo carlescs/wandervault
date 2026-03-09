@@ -257,4 +257,15 @@
     <string name="documents_analyze_from">From: %s</string>
     <string name="documents_analyze_to">To: %s</string>
     <string name="documents_analyze_ref">Ref: %s</string>
+    <plurals name="documents_selection_count">
+        <item quantity="one">%d selected</item>
+        <item quantity="other">%d selected</item>
+    </plurals>
+    <string name="documents_selection_clear">Clear selection</string>
+    <string name="documents_select_all">Select all</string>
+    <string name="documents_delete_selected_title">Delete documents?</string>
+    <plurals name="documents_delete_selected_message">
+        <item quantity="one">%d document will be permanently deleted.</item>
+        <item quantity="other">%d documents will be permanently deleted.</item>
+    </plurals>
 </resources>
