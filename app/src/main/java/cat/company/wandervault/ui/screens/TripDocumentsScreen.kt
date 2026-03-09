@@ -94,6 +94,7 @@ import cat.company.wandervault.R
 import cat.company.wandervault.domain.model.Destination
 import cat.company.wandervault.domain.model.DocumentExtractionResult
 import cat.company.wandervault.domain.model.FlightInfo
+import cat.company.wandervault.domain.model.Hotel
 import cat.company.wandervault.domain.model.HotelInfo
 import cat.company.wandervault.domain.model.TransportLeg
 import cat.company.wandervault.domain.model.TransportType
@@ -190,7 +191,9 @@ internal fun TripDocumentsTabContent(
         onAnalyzeDocument = viewModel::analyzeDocument,
         onAnalyzeApplyChanges = viewModel::applyAnalysisChanges,
         onAnalyzeFlightLegSelected = viewModel::onFlightLegSelected,
+        onAnalyzeFlightConfirmed = viewModel::onFlightConfirmed,
         onAnalyzeHotelDestinationSelected = viewModel::onHotelDestinationSelected,
+        onAnalyzeHotelConfirmed = viewModel::onHotelConfirmed,
         onAnalyzeDismiss = viewModel::dismissAnalyze,
         onErrorDismiss = viewModel::clearError,
         onToggleDocumentSelection = viewModel::toggleDocumentSelection,
@@ -228,7 +231,9 @@ internal fun TripDocumentsContent(
     onAnalyzeDocument: (TripDocument) -> Unit = {},
     onAnalyzeApplyChanges: () -> Unit = {},
     onAnalyzeFlightLegSelected: (TransportLeg) -> Unit = {},
+    onAnalyzeFlightConfirmed: () -> Unit = {},
     onAnalyzeHotelDestinationSelected: (Destination) -> Unit = {},
+    onAnalyzeHotelConfirmed: () -> Unit = {},
     onAnalyzeDismiss: () -> Unit = {},
     onErrorDismiss: () -> Unit = {},
     onToggleDocumentSelection: (TripDocument) -> Unit = {},
@@ -544,14 +549,32 @@ internal fun TripDocumentsContent(
 
     // Show the analysis dialog when an analysis is in progress or has a result.
     // When the state is FlightLegSelection or HotelDestinationSelection, show dedicated pickers.
+    // When the state is FlightConfirm or HotelConfirm, show a confirmation dialog.
     val analyzeState = (uiState as? TripDocumentsUiState.Success)?.analyzeState
     when {
+        analyzeState is AnalyzeDocumentUiState.FlightConfirm -> {
+            AnalyzeFlightConfirmDialog(
+                flightInfo = analyzeState.flightInfo,
+                matchedLeg = analyzeState.matchedLeg,
+                onConfirm = onAnalyzeFlightConfirmed,
+                onDismiss = onAnalyzeDismiss,
+            )
+        }
         analyzeState is AnalyzeDocumentUiState.FlightLegSelection -> {
             AnalyzeFlightLegSelectionDialog(
                 flightInfo = analyzeState.flightInfo,
                 candidates = analyzeState.candidates,
                 onLegSelected = onAnalyzeFlightLegSelected,
                 onSkip = onAnalyzeDismiss,
+            )
+        }
+        analyzeState is AnalyzeDocumentUiState.HotelConfirm -> {
+            AnalyzeHotelConfirmDialog(
+                hotelInfo = analyzeState.hotelInfo,
+                destination = analyzeState.destination,
+                existingHotel = analyzeState.existingHotel,
+                onConfirm = onAnalyzeHotelConfirmed,
+                onDismiss = onAnalyzeDismiss,
             )
         }
         analyzeState is AnalyzeDocumentUiState.HotelDestinationSelection -> {
@@ -1157,8 +1180,12 @@ private fun AnalyzeDocumentDialog(
                         // Handled separately by AnalyzeHotelDestinationSelectionDialog; not reached here.
                     }
 
-                    is AnalyzeDocumentUiState.FlightLegSelection -> {
-                        // Handled separately by AnalyzeFlightLegSelectionDialog; not reached here.
+                    is AnalyzeDocumentUiState.FlightConfirm -> {
+                        // Handled separately by AnalyzeFlightConfirmDialog; not reached here.
+                    }
+
+                    is AnalyzeDocumentUiState.HotelConfirm -> {
+                        // Handled separately by AnalyzeHotelConfirmDialog; not reached here.
                     }
 
                     is AnalyzeDocumentUiState.Result -> {
@@ -1411,6 +1438,184 @@ private fun AnalyzeHotelDestinationSelectionDialog(
         dismissButton = {
             TextButton(onClick = onSkip) {
                 Text(stringResource(R.string.share_skip))
+            }
+        },
+    )
+}
+
+/**
+ * A dialog shown when ML Kit extracted flight information and found a confident match in the
+ * trip's itinerary. The user reviews [matchedLeg] and [flightInfo] before confirming or cancelling.
+ */
+@Composable
+private fun AnalyzeFlightConfirmDialog(
+    flightInfo: FlightInfo,
+    matchedLeg: TransportLeg,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.documents_analyze_confirm_flight_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                AnalyzeFlightInfoSummary(flightInfo = flightInfo)
+                Text(
+                    text = stringResource(R.string.documents_analyze_confirm_flight_message),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                HorizontalDivider()
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.AirplanemodeActive,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.padding(end = 12.dp),
+                    )
+                    Column {
+                        val legLabel = listOfNotNull(matchedLeg.company, matchedLeg.flightNumber)
+                            .joinToString(" ")
+                            .ifBlank { stringResource(R.string.share_unnamed_flight_leg) }
+                        Text(
+                            text = legLabel,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        if (!matchedLeg.reservationConfirmationNumber.isNullOrBlank()) {
+                            Text(
+                                text = stringResource(
+                                    R.string.documents_analyze_ref,
+                                    matchedLeg.reservationConfirmationNumber,
+                                ),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        if (!matchedLeg.stopName.isNullOrBlank()) {
+                            Text(
+                                text = stringResource(
+                                    R.string.documents_analyze_to,
+                                    matchedLeg.stopName,
+                                ),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(stringResource(R.string.documents_analyze_confirm_apply))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.dialog_cancel))
+            }
+        },
+    )
+}
+
+/**
+ * A dialog shown when ML Kit extracted hotel information and found a confident match in the
+ * trip's itinerary. The user reviews [destination] / [existingHotel] and [hotelInfo] before
+ * confirming or cancelling.
+ */
+@Composable
+private fun AnalyzeHotelConfirmDialog(
+    hotelInfo: HotelInfo,
+    destination: Destination,
+    existingHotel: Hotel?,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val dateFormatter = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.documents_analyze_confirm_hotel_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                AnalyzeHotelInfoSummary(hotelInfo = hotelInfo)
+                if (existingHotel != null) {
+                    Text(
+                        text = stringResource(
+                            R.string.documents_analyze_confirm_hotel_message,
+                            destination.name,
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    Text(
+                        text = stringResource(
+                            R.string.documents_analyze_confirm_hotel_new_message,
+                            destination.name,
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                HorizontalDivider()
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Place,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.padding(end = 12.dp),
+                    )
+                    Column {
+                        Text(
+                            text = destination.name,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        val arrival = destination.arrivalDateTime?.toLocalDate()
+                        val departure = destination.departureDateTime?.toLocalDate()
+                        if (arrival != null || departure != null) {
+                            val dateRange = when {
+                                arrival != null && departure != null ->
+                                    "${arrival.format(dateFormatter)} – ${departure.format(dateFormatter)}"
+                                arrival != null -> arrival.format(dateFormatter)
+                                else -> requireNotNull(departure).format(dateFormatter)
+                            }
+                            Text(
+                                text = dateRange,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        existingHotel?.name?.ifBlank { null }?.let { hotelName ->
+                            Text(
+                                text = hotelName,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(stringResource(R.string.documents_analyze_confirm_apply))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.dialog_cancel))
             }
         },
     )
