@@ -12,6 +12,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -25,6 +26,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -62,6 +64,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SmallFloatingActionButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -682,27 +685,32 @@ private fun MultiSelectActionBar(
     onMoveSelected: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.SpaceEvenly,
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        modifier = modifier.fillMaxWidth(),
     ) {
-        TextButton(onClick = onDeleteSelected) {
-            Icon(
-                imageVector = Icons.Default.Delete,
-                contentDescription = null,
-            )
-            Spacer(modifier = Modifier.width(4.dp))
-            Text(stringResource(R.string.documents_delete_action))
-        }
-        TextButton(onClick = onMoveSelected) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.DriveFileMove,
-                contentDescription = null,
-            )
-            Spacer(modifier = Modifier.width(4.dp))
-            Text(stringResource(R.string.documents_move_action))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+        ) {
+            TextButton(onClick = onDeleteSelected) {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = null,
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(stringResource(R.string.documents_delete_action))
+            }
+            TextButton(onClick = onMoveSelected) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.DriveFileMove,
+                    contentDescription = null,
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(stringResource(R.string.documents_move_action))
+            }
         }
     }
 }
@@ -788,6 +796,13 @@ private fun DocumentRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .then(
+                if (isSelected) {
+                    Modifier.background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f))
+                } else {
+                    Modifier
+                },
+            )
             .combinedClickable(
                 onClick = { if (isSelectionMode) onToggleSelect() else onOpen() },
                 onLongClick = { onToggleSelect() },
@@ -806,16 +821,20 @@ private fun DocumentRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (isSelectionMode) {
-            Icon(
-                imageVector = if (isSelected) Icons.Default.CheckBox else Icons.Default.CheckBoxOutlineBlank,
-                contentDescription = null,
-                tint = if (isSelected) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
-                modifier = Modifier.padding(horizontal = 4.dp),
-            )
+            Box(
+                modifier = Modifier.size(48.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = if (isSelected) Icons.Default.CheckBox else Icons.Default.CheckBoxOutlineBlank,
+                    contentDescription = null,
+                    tint = if (isSelected) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                )
+            }
         } else {
             IconButton(onClick = onOpen) {
                 Icon(
@@ -1562,6 +1581,25 @@ private fun TripDocumentsRootWithDocumentsPreview() {
             uiState = TripDocumentsUiState.Success(
                 documents = documents,
                 folders = folders,
+            ),
+            innerPadding = PaddingValues(0.dp),
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun TripDocumentsSelectionModePreview() {
+    val documents = listOf(
+        TripDocument(id = 1, tripId = 1, name = "passport_scan.pdf", uri = "", mimeType = "application/pdf"),
+        TripDocument(id = 2, tripId = 1, name = "travel_insurance.pdf", uri = "", mimeType = "application/pdf"),
+        TripDocument(id = 3, tripId = 1, name = "flight_ticket.pdf", uri = "", mimeType = "application/pdf"),
+    )
+    WanderVaultTheme {
+        TripDocumentsContent(
+            uiState = TripDocumentsUiState.Success(
+                documents = documents,
+                selectedDocumentIds = setOf(1, 3),
             ),
             innerPadding = PaddingValues(0.dp),
         )
