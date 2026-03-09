@@ -33,6 +33,7 @@ import cat.company.wandervault.domain.usecase.UpdateFolderUseCase
 import cat.company.wandervault.domain.usecase.UpdateTransportLegUseCase
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -91,6 +92,13 @@ class TripDocumentsViewModel(
     /** Pending hotel info kept alive across the [AnalyzeDocumentUiState.HotelDestinationSelection] dialog. */
     private var pendingHotelInfo: HotelInfo? = null
 
+    /**
+     * IDs of documents currently selected in multi-select mode.
+     * Kept separate from the DB-driven flow so that navigation events (folder changes) can
+     * clear the selection explicitly without a full state rebuild.
+     */
+    private val _selectedDocumentIds = MutableStateFlow<Set<Int>>(emptySet())
+
     private val _uiState = MutableStateFlow<TripDocumentsUiState>(TripDocumentsUiState.Loading)
     val uiState: StateFlow<TripDocumentsUiState> = _uiState.asStateFlow()
 
@@ -99,31 +107,36 @@ class TripDocumentsViewModel(
             // allFoldersFlow is independent of navigation level, so it is hoisted outside
             // flatMapLatest to avoid creating a new Room observer on every folder navigation.
             val allFoldersFlow = getAllFoldersForTrip(tripId)
-            _folderStack.flatMapLatest { stack ->
-                val currentFolder = stack.lastOrNull()
-                val foldersFlow = if (currentFolder == null) {
-                    getRootFolders(tripId)
-                } else {
-                    getSubFolders(currentFolder.id)
+            val contentFlow: Flow<TripDocumentsUiState.Success> =
+                _folderStack.flatMapLatest { stack ->
+                    val currentFolder = stack.lastOrNull()
+                    val foldersFlow = if (currentFolder == null) {
+                        getRootFolders(tripId)
+                    } else {
+                        getSubFolders(currentFolder.id)
+                    }
+                    val documentsFlow = if (currentFolder == null) {
+                        getRootDocuments(tripId)
+                    } else {
+                        getDocumentsInFolder(currentFolder.id)
+                    }
+                    combine(foldersFlow, documentsFlow, allFoldersFlow, _analyzeState) {
+                            folders, documents, allFolders, analyzeState ->
+                        TripDocumentsUiState.Success(
+                            folders = folders,
+                            documents = documents,
+                            currentFolder = currentFolder,
+                            folderStack = stack,
+                            allFolders = allFolders,
+                            analyzeState = analyzeState,
+                            // writeError is not preserved across data refreshes: a successful write
+                            // triggers a new DB emission which clears any prior error naturally.
+                        )
+                    }
                 }
-                val documentsFlow = if (currentFolder == null) {
-                    getRootDocuments(tripId)
-                } else {
-                    getDocumentsInFolder(currentFolder.id)
-                }
-                combine(foldersFlow, documentsFlow, allFoldersFlow, _analyzeState) {
-                        folders, documents, allFolders, analyzeState ->
-                    TripDocumentsUiState.Success(
-                        folders = folders,
-                        documents = documents,
-                        currentFolder = currentFolder,
-                        folderStack = stack,
-                        allFolders = allFolders,
-                        analyzeState = analyzeState,
-                        // writeError is not preserved across data refreshes: a successful write
-                        // triggers a new DB emission which clears any prior error naturally.
-                    )
-                }
+            // Merge selection state separately to preserve it across DB-driven updates.
+            combine(contentFlow, _selectedDocumentIds) { state, selectedIds ->
+                state.copy(selectedDocumentIds = selectedIds)
             }.collect { state ->
                 _uiState.value = state
             }
@@ -132,6 +145,7 @@ class TripDocumentsViewModel(
 
     /** Navigates into [folder], pushing it onto the folder stack. */
     fun openFolder(folder: TripDocumentFolder) {
+        _selectedDocumentIds.value = emptySet()
         _folderStack.value = _folderStack.value + folder
     }
 
@@ -142,6 +156,7 @@ class TripDocumentsViewModel(
     fun navigateUp() {
         val stack = _folderStack.value
         if (stack.isNotEmpty()) {
+            _selectedDocumentIds.value = emptySet()
             _folderStack.value = stack.dropLast(1)
         }
     }
@@ -397,6 +412,66 @@ class TripDocumentsViewModel(
     /** Permanently removes [document]. */
     fun removeDocument(document: TripDocument) {
         launchWrite { deleteDocument(document) }
+    }
+
+    // ── Multi-select operations ───────────────────────────────────────────────
+
+    /**
+     * Toggles the selection state of [document].
+     * If the document is not yet selected it is added to the selection (entering selection mode
+     * if this is the first selected document). If it is already selected it is removed.
+     */
+    fun toggleDocumentSelection(document: TripDocument) {
+        val current = _selectedDocumentIds.value
+        _selectedDocumentIds.value = if (document.id in current) {
+            current - document.id
+        } else {
+            current + document.id
+        }
+    }
+
+    /**
+     * Selects all documents visible in the current folder.
+     * No-op when no documents are present.
+     */
+    fun selectAllDocuments() {
+        val current = _uiState.value as? TripDocumentsUiState.Success ?: return
+        _selectedDocumentIds.value = current.documents.map { it.id }.toSet()
+    }
+
+    /** Clears the current selection, exiting multi-select mode. */
+    fun clearSelection() {
+        _selectedDocumentIds.value = emptySet()
+    }
+
+    /**
+     * Permanently deletes all currently selected documents.
+     * The selection is cleared immediately before the write operations begin.
+     */
+    fun deleteSelectedDocuments() {
+        val current = _uiState.value as? TripDocumentsUiState.Success ?: return
+        val selectedIds = _selectedDocumentIds.value
+        if (selectedIds.isEmpty()) return
+        val documentsToDelete = current.documents.filter { it.id in selectedIds }
+        _selectedDocumentIds.value = emptySet()
+        launchWrite {
+            documentsToDelete.forEach { deleteDocument(it) }
+        }
+    }
+
+    /**
+     * Moves all currently selected documents to [targetFolderId], or to the trip root when `null`.
+     * The selection is cleared immediately before the write operations begin.
+     */
+    fun moveSelectedDocuments(targetFolderId: Int?) {
+        val current = _uiState.value as? TripDocumentsUiState.Success ?: return
+        val selectedIds = _selectedDocumentIds.value
+        if (selectedIds.isEmpty()) return
+        val documentsToMove = current.documents.filter { it.id in selectedIds }
+        _selectedDocumentIds.value = emptySet()
+        launchWrite {
+            documentsToMove.forEach { updateDocument(it.copy(folderId = targetFolderId)) }
+        }
     }
 
     /**

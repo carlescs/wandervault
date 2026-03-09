@@ -3,6 +3,7 @@ package cat.company.wandervault.ui.screens
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.webkit.MimeTypeMap
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -10,7 +11,9 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,6 +35,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.DriveFileMove
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AirplanemodeActive
+import androidx.compose.material.icons.filled.CheckBox
+import androidx.compose.material.icons.filled.CheckBoxOutlineBlank
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
@@ -42,6 +47,7 @@ import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Hotel
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -112,6 +118,12 @@ internal fun TripDocumentsTabContent(
     val context = LocalContext.current
     val noAppMessage = stringResource(R.string.documents_no_app_to_open)
 
+    // Exit selection mode on back press when selection is active.
+    val isSelectionMode = (uiState as? TripDocumentsUiState.Success)?.selectedDocumentIds?.isNotEmpty() == true
+    BackHandler(enabled = isSelectionMode) {
+        viewModel.clearSelection()
+    }
+
     val filePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument(),
     ) { uri ->
@@ -174,6 +186,11 @@ internal fun TripDocumentsTabContent(
         onAnalyzeHotelDestinationSelected = viewModel::onHotelDestinationSelected,
         onAnalyzeDismiss = viewModel::dismissAnalyze,
         onErrorDismiss = viewModel::clearError,
+        onToggleDocumentSelection = viewModel::toggleDocumentSelection,
+        onSelectAllDocuments = viewModel::selectAllDocuments,
+        onClearSelection = viewModel::clearSelection,
+        onDeleteSelectedDocuments = viewModel::deleteSelectedDocuments,
+        onMoveSelectedDocuments = viewModel::moveSelectedDocuments,
     )
 }
 
@@ -183,6 +200,9 @@ internal fun TripDocumentsTabContent(
  * Supports folder navigation, create/rename/delete dialogs, document rename/delete/move/analyze,
  * file upload (via [onUploadFile]), and document open (via [onOpenDocument]).
  * [onErrorDismiss] is called when the user acknowledges a transient writing error.
+ * Multi-select mode is entered by long-pressing a document row; [onToggleDocumentSelection],
+ * [onSelectAllDocuments], [onClearSelection], [onDeleteSelectedDocuments], and
+ * [onMoveSelectedDocuments] handle the bulk-operation actions.
  */
 @Composable
 internal fun TripDocumentsContent(
@@ -204,6 +224,11 @@ internal fun TripDocumentsContent(
     onAnalyzeHotelDestinationSelected: (Destination) -> Unit = {},
     onAnalyzeDismiss: () -> Unit = {},
     onErrorDismiss: () -> Unit = {},
+    onToggleDocumentSelection: (TripDocument) -> Unit = {},
+    onSelectAllDocuments: () -> Unit = {},
+    onClearSelection: () -> Unit = {},
+    onDeleteSelectedDocuments: () -> Unit = {},
+    onMoveSelectedDocuments: (targetFolderId: Int?) -> Unit = {},
 ) {
     var isFabExpanded by rememberSaveable { mutableStateOf(false) }
     var showCreateFolderDialog by rememberSaveable { mutableStateOf(false) }
@@ -212,6 +237,8 @@ internal fun TripDocumentsContent(
     var documentToRename by remember { mutableStateOf<TripDocument?>(null) }
     var documentToMove by remember { mutableStateOf<TripDocument?>(null) }
     var documentToDelete by remember { mutableStateOf<TripDocument?>(null) }
+    var showDeleteSelectedDialog by rememberSaveable { mutableStateOf(false) }
+    var showMoveSelectedDialog by rememberSaveable { mutableStateOf(false) }
 
     Box(modifier = Modifier.fillMaxSize()) {
         when (uiState) {
@@ -220,45 +247,58 @@ internal fun TripDocumentsContent(
             }
 
             is TripDocumentsUiState.Success -> {
+                val isSelectionMode = uiState.selectedDocumentIds.isNotEmpty()
+
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding),
                 ) {
-                    // Breadcrumb / back row when inside a subfolder
-                    if (uiState.currentFolder != null) {
-                        // Drop the current folder from the stack to find the immediate parent.
-                        val parentName = uiState.folderStack
-                            .dropLast(1)
-                            .lastOrNull()
-                            ?.name
-                        val backLabel = if (parentName != null) {
-                            stringResource(R.string.documents_back_to_folder, parentName)
-                        } else {
-                            stringResource(R.string.documents_back_to_root)
+                    when {
+                        // Selection mode: show contextual action bar instead of breadcrumb
+                        isSelectionMode -> {
+                            SelectionBar(
+                                selectedCount = uiState.selectedDocumentIds.size,
+                                totalCount = uiState.documents.size,
+                                onClearSelection = onClearSelection,
+                                onSelectAll = onSelectAllDocuments,
+                            )
+                            HorizontalDivider()
                         }
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            IconButton(onClick = onNavigateUp) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                    contentDescription = backLabel,
+                        // Breadcrumb / back row when inside a subfolder (normal mode)
+                        uiState.currentFolder != null -> {
+                            val parentName = uiState.folderStack
+                                .dropLast(1)
+                                .lastOrNull()
+                                ?.name
+                            val backLabel = if (parentName != null) {
+                                stringResource(R.string.documents_back_to_folder, parentName)
+                            } else {
+                                stringResource(R.string.documents_back_to_root)
+                            }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                IconButton(onClick = onNavigateUp) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                        contentDescription = backLabel,
+                                    )
+                                }
+                                Text(
+                                    text = uiState.folderStack
+                                        .joinToString(" / ") { it.name }
+                                        .ifEmpty { uiState.currentFolder.name },
+                                    style = MaterialTheme.typography.titleMedium,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
                                 )
                             }
-                            Text(
-                                text = uiState.folderStack
-                                    .joinToString(" / ") { it.name }
-                                    .ifEmpty { uiState.currentFolder.name },
-                                style = MaterialTheme.typography.titleMedium,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                            )
+                            HorizontalDivider()
                         }
-                        HorizontalDivider()
                     }
 
                     val isEmpty = uiState.folders.isEmpty() && uiState.documents.isEmpty()
@@ -293,7 +333,7 @@ internal fun TripDocumentsContent(
                             items(uiState.folders, key = { "folder-${it.id}" }) { folder ->
                                 FolderRow(
                                     folder = folder,
-                                    onClick = { onOpenFolder(folder) },
+                                    onClick = { if (!isSelectionMode) onOpenFolder(folder) },
                                     onRename = { folderToRename = folder },
                                     onDelete = { folderToDelete = folder },
                                 )
@@ -307,70 +347,84 @@ internal fun TripDocumentsContent(
                                     onMove = { documentToMove = document },
                                     onDelete = { documentToDelete = document },
                                     onAnalyze = { onAnalyzeDocument(document) },
+                                    isSelected = document.id in uiState.selectedDocumentIds,
+                                    isSelectionMode = isSelectionMode,
+                                    onToggleSelect = { onToggleDocumentSelection(document) },
                                 )
                                 HorizontalDivider()
                             }
                         }
                     }
+
+                    // Multi-select action bar shown at the bottom when in selection mode.
+                    if (isSelectionMode) {
+                        HorizontalDivider()
+                        MultiSelectActionBar(
+                            onDeleteSelected = { showDeleteSelectedDialog = true },
+                            onMoveSelected = { showMoveSelectedDialog = true },
+                        )
+                    }
                 }
 
-                // Speed-dial FAB: expands to show "Upload file" and "New folder" actions.
-                Column(
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(innerPadding)
-                        .padding(16.dp),
-                    horizontalAlignment = Alignment.End,
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    AnimatedVisibility(
-                        visible = isFabExpanded,
-                        enter = fadeIn() + scaleIn(),
-                        exit = fadeOut() + scaleOut(),
+                // Speed-dial FAB — hidden in selection mode.
+                if (!isSelectionMode) {
+                    Column(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(innerPadding)
+                            .padding(16.dp),
+                        horizontalAlignment = Alignment.End,
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        Column(
-                            horizontalAlignment = Alignment.End,
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                        AnimatedVisibility(
+                            visible = isFabExpanded,
+                            enter = fadeIn() + scaleIn(),
+                            exit = fadeOut() + scaleOut(),
                         ) {
-                            SpeedDialItem(
-                                label = stringResource(R.string.documents_upload_file),
-                                icon = {
-                                    Icon(
-                                        imageVector = Icons.Default.UploadFile,
-                                        contentDescription = stringResource(R.string.documents_upload_file),
-                                    )
-                                },
-                                onClick = {
-                                    isFabExpanded = false
-                                    onUploadFile()
-                                },
-                            )
-                            SpeedDialItem(
-                                label = stringResource(R.string.documents_add_folder),
-                                icon = {
-                                    Icon(
-                                        imageVector = Icons.Default.FolderOpen,
-                                        contentDescription = stringResource(R.string.documents_add_folder),
-                                    )
-                                },
-                                onClick = {
-                                    isFabExpanded = false
-                                    showCreateFolderDialog = true
+                            Column(
+                                horizontalAlignment = Alignment.End,
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                SpeedDialItem(
+                                    label = stringResource(R.string.documents_upload_file),
+                                    icon = {
+                                        Icon(
+                                            imageVector = Icons.Default.UploadFile,
+                                            contentDescription = stringResource(R.string.documents_upload_file),
+                                        )
+                                    },
+                                    onClick = {
+                                        isFabExpanded = false
+                                        onUploadFile()
+                                    },
+                                )
+                                SpeedDialItem(
+                                    label = stringResource(R.string.documents_add_folder),
+                                    icon = {
+                                        Icon(
+                                            imageVector = Icons.Default.FolderOpen,
+                                            contentDescription = stringResource(R.string.documents_add_folder),
+                                        )
+                                    },
+                                    onClick = {
+                                        isFabExpanded = false
+                                        showCreateFolderDialog = true
+                                    },
+                                )
+                            }
+                        }
+                        FloatingActionButton(
+                            onClick = { isFabExpanded = !isFabExpanded },
+                        ) {
+                            Icon(
+                                imageVector = if (isFabExpanded) Icons.Default.Close else Icons.Default.Add,
+                                contentDescription = if (isFabExpanded) {
+                                    stringResource(R.string.dialog_cancel)
+                                } else {
+                                    stringResource(R.string.documents_add_action)
                                 },
                             )
                         }
-                    }
-                    FloatingActionButton(
-                        onClick = { isFabExpanded = !isFabExpanded },
-                    ) {
-                        Icon(
-                            imageVector = if (isFabExpanded) Icons.Default.Close else Icons.Default.Add,
-                            contentDescription = if (isFabExpanded) {
-                                stringResource(R.string.dialog_cancel)
-                            } else {
-                                stringResource(R.string.documents_add_action)
-                            },
-                        )
                     }
                 }
             }
@@ -451,6 +505,33 @@ internal fun TripDocumentsContent(
                 onDeleteDocument(document)
             },
             onDismiss = { documentToDelete = null },
+        )
+    }
+
+    // Multi-select: confirm bulk delete
+    if (showDeleteSelectedDialog) {
+        val count = (uiState as? TripDocumentsUiState.Success)?.selectedDocumentIds?.size ?: 0
+        ConfirmDeleteDialog(
+            title = stringResource(R.string.documents_delete_selected_title),
+            message = stringResource(R.string.documents_delete_selected_message, count),
+            onConfirm = {
+                showDeleteSelectedDialog = false
+                onDeleteSelectedDocuments()
+            },
+            onDismiss = { showDeleteSelectedDialog = false },
+        )
+    }
+
+    // Multi-select: move all selected documents to a chosen folder
+    if (showMoveSelectedDialog) {
+        val allFolders = (uiState as? TripDocumentsUiState.Success)?.allFolders ?: emptyList()
+        MoveFolderPickerDialog(
+            allFolders = allFolders,
+            onMove = { targetFolderId ->
+                showMoveSelectedDialog = false
+                onMoveSelectedDocuments(targetFolderId)
+            },
+            onDismiss = { showMoveSelectedDialog = false },
         )
     }
 
@@ -537,6 +618,91 @@ private fun SpeedDialItem(
 
 // ── Rows ──────────────────────────────────────────────────────────────────────
 
+/**
+ * Contextual action bar shown at the top of the list when multi-select mode is active.
+ *
+ * Displays the number of selected documents, a "close" button to exit selection mode,
+ * and a select-all/deselect-all toggle: "select all" when not all documents are selected,
+ * "deselect all" (calls [onClearSelection]) when all documents are already selected.
+ */
+@Composable
+private fun SelectionBar(
+    selectedCount: Int,
+    totalCount: Int,
+    onClearSelection: () -> Unit,
+    onSelectAll: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(onClick = onClearSelection) {
+            Icon(
+                imageVector = Icons.Default.Close,
+                contentDescription = stringResource(R.string.documents_selection_clear),
+            )
+        }
+        Text(
+            text = stringResource(R.string.documents_selection_count, selectedCount),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.weight(1f),
+        )
+        IconButton(onClick = if (selectedCount == totalCount && totalCount > 0) onClearSelection else onSelectAll) {
+            Icon(
+                imageVector = if (selectedCount == totalCount && totalCount > 0) {
+                    Icons.Default.CheckBox
+                } else {
+                    Icons.Default.SelectAll
+                },
+                contentDescription = if (selectedCount == totalCount && totalCount > 0) {
+                    stringResource(R.string.documents_selection_clear)
+                } else {
+                    stringResource(R.string.documents_select_all)
+                },
+                tint = MaterialTheme.colorScheme.primary,
+            )
+        }
+    }
+}
+
+/**
+ * Persistent bottom action bar shown when multi-select mode is active.
+ * Provides bulk Delete and Move actions for the selected documents.
+ */
+@Composable
+private fun MultiSelectActionBar(
+    onDeleteSelected: () -> Unit,
+    onMoveSelected: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+    ) {
+        TextButton(onClick = onDeleteSelected) {
+            Icon(
+                imageVector = Icons.Default.Delete,
+                contentDescription = null,
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(stringResource(R.string.documents_delete_action))
+        }
+        TextButton(onClick = onMoveSelected) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.DriveFileMove,
+                contentDescription = null,
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(stringResource(R.string.documents_move_action))
+        }
+    }
+}
+
 @Composable
 private fun FolderRow(
     folder: TripDocumentFolder,
@@ -600,6 +766,7 @@ private fun FolderRow(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun DocumentRow(
     document: TripDocument,
@@ -608,75 +775,96 @@ private fun DocumentRow(
     onMove: () -> Unit,
     onDelete: () -> Unit,
     onAnalyze: () -> Unit,
+    isSelected: Boolean = false,
+    isSelectionMode: Boolean = false,
+    onToggleSelect: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .combinedClickable(
+                onClick = { if (isSelectionMode) onToggleSelect() else onOpen() },
+                onLongClick = { onToggleSelect() },
+            )
             .padding(horizontal = 16.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconButton(onClick = onOpen) {
+        if (isSelectionMode) {
             Icon(
-                imageVector = Icons.Default.Description,
-                contentDescription = stringResource(R.string.documents_open_content_desc, document.name),
-                tint = MaterialTheme.colorScheme.secondary,
+                imageVector = if (isSelected) Icons.Default.CheckBox else Icons.Default.CheckBoxOutlineBlank,
+                contentDescription = null,
+                tint = if (isSelected) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                modifier = Modifier.padding(horizontal = 4.dp),
             )
+        } else {
+            IconButton(onClick = onOpen) {
+                Icon(
+                    imageVector = Icons.Default.Description,
+                    contentDescription = stringResource(R.string.documents_open_content_desc, document.name),
+                    tint = MaterialTheme.colorScheme.secondary,
+                )
+            }
         }
         Text(
             text = document.name,
             style = MaterialTheme.typography.bodyLarge,
             modifier = Modifier
                 .weight(1f)
-                .padding(start = 4.dp)
-                .clickable(onClick = onOpen),
+                .padding(start = 4.dp),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
-        Box {
-            IconButton(onClick = { menuExpanded = true }) {
-                Icon(
-                    imageVector = Icons.Default.MoreVert,
-                    contentDescription = stringResource(R.string.documents_more_options),
-                )
-            }
-            DropdownMenu(
-                expanded = menuExpanded,
-                onDismissRequest = { menuExpanded = false },
-            ) {
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.documents_analyze_action)) },
-                    onClick = {
-                        menuExpanded = false
-                        onAnalyze()
-                    },
-                    leadingIcon = { Icon(Icons.Default.FindInPage, contentDescription = null) },
-                )
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.documents_rename_action)) },
-                    onClick = {
-                        menuExpanded = false
-                        onRename()
-                    },
-                    leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
-                )
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.documents_move_action)) },
-                    onClick = {
-                        menuExpanded = false
-                        onMove()
-                    },
-                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.DriveFileMove, contentDescription = null) },
-                )
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.documents_delete_action)) },
-                    onClick = {
-                        menuExpanded = false
-                        onDelete()
-                    },
-                    leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
-                )
+        if (!isSelectionMode) {
+            Box {
+                IconButton(onClick = { menuExpanded = true }) {
+                    Icon(
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = stringResource(R.string.documents_more_options),
+                    )
+                }
+                DropdownMenu(
+                    expanded = menuExpanded,
+                    onDismissRequest = { menuExpanded = false },
+                ) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.documents_analyze_action)) },
+                        onClick = {
+                            menuExpanded = false
+                            onAnalyze()
+                        },
+                        leadingIcon = { Icon(Icons.Default.FindInPage, contentDescription = null) },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.documents_rename_action)) },
+                        onClick = {
+                            menuExpanded = false
+                            onRename()
+                        },
+                        leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.documents_move_action)) },
+                        onClick = {
+                            menuExpanded = false
+                            onMove()
+                        },
+                        leadingIcon = { Icon(Icons.AutoMirrored.Filled.DriveFileMove, contentDescription = null) },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.documents_delete_action)) },
+                        onClick = {
+                            menuExpanded = false
+                            onDelete()
+                        },
+                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
+                    )
+                }
             }
         }
     }
