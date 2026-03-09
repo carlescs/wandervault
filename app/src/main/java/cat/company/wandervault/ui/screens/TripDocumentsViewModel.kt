@@ -541,17 +541,20 @@ class TripDocumentsViewModel(
     }
 
     /**
-     * Dismisses the dialog before applying the trip changes proposed in the current
-     * [AnalyzeDocumentUiState.Result].
+     * Processes the trip changes proposed in the current [AnalyzeDocumentUiState.Result].
      *
-     * For flight info and general trip info, the dialog is dismissed first so the user sees the
-     * screen return to normal state immediately; the apply work continues in the background.
+     * For flight info, checks for a confident match first. If found, transitions to
+     * [AnalyzeDocumentUiState.FlightConfirm] so the user can review the matched leg before
+     * confirming. If no confident match, transitions to [AnalyzeDocumentUiState.FlightLegSelection]
+     * (candidates sorted by relevance) so the user can pick the right leg.
      *
      * For hotel info, a confident match (by booking reference or hotel name) is checked first.
-     * If found, the dialog is dismissed and the hotel is updated immediately.
-     * If no confident match is found, the state transitions to
-     * [AnalyzeDocumentUiState.HotelDestinationSelection] so the user can pick the right
-     * destination before the dialog is dismissed.
+     * If found, transitions to [AnalyzeDocumentUiState.HotelConfirm] so the user can review the
+     * matched destination before confirming. If no confident match, transitions to
+     * [AnalyzeDocumentUiState.HotelDestinationSelection] so the user can pick the right destination.
+     *
+     * For general trip info, the dialog is dismissed immediately and the info is applied in the
+     * background.
      *
      * No-op when the analyze state is not [AnalyzeDocumentUiState.Result].
      */
@@ -634,6 +637,28 @@ class TripDocumentsViewModel(
     }
 
     /**
+     * Called when the user confirms the hotel info change from the [AnalyzeDocumentUiState.HotelConfirm]
+     * dialog. Applies the hotel info and destination stored in the confirm state and dismisses.
+     */
+    fun onHotelConfirmed() {
+        val state = _analyzeState.value as? AnalyzeDocumentUiState.HotelConfirm ?: run {
+            Log.w(TAG, "onHotelConfirmed called when not in HotelConfirm state; dismissing")
+            dismissAnalyze()
+            return
+        }
+        viewModelScope.launch {
+            try {
+                applyHotelInfoToDestination(state.hotelInfo, state.destination)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to apply hotel info to confirmed destination", e)
+                setWriteError(DocumentsWriteError.Generic)
+            } finally {
+                dismissAnalyze()
+            }
+        }
+    }
+
+    /**
      * Called when the user picks a [TransportLeg] from the flight disambiguation dialog.
      * Applies [pendingFlightInfo] to the chosen leg and dismisses the dialog.
      */
@@ -649,6 +674,28 @@ class TripDocumentsViewModel(
                 applyFlightInfoToLeg(flightInfo, leg)
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to apply flight info to selected leg", e)
+                setWriteError(DocumentsWriteError.Generic)
+            } finally {
+                dismissAnalyze()
+            }
+        }
+    }
+
+    /**
+     * Called when the user confirms the flight info change from the [AnalyzeDocumentUiState.FlightConfirm]
+     * dialog. Applies the flight info and leg stored in the confirm state and dismisses.
+     */
+    fun onFlightConfirmed() {
+        val state = _analyzeState.value as? AnalyzeDocumentUiState.FlightConfirm ?: run {
+            Log.w(TAG, "onFlightConfirmed called when not in FlightConfirm state; dismissing")
+            dismissAnalyze()
+            return
+        }
+        viewModelScope.launch {
+            try {
+                applyFlightInfoToLeg(state.flightInfo, state.matchedLeg)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to apply flight info to confirmed leg", e)
                 setWriteError(DocumentsWriteError.Generic)
             } finally {
                 dismissAnalyze()
@@ -676,11 +723,11 @@ class TripDocumentsViewModel(
      * confident-match criteria: an arrival date coincidence is not reliable enough to auto-apply
      * changes because two different hotels can share the same check-in date, which would silently
      * match the wrong destination and suppress the selection dialog. When there is such a
-     * confident match the dialog is dismissed and the hotel is updated immediately. When there is
-     * no existing hotel record or no confident match, the state transitions to
-     * [AnalyzeDocumentUiState.HotelDestinationSelection] with candidates filtered to destinations
-     * whose stay period overlaps the hotel dates (or all destinations when no dates are
-     * available), so the user can pick the destination.
+     * confident match the state transitions to [AnalyzeDocumentUiState.HotelConfirm] so the user
+     * can review and confirm the change. When there is no existing hotel record or no confident
+     * match, the state transitions to [AnalyzeDocumentUiState.HotelDestinationSelection] with
+     * candidates filtered to destinations whose stay period overlaps the hotel dates (or all
+     * destinations when no dates are available), so the user can pick the destination.
      */
     private suspend fun applyOrDisambiguateHotelInfo(hotelInfo: HotelInfo, documentName: String) {
         val destinations = getDestinationsForTrip(tripId).first()
@@ -703,8 +750,12 @@ class TripDocumentsViewModel(
         }
 
         if (confidentMatch != null) {
-            applyHotelInfoToDestination(hotelInfo, confidentMatch.first)
-            dismissAnalyze()
+            val (matchedDest, matchedHotel) = confidentMatch
+            _analyzeState.value = AnalyzeDocumentUiState.HotelConfirm(
+                hotelInfo = hotelInfo,
+                destination = matchedDest,
+                existingHotel = matchedHotel,
+            )
         } else {
             // Filter candidates to those whose stay period overlaps the hotel dates when
             // dates are available, so the user is presented with the most relevant options.
@@ -762,9 +813,10 @@ class TripDocumentsViewModel(
      * Checks [flightInfo] against all FLIGHT-type legs in this trip.
      *
      * A *confident* match requires the flight number **or** booking reference to match exactly
-     * (case-insensitive). When there is a confident match the dialog is dismissed and the leg
-     * is updated immediately. When there is no confident match but there are flight legs, the
-     * state transitions to [AnalyzeDocumentUiState.FlightLegSelection] so the user can pick.
+     * (case-insensitive). When there is a confident match the state transitions to
+     * [AnalyzeDocumentUiState.FlightConfirm] so the user can review and confirm the change.
+     * When there is no confident match but there are flight legs, the state transitions to
+     * [AnalyzeDocumentUiState.FlightLegSelection] (sorted by relevance) so the user can pick.
      * When there are no flight legs at all the info is silently skipped.
      */
     private suspend fun applyOrDisambiguateFlightInfo(flightInfo: FlightInfo, documentName: String) {
@@ -790,13 +842,44 @@ class TripDocumentsViewModel(
         }
 
         if (confidentMatch != null) {
-            applyFlightInfoToLeg(flightInfo, confidentMatch)
-            dismissAnalyze()
+            _analyzeState.value = AnalyzeDocumentUiState.FlightConfirm(
+                flightInfo = flightInfo,
+                matchedLeg = confidentMatch,
+            )
         } else {
+            // Sort candidates by relevance: loose flight-number/booking-ref matches go first,
+            // then airline prefix matches, then the rest in their original (stable) order.
+            val sortedCandidates = allFlightLegs
+                .withIndex()
+                .sortedWith(
+                    compareByDescending<IndexedValue<TransportLeg>> { indexed ->
+                        !flightInfo.flightNumber.isNullOrBlank() &&
+                            indexed.value.flightNumber?.contains(
+                                flightInfo.flightNumber,
+                                ignoreCase = true,
+                            ) == true
+                    }.thenByDescending { indexed ->
+                        !flightInfo.bookingReference.isNullOrBlank() &&
+                            indexed.value.reservationConfirmationNumber?.contains(
+                                flightInfo.bookingReference,
+                                ignoreCase = true,
+                            ) == true
+                    }.thenByDescending { indexed ->
+                        !flightInfo.airline.isNullOrBlank() &&
+                            indexed.value.company?.contains(
+                                flightInfo.airline,
+                                ignoreCase = true,
+                            ) == true
+                    }.thenBy { indexed ->
+                        // Preserve original order among legs with equal relevance.
+                        indexed.index
+                    },
+                )
+                .map { it.value }
             pendingFlightInfo = flightInfo
             _analyzeState.value = AnalyzeDocumentUiState.FlightLegSelection(
                 flightInfo = flightInfo,
-                candidates = allFlightLegs,
+                candidates = sortedCandidates,
             )
         }
     }

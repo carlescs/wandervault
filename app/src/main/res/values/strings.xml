@@ -257,6 +257,12 @@
     <string name="documents_analyze_from">From: %s</string>
     <string name="documents_analyze_to">To: %s</string>
     <string name="documents_analyze_ref">Ref: %s</string>
+    <string name="documents_analyze_confirm_flight_title">Update flight leg?</string>
+    <string name="documents_analyze_confirm_flight_message">The following flight leg will be updated with the extracted information:</string>
+    <string name="documents_analyze_confirm_hotel_title">Update hotel?</string>
+    <string name="documents_analyze_confirm_hotel_message">The following hotel at destination "%s" will be updated with the extracted information:</string>
+    <string name="documents_analyze_confirm_hotel_new_message">A new hotel will be created for destination "%s" with the extracted information.</string>
+    <string name="documents_analyze_confirm_apply">Apply</string>
     <plurals name="documents_selection_count">
         <item quantity="one">%d selected</item>
         <item quantity="other">%d selected</item>

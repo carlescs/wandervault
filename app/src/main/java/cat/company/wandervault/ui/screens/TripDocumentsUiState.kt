@@ -3,6 +3,7 @@ package cat.company.wandervault.ui.screens
 import cat.company.wandervault.domain.model.Destination
 import cat.company.wandervault.domain.model.DocumentExtractionResult
 import cat.company.wandervault.domain.model.FlightInfo
+import cat.company.wandervault.domain.model.Hotel
 import cat.company.wandervault.domain.model.HotelInfo
 import cat.company.wandervault.domain.model.TransportLeg
 import cat.company.wandervault.domain.model.TripDocument
@@ -59,15 +60,42 @@ sealed class AnalyzeDocumentUiState {
     data class Error(val message: String? = null) : AnalyzeDocumentUiState()
 
     /**
-     * ML Kit extracted flight information but could not find a confident match in the trip's
-     * itinerary. The user must select one of [candidates] to apply the data to, or skip.
+     * A confident match was found for the extracted flight info.
+     * The user reviews what will be updated and confirms or cancels.
      *
      * @param flightInfo The extracted flight details.
-     * @param candidates Flight legs available in the selected trip.
+     * @param matchedLeg The flight leg that will be updated.
+     */
+    data class FlightConfirm(
+        val flightInfo: FlightInfo,
+        val matchedLeg: TransportLeg,
+    ) : AnalyzeDocumentUiState()
+
+    /**
+     * ML Kit extracted flight information but could not find a confident match in the trip's
+     * itinerary. The user must select one of [candidates] to apply the data to, or skip.
+     * Candidates are sorted by relevance (closest partial match first).
+     *
+     * @param flightInfo The extracted flight details.
+     * @param candidates Flight legs available in the selected trip, ordered by relevance.
      */
     data class FlightLegSelection(
         val flightInfo: FlightInfo,
         val candidates: List<TransportLeg>,
+    ) : AnalyzeDocumentUiState()
+
+    /**
+     * A confident match was found for the extracted hotel info.
+     * The user reviews what will be updated and confirms or cancels.
+     *
+     * @param hotelInfo The extracted hotel details.
+     * @param destination The destination whose hotel will be updated.
+     * @param existingHotel The hotel record that will be updated, or `null` if a new one will be created.
+     */
+    data class HotelConfirm(
+        val hotelInfo: HotelInfo,
+        val destination: Destination,
+        val existingHotel: Hotel?,
     ) : AnalyzeDocumentUiState()
 
     /**
