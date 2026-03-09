@@ -42,4 +42,9 @@ data class TransportLegEntity(
     val flightNumber: String? = null,
     /** The booking or reservation confirmation code. */
     val reservationConfirmationNumber: String? = null,
+    /**
+     * When `true` this leg's transport type icon is displayed in the itinerary timeline.
+     * Only one leg per transport should have this flag set.
+     */
+    val isDefault: Boolean = false,
 )

@@ -167,6 +167,8 @@
     <string name="transport_detail_remove_leg_named">Remove leg at %s</string>
     <string name="transport_detail_move_leg_up">Move leg up</string>
     <string name="transport_detail_move_leg_down">Move leg down</string>
+    <string name="transport_detail_set_default_leg">Set as default leg for timeline</string>
+    <string name="transport_detail_default_leg">Default leg for timeline</string>
     <string name="transport_detail_no_legs">No transport legs added yet. Tap \"Add leg\" to get started.</string>
     <string name="transport_detail_leg_number">Leg %d</string>
     <string name="transport_detail_tab_details">Details</string>
