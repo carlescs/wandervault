@@ -263,8 +263,6 @@
     <string name="documents_analyze_confirm_hotel_message">The following hotel at destination "%s" will be updated with the extracted information:</string>
     <string name="documents_analyze_confirm_hotel_new_message">A new hotel will be created for destination "%s" with the extracted information.</string>
     <string name="documents_analyze_confirm_apply">Apply</string>
-    <string name="documents_analyze_flight_leg_label">Matched leg</string>
-    <string name="documents_analyze_hotel_label">Matched hotel</string>
     <plurals name="documents_selection_count">
         <item quantity="one">%d selected</item>
         <item quantity="other">%d selected</item>

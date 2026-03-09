@@ -638,7 +638,7 @@ class TripDocumentsViewModel(
 
     /**
      * Called when the user confirms the hotel info change from the [AnalyzeDocumentUiState.HotelConfirm]
-     * dialog. Applies [pendingHotelInfo] to the destination stored in the confirm state.
+     * dialog. Applies the hotel info and destination stored in the confirm state and dismisses.
      */
     fun onHotelConfirmed() {
         val state = _analyzeState.value as? AnalyzeDocumentUiState.HotelConfirm ?: run {
@@ -646,7 +646,6 @@ class TripDocumentsViewModel(
             dismissAnalyze()
             return
         }
-        pendingHotelInfo = null
         viewModelScope.launch {
             try {
                 applyHotelInfoToDestination(state.hotelInfo, state.destination)
@@ -684,7 +683,7 @@ class TripDocumentsViewModel(
 
     /**
      * Called when the user confirms the flight info change from the [AnalyzeDocumentUiState.FlightConfirm]
-     * dialog. Applies [pendingFlightInfo] to the leg stored in the confirm state.
+     * dialog. Applies the flight info and leg stored in the confirm state and dismisses.
      */
     fun onFlightConfirmed() {
         val state = _analyzeState.value as? AnalyzeDocumentUiState.FlightConfirm ?: run {
@@ -692,7 +691,6 @@ class TripDocumentsViewModel(
             dismissAnalyze()
             return
         }
-        pendingFlightInfo = null
         viewModelScope.launch {
             try {
                 applyFlightInfoToLeg(state.flightInfo, state.matchedLeg)
@@ -753,7 +751,6 @@ class TripDocumentsViewModel(
 
         if (confidentMatch != null) {
             val (matchedDest, matchedHotel) = confidentMatch
-            pendingHotelInfo = hotelInfo
             _analyzeState.value = AnalyzeDocumentUiState.HotelConfirm(
                 hotelInfo = hotelInfo,
                 destination = matchedDest,
@@ -845,29 +842,40 @@ class TripDocumentsViewModel(
         }
 
         if (confidentMatch != null) {
-            pendingFlightInfo = flightInfo
             _analyzeState.value = AnalyzeDocumentUiState.FlightConfirm(
                 flightInfo = flightInfo,
                 matchedLeg = confidentMatch,
             )
         } else {
             // Sort candidates by relevance: loose flight-number/booking-ref matches go first,
-            // then airline prefix matches, then the rest in their original order.
-            val sortedCandidates = allFlightLegs.sortedWith(
-                compareByDescending<TransportLeg> { leg ->
-                    !flightInfo.flightNumber.isNullOrBlank() &&
-                        leg.flightNumber?.contains(flightInfo.flightNumber, ignoreCase = true) == true
-                }.thenByDescending { leg ->
-                    !flightInfo.bookingReference.isNullOrBlank() &&
-                        leg.reservationConfirmationNumber?.contains(
-                            flightInfo.bookingReference,
-                            ignoreCase = true,
-                        ) == true
-                }.thenByDescending { leg ->
-                    !flightInfo.airline.isNullOrBlank() &&
-                        leg.company?.contains(flightInfo.airline, ignoreCase = true) == true
-                },
-            )
+            // then airline prefix matches, then the rest in their original (stable) order.
+            val sortedCandidates = allFlightLegs
+                .withIndex()
+                .sortedWith(
+                    compareByDescending<IndexedValue<TransportLeg>> { indexed ->
+                        !flightInfo.flightNumber.isNullOrBlank() &&
+                            indexed.value.flightNumber?.contains(
+                                flightInfo.flightNumber,
+                                ignoreCase = true,
+                            ) == true
+                    }.thenByDescending { indexed ->
+                        !flightInfo.bookingReference.isNullOrBlank() &&
+                            indexed.value.reservationConfirmationNumber?.contains(
+                                flightInfo.bookingReference,
+                                ignoreCase = true,
+                            ) == true
+                    }.thenByDescending { indexed ->
+                        !flightInfo.airline.isNullOrBlank() &&
+                            indexed.value.company?.contains(
+                                flightInfo.airline,
+                                ignoreCase = true,
+                            ) == true
+                    }.thenBy { indexed ->
+                        // Preserve original order among legs with equal relevance.
+                        indexed.index
+                    },
+                )
+                .map { it.value }
             pendingFlightInfo = flightInfo
             _analyzeState.value = AnalyzeDocumentUiState.FlightLegSelection(
                 flightInfo = flightInfo,

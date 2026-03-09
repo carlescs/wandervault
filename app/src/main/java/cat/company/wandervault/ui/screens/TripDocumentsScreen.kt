@@ -94,7 +94,7 @@ import cat.company.wandervault.R
 import cat.company.wandervault.domain.model.Destination
 import cat.company.wandervault.domain.model.DocumentExtractionResult
 import cat.company.wandervault.domain.model.FlightInfo
-import cat.company.wandervault.domain.model.Hotel
+import cat.company.wandervault.domain.model.Hotel as DomainHotel
 import cat.company.wandervault.domain.model.HotelInfo
 import cat.company.wandervault.domain.model.TransportLeg
 import cat.company.wandervault.domain.model.TransportType
@@ -1533,7 +1533,7 @@ private fun AnalyzeFlightConfirmDialog(
 private fun AnalyzeHotelConfirmDialog(
     hotelInfo: HotelInfo,
     destination: Destination,
-    existingHotel: Hotel?,
+    existingHotel: DomainHotel?,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
