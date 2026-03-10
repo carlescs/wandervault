@@ -1,5 +1,12 @@
 package cat.company.wandervault.ui.screens
 
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.pdf.PdfRenderer
+import android.net.Uri
+import android.os.ParcelFileDescriptor
+import android.util.Log
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,8 +34,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -42,8 +51,11 @@ import cat.company.wandervault.domain.model.TripDocument
 import cat.company.wandervault.ui.theme.WanderVaultTheme
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
+import java.io.File
 
 /**
  * Document Info screen entry point.
@@ -255,33 +267,101 @@ private fun DocumentPreview(
     modifier: Modifier = Modifier,
 ) {
     val isImage = document.mimeType.startsWith("image/")
-    if (isImage && document.uri.isNotBlank()) {
-        val context = LocalContext.current
-        AsyncImage(
-            model = ImageRequest.Builder(context)
-                .data(document.uri.toUri())
-                .crossfade(true)
-                .build(),
-            contentDescription = stringResource(R.string.document_info_preview_content_desc, document.name),
-            contentScale = ContentScale.Fit,
-            modifier = modifier
-                .height(240.dp)
-                .fillMaxWidth(),
-        )
-    } else {
-        Box(
-            modifier = modifier
-                .height(160.dp)
-                .fillMaxWidth(),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = Icons.Default.Description,
-                contentDescription = null,
-                modifier = Modifier.size(80.dp),
-                tint = MaterialTheme.colorScheme.secondary,
+    val isPdf = document.mimeType == "application/pdf"
+    when {
+        isImage && document.uri.isNotBlank() -> {
+            val context = LocalContext.current
+            AsyncImage(
+                model = ImageRequest.Builder(context)
+                    .data(document.uri.toUri())
+                    .crossfade(true)
+                    .build(),
+                contentDescription = stringResource(R.string.document_info_preview_content_desc, document.name),
+                contentScale = ContentScale.Fit,
+                modifier = modifier
+                    .height(240.dp)
+                    .fillMaxWidth(),
             )
         }
+        isPdf && document.uri.isNotBlank() -> {
+            val context = LocalContext.current
+            val pdfBitmap by produceState<Bitmap?>(initialValue = null, key1 = document.uri) {
+                value = withContext(Dispatchers.IO) {
+                    renderPdfFirstPage(context, document.uri)
+                }
+            }
+            if (pdfBitmap != null) {
+                pdfBitmap.let { bmp ->
+                    Image(
+                        bitmap = bmp.asImageBitmap(),
+                        contentDescription = stringResource(R.string.document_info_preview_content_desc, document.name),
+                        contentScale = ContentScale.Fit,
+                        modifier = modifier
+                            .height(240.dp)
+                            .fillMaxWidth(),
+                    )
+                }
+            } else {
+                Box(
+                    modifier = modifier
+                        .height(160.dp)
+                        .fillMaxWidth(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CircularProgressIndicator()
+                }
+            }
+        }
+        else -> {
+            Box(
+                modifier = modifier
+                    .height(160.dp)
+                    .fillMaxWidth(),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Description,
+                    contentDescription = null,
+                    modifier = Modifier.size(80.dp),
+                    tint = MaterialTheme.colorScheme.secondary,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Renders the first page of a PDF file at [fileUri] to a [Bitmap].
+ *
+ * Supports both `file://` and `content://` URIs. Returns `null` if the file cannot be opened,
+ * the PDF has no pages, or any other error occurs during rendering.
+ */
+private fun renderPdfFirstPage(context: Context, fileUri: String): Bitmap? {
+    return try {
+        val uri = Uri.parse(fileUri)
+        val pfd = if (uri.scheme == "file") {
+            val path = uri.path ?: return null
+            ParcelFileDescriptor.open(File(path), ParcelFileDescriptor.MODE_READ_ONLY)
+        } else {
+            context.contentResolver.openFileDescriptor(uri, "r") ?: return null
+        }
+        pfd.use { descriptor ->
+            PdfRenderer(descriptor).use { renderer ->
+                if (renderer.pageCount == 0) return null
+                renderer.openPage(0).use { page ->
+                    val bitmap = Bitmap.createBitmap(
+                        page.width,
+                        page.height,
+                        Bitmap.Config.ARGB_8888,
+                    )
+                    page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                    bitmap
+                }
+            }
+        }
+    } catch (e: Exception) {
+        Log.w("DocumentInfoScreen", "Failed to render PDF preview for $fileUri", e)
+        null
     }
 }
 

@@ -47,6 +47,7 @@ import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Hotel
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.UploadFile
@@ -783,7 +784,7 @@ private fun DocumentRow(
                 },
             )
             .combinedClickable(
-                onClick = { if (isSelectionMode) onToggleSelect() else onOpen() },
+                onClick = { if (isSelectionMode) onToggleSelect() else onViewInfo() },
                 onLongClick = { onToggleSelect() },
             )
             .then(
@@ -815,10 +816,10 @@ private fun DocumentRow(
                 )
             }
         } else {
-            IconButton(onClick = onOpen) {
+            IconButton(onClick = onViewInfo) {
                 Icon(
                     imageVector = Icons.Default.Description,
-                    contentDescription = stringResource(R.string.documents_open_content_desc, document.name),
+                    contentDescription = stringResource(R.string.documents_view_info_content_desc, document.name),
                     tint = MaterialTheme.colorScheme.secondary,
                 )
             }
@@ -844,6 +845,14 @@ private fun DocumentRow(
                     expanded = menuExpanded,
                     onDismissRequest = { menuExpanded = false },
                 ) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.documents_open_action)) },
+                        onClick = {
+                            menuExpanded = false
+                            onOpen()
+                        },
+                        leadingIcon = { Icon(Icons.Default.OpenInNew, contentDescription = null) },
+                    )
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.documents_info_action)) },
                         onClick = {
