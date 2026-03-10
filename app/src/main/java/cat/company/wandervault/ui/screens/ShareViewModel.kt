@@ -325,7 +325,7 @@ class ShareViewModel(
             )
         } else {
             // Sort candidates by relevance: loose flight-number/booking-ref matches go first,
-            // then airline prefix matches, then the rest in their original (stable) order.
+            // then airline substring matches, then the rest in their original (stable) order.
             val sortedCandidates = allFlightLegs
                 .withIndex()
                 .sortedWith(

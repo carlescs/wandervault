@@ -60,6 +60,7 @@ internal fun parseDocumentResponse(raw: String): DocumentExtractionResult {
     // non-standard document layouts, so checking only the first line is insufficient.
     val structuredLine = infoRaw.lines()
         .map { it.trim() }
+        .filter { it.isNotBlank() }
         .firstOrNull { line ->
             line.startsWith(FLIGHT_MARKER, ignoreCase = true) ||
                 line.startsWith(HOTEL_MARKER, ignoreCase = true)
