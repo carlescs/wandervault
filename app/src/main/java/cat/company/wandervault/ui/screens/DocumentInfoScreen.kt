@@ -285,15 +285,31 @@ private fun DocumentPreview(
         }
         isPdf && document.uri.isNotBlank() -> {
             val context = LocalContext.current
-            val pdfBitmap by produceState<Bitmap?>(initialValue = null, key1 = document.uri) {
-                value = withContext(Dispatchers.IO) {
+            // State: false = still loading; true = done (bitmap = success, null bitmap = failed/empty).
+            val pdfRenderState by produceState<Pair<Boolean, Bitmap?>>(
+                initialValue = false to null,
+                key1 = document.uri,
+            ) {
+                val bitmap = withContext(Dispatchers.IO) {
                     renderPdfFirstPage(context, document.uri)
                 }
+                value = true to bitmap
             }
-            if (pdfBitmap != null) {
-                pdfBitmap.let { bmp ->
+            val (done, bitmap) = pdfRenderState
+            when {
+                !done -> {
+                    Box(
+                        modifier = modifier
+                            .height(160.dp)
+                            .fillMaxWidth(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        CircularProgressIndicator()
+                    }
+                }
+                bitmap != null -> {
                     Image(
-                        bitmap = bmp.asImageBitmap(),
+                        bitmap = bitmap.asImageBitmap(),
                         contentDescription = stringResource(R.string.document_info_preview_content_desc, document.name),
                         contentScale = ContentScale.Fit,
                         modifier = modifier
@@ -301,14 +317,20 @@ private fun DocumentPreview(
                             .fillMaxWidth(),
                     )
                 }
-            } else {
-                Box(
-                    modifier = modifier
-                        .height(160.dp)
-                        .fillMaxWidth(),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    CircularProgressIndicator()
+                else -> {
+                    Box(
+                        modifier = modifier
+                            .height(160.dp)
+                            .fillMaxWidth(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Description,
+                            contentDescription = null,
+                            modifier = Modifier.size(80.dp),
+                            tint = MaterialTheme.colorScheme.secondary,
+                        )
+                    }
                 }
             }
         }
@@ -331,12 +353,15 @@ private fun DocumentPreview(
 }
 
 /**
- * Renders the first page of a PDF file at [fileUri] to a [Bitmap].
+ * Renders the first page of a PDF file at [fileUri] to a [Bitmap] scaled to fit within
+ * [maxDimension] pixels on the longest side, bounding memory use for large/scanned PDFs.
  *
  * Supports both `file://` and `content://` URIs. Returns `null` if the file cannot be opened,
- * the PDF has no pages, or any other error occurs during rendering.
+ * the PDF has no pages, or any other non-cancellation error occurs during rendering.
+ *
+ * @throws kotlinx.coroutines.CancellationException if the calling coroutine was cancelled.
  */
-private fun renderPdfFirstPage(context: Context, fileUri: String): Bitmap? {
+private fun renderPdfFirstPage(context: Context, fileUri: String, maxDimension: Int = 1080): Bitmap? {
     return try {
         val uri = Uri.parse(fileUri)
         val pfd = if (uri.scheme == "file") {
@@ -349,16 +374,18 @@ private fun renderPdfFirstPage(context: Context, fileUri: String): Bitmap? {
             PdfRenderer(descriptor).use { renderer ->
                 if (renderer.pageCount == 0) return null
                 renderer.openPage(0).use { page ->
-                    val bitmap = Bitmap.createBitmap(
-                        page.width,
-                        page.height,
-                        Bitmap.Config.ARGB_8888,
-                    )
+                    val scale = minOf(1f, maxDimension.toFloat() / maxOf(page.width, page.height))
+                    // coerceAtLeast(1) guards against zero-dimension bitmaps due to float rounding.
+                    val bitmapWidth = (page.width * scale).toInt().coerceAtLeast(1)
+                    val bitmapHeight = (page.height * scale).toInt().coerceAtLeast(1)
+                    val bitmap = Bitmap.createBitmap(bitmapWidth, bitmapHeight, Bitmap.Config.ARGB_8888)
                     page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
                     bitmap
                 }
             }
         }
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
     } catch (e: Exception) {
         Log.w("DocumentInfoScreen", "Failed to render PDF preview for $fileUri", e)
         null
