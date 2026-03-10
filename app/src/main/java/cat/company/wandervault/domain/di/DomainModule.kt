@@ -18,6 +18,7 @@ import cat.company.wandervault.domain.usecase.GetDestinationByIdUseCase
 import cat.company.wandervault.domain.usecase.GetDestinationsForTripUseCase
 import cat.company.wandervault.domain.usecase.GetDocumentsInFolderUseCase
 import cat.company.wandervault.domain.usecase.GetAllFoldersForTripUseCase
+import cat.company.wandervault.domain.usecase.GetDocumentByIdUseCase
 import cat.company.wandervault.domain.usecase.GetNextDestinationUseCase
 import cat.company.wandervault.domain.usecase.GetOrCreateTransportForDestinationUseCase
 import cat.company.wandervault.domain.usecase.DeleteHotelUseCase
@@ -85,4 +86,5 @@ val domainModule = module {
     factory { DeleteDocumentUseCase(get()) }
     factory { CopyDocumentToInternalStorageUseCase(get()) }
     factory { SummarizeDocumentUseCase(get()) }
+    factory { GetDocumentByIdUseCase(get()) }
 }

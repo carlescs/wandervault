@@ -8,6 +8,7 @@ internal object AppRoutes {
     const val TRIP_DETAIL = "trip_detail/{tripId}"
     const val LOCATION_DETAIL = "location_detail/{destinationId}"
     const val TRANSPORT_DETAIL = "transport_detail/{destinationId}"
+    const val DOCUMENT_INFO = "document_info/{documentId}"
     const val SETTINGS = "settings"
     const val DATA_ADMIN = "data_admin"
 
@@ -19,4 +20,7 @@ internal object AppRoutes {
 
     /** Returns the navigable route for a specific transport detail screen. */
     fun transportDetail(destinationId: Int) = "transport_detail/$destinationId"
+
+    /** Returns the navigable route for a specific document info screen. */
+    fun documentInfo(documentId: Int) = "document_info/$documentId"
 }

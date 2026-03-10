@@ -32,6 +32,9 @@ class TripDocumentRepositoryImpl(
         File(context.filesDir, "documents").canonicalFile.toPath()
     }
 
+    override fun getDocumentById(id: Int): Flow<TripDocument?> =
+        documentDao.getById(id).map { it?.toDomain() }
+
     override fun getRootFolders(tripId: Int): Flow<List<TripDocumentFolder>> =
         folderDao.getRootFolders(tripId).map { list -> list.map { it.toDomain() } }
 

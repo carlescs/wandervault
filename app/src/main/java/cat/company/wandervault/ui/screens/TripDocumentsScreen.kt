@@ -1,7 +1,5 @@
 package cat.company.wandervault.ui.screens
 
-import android.content.ActivityNotFoundException
-import android.content.Intent
 import android.webkit.MimeTypeMap
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -47,6 +45,7 @@ import androidx.compose.material.icons.filled.FindInPage
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Hotel
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.SelectAll
@@ -87,8 +86,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.core.content.FileProvider
-import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cat.company.wandervault.R
 import cat.company.wandervault.domain.model.Destination
@@ -102,7 +99,6 @@ import cat.company.wandervault.domain.model.TripDocumentFolder
 import cat.company.wandervault.ui.theme.WanderVaultTheme
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
-import java.io.File
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
@@ -111,11 +107,13 @@ import java.time.format.FormatStyle
  *
  * @param tripId The ID of the trip whose documents are shown.
  * @param innerPadding Padding values provided by the parent [androidx.compose.material3.Scaffold].
+ * @param onNavigateToDocument Called with the document ID when the user selects "Info" for a document.
  */
 @Composable
 internal fun TripDocumentsTabContent(
     tripId: Int,
     innerPadding: PaddingValues,
+    onNavigateToDocument: (Int) -> Unit = {},
     viewModel: TripDocumentsViewModel = koinViewModel(
         key = "TripDocumentsViewModel:$tripId",
         parameters = { parametersOf(tripId) },
@@ -123,7 +121,6 @@ internal fun TripDocumentsTabContent(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    val noAppMessage = stringResource(R.string.documents_no_app_to_open)
 
     // Exit selection mode on back press when selection is active.
     val isSelectionMode = (uiState as? TripDocumentsUiState.Success)?.selectedDocumentIds?.isNotEmpty() == true
@@ -168,31 +165,8 @@ internal fun TripDocumentsTabContent(
         onMoveDocument = viewModel::moveDocument,
         onDeleteDocument = viewModel::removeDocument,
         onUploadFile = { filePicker.launch(arrayOf("*/*")) },
-        onOpenDocument = { document ->
-            try {
-                val uri = document.uri.toUri()
-                val contentUri = if (uri.scheme == "file") {
-                    val path = uri.path
-                        ?: throw IllegalArgumentException("File URI has no path: $uri")
-                    FileProvider.getUriForFile(
-                        context,
-                        "${context.packageName}.fileprovider",
-                        File(path),
-                    )
-                } else {
-                    uri
-                }
-                val intent = Intent(Intent.ACTION_VIEW).apply {
-                    setDataAndType(contentUri, document.mimeType.ifBlank { "*/*" })
-                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                }
-                context.startActivity(intent)
-            } catch (_: ActivityNotFoundException) {
-                android.widget.Toast.makeText(context, noAppMessage, android.widget.Toast.LENGTH_SHORT).show()
-            } catch (_: IllegalArgumentException) {
-                android.widget.Toast.makeText(context, noAppMessage, android.widget.Toast.LENGTH_SHORT).show()
-            }
-        },
+        onOpenDocument = { document -> openTripDocument(context, document) },
+        onViewDocumentInfo = onNavigateToDocument,
         onAnalyzeDocument = viewModel::analyzeDocument,
         onAnalyzeApplyChanges = viewModel::applyAnalysisChanges,
         onAnalyzeFlightLegSelected = viewModel::onFlightLegSelected,
@@ -233,6 +207,7 @@ internal fun TripDocumentsContent(
     onDeleteDocument: (TripDocument) -> Unit = {},
     onUploadFile: () -> Unit = {},
     onOpenDocument: (TripDocument) -> Unit = {},
+    onViewDocumentInfo: (Int) -> Unit = {},
     onAnalyzeDocument: (TripDocument) -> Unit = {},
     onAnalyzeApplyChanges: () -> Unit = {},
     onAnalyzeFlightLegSelected: (TransportLeg) -> Unit = {},
@@ -360,6 +335,7 @@ internal fun TripDocumentsContent(
                                 DocumentRow(
                                     document = document,
                                     onOpen = { onOpenDocument(document) },
+                                    onViewInfo = { onViewDocumentInfo(document.id) },
                                     onRename = { documentToRename = document },
                                     onMove = { documentToMove = document },
                                     onDelete = { documentToDelete = document },
@@ -785,6 +761,7 @@ private fun FolderRow(
 private fun DocumentRow(
     document: TripDocument,
     onOpen: () -> Unit,
+    onViewInfo: () -> Unit,
     onRename: () -> Unit,
     onMove: () -> Unit,
     onDelete: () -> Unit,
@@ -867,6 +844,14 @@ private fun DocumentRow(
                     expanded = menuExpanded,
                     onDismissRequest = { menuExpanded = false },
                 ) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.documents_info_action)) },
+                        onClick = {
+                            menuExpanded = false
+                            onViewInfo()
+                        },
+                        leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
+                    )
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.documents_analyze_action)) },
                         onClick = {

@@ -57,4 +57,8 @@ interface TripDocumentDao {
     /** Returns the [uri] strings for every document belonging to [tripId] (all folders + root). */
     @Query("SELECT uri FROM trip_documents WHERE tripId = :tripId")
     suspend fun getAllDocumentUrisByTripId(tripId: Int): List<String>
+
+    /** Returns a [Flow] emitting the document with the given [id], or `null` if not found. */
+    @Query("SELECT * FROM trip_documents WHERE id = :id")
+    fun getById(id: Int): Flow<TripDocumentEntity?>
 }

@@ -85,6 +85,7 @@ private val BASE_IMAGE_HEIGHT = 200.dp
  * @param onNavigateUp Called when the user taps the back/up button.
  * @param onNavigateToDestination Called when the user taps a destination in the itinerary or a stay in the calendar legend.
  * @param onNavigateToTransport Called when the user taps the transport icon in the itinerary.
+ * @param onNavigateToDocument Called with the document ID when the user requests document info.
  * @param modifier Optional [Modifier].
  */
 @Composable
@@ -93,6 +94,7 @@ fun TripDetailScreen(
     onNavigateUp: () -> Unit,
     onNavigateToDestination: (Int) -> Unit = {},
     onNavigateToTransport: (Int) -> Unit = {},
+    onNavigateToDocument: (Int) -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: TripDetailViewModel = koinViewModel(key = "TripDetailViewModel:$tripId", parameters = { parametersOf(tripId) }),
 ) {
@@ -104,6 +106,7 @@ fun TripDetailScreen(
         onNavigateUp = onNavigateUp,
         onNavigateToDestination = onNavigateToDestination,
         onNavigateToTransport = onNavigateToTransport,
+        onNavigateToDocument = onNavigateToDocument,
         onRegenerateDescription = viewModel::regenerateDescription,
         onDeleteDescription = viewModel::deleteDescription,
         modifier = modifier,
@@ -118,6 +121,7 @@ fun TripDetailScreen(
  * @param tripId The ID of the trip – forwarded to [ItineraryTabContent] when the Itinerary tab is selected.
  * @param onNavigateToDestination Called when the user taps a destination in the itinerary tab or a stay in the calendar legend.
  * @param onNavigateToTransport Called when the user taps the transport icon in the itinerary tab.
+ * @param onNavigateToDocument Called with the document ID when the user requests document info.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -127,6 +131,7 @@ internal fun TripDetailContent(
     onNavigateUp: () -> Unit,
     onNavigateToDestination: (Int) -> Unit = {},
     onNavigateToTransport: (Int) -> Unit = {},
+    onNavigateToDocument: (Int) -> Unit = {},
     onRegenerateDescription: () -> Unit = {},
     onDeleteDescription: () -> Unit = {},
     modifier: Modifier = Modifier,
@@ -216,7 +221,11 @@ internal fun TripDetailContent(
                 innerPadding = innerPadding,
                 onDestinationClick = onNavigateToDestination,
             )
-            TripDetailTab.DOCUMENTS -> TripDocumentsTabContent(tripId = tripId, innerPadding = innerPadding)
+            TripDetailTab.DOCUMENTS -> TripDocumentsTabContent(
+                tripId = tripId,
+                innerPadding = innerPadding,
+                onNavigateToDocument = onNavigateToDocument,
+            )
         }
     }
 }

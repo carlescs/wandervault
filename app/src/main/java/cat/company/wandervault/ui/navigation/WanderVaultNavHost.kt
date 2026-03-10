@@ -12,6 +12,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import cat.company.wandervault.ui.LocalAnimatedVisibilityScope
 import cat.company.wandervault.ui.screens.DataAdminScreen
+import cat.company.wandervault.ui.screens.DocumentInfoScreen
 import cat.company.wandervault.ui.screens.FavoritesScreen
 import cat.company.wandervault.ui.screens.HomeScreen
 import cat.company.wandervault.ui.screens.LocationDetailScreen
@@ -87,6 +88,9 @@ internal fun WanderVaultNavHost(
                     onNavigateToTransport = { destinationId ->
                         navController.navigate(AppRoutes.transportDetail(destinationId))
                     },
+                    onNavigateToDocument = { documentId ->
+                        navController.navigate(AppRoutes.documentInfo(documentId))
+                    },
                     modifier = Modifier.fillMaxSize(),
                 )
             }
@@ -133,6 +137,21 @@ internal fun WanderVaultNavHost(
 
         composable(AppRoutes.DATA_ADMIN) {
             DataAdminScreen(
+                onNavigateUp = { navController.navigateUp() },
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+
+        composable(
+            route = AppRoutes.DOCUMENT_INFO,
+            arguments = listOf(navArgument("documentId") { type = NavType.IntType }),
+        ) { backStackEntry ->
+            val documentId = backStackEntry.arguments?.getInt("documentId")?.takeIf { it > 0 } ?: run {
+                navController.navigateUp()
+                return@composable
+            }
+            DocumentInfoScreen(
+                documentId = documentId,
                 onNavigateUp = { navController.navigateUp() },
                 modifier = Modifier.fillMaxSize(),
             )

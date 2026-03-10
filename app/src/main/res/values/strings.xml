@@ -276,4 +276,20 @@
         <item quantity="one">%d document will be permanently deleted.</item>
         <item quantity="other">%d documents will be permanently deleted.</item>
     </plurals>
+
+    <!-- Document info screen -->
+    <string name="document_info_title">Document Info</string>
+    <string name="document_info_navigate_up">Navigate up</string>
+    <string name="document_info_not_found">Document not found.</string>
+    <string name="document_info_section_info">File information</string>
+    <string name="document_info_section_ai_description">AI description</string>
+    <string name="document_info_name">Name</string>
+    <string name="document_info_type">Type</string>
+    <string name="document_info_type_unknown">Unknown</string>
+    <string name="document_info_size">Size</string>
+    <string name="document_info_folder">Folder</string>
+    <string name="document_info_folder_root">Root (no folder)</string>
+    <string name="document_info_no_ai_description">No AI description yet. Use the Analyze action to generate one.</string>
+    <string name="document_info_preview_content_desc">Preview of %s</string>
+    <string name="documents_info_action">Info</string>
 </resources>
