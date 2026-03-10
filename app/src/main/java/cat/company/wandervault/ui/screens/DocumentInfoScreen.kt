@@ -341,7 +341,7 @@ private fun formatFileSize(bytes: Long): String {
     return when {
         bytes < kb -> "$bytes B"
         bytes < mb -> "${bytes / kb} KB"
-        else -> "%.1f MB".format(bytes.toFloat() / mb.toFloat())
+        else -> "%.1f MB".format(bytes.toDouble() / mb)
     }
 }
 
