@@ -168,7 +168,8 @@ class ShareViewModel(
 
     /**
      * Called when the user picks a specific [TransportLeg] from the flight disambiguation dialog.
-     * Applies [pendingFlightInfo] to the chosen leg and transitions to [ShareUiState.Done].
+     * Transitions to [ShareUiState.FlightConfirm] so the user can review the changes before
+     * they are saved.
      */
     fun onFlightLegSelected(leg: TransportLeg) {
         val flightInfo = pendingFlightInfo ?: run {
@@ -176,20 +177,16 @@ class ShareViewModel(
             return
         }
         pendingFlightInfo = null
-        viewModelScope.launch {
-            try {
-                applyFlightInfoToLeg(flightInfo, leg)
-            } catch (e: Exception) {
-                Log.w(TAG, "Failed to apply flight info to selected leg", e)
-            } finally {
-                _uiState.value = ShareUiState.Done
-            }
-        }
+        _uiState.value = ShareUiState.FlightConfirm(
+            flightInfo = flightInfo,
+            matchedLeg = leg,
+        )
     }
 
     /**
      * Called when the user picks a [Destination] from the hotel disambiguation dialog.
-     * Applies [pendingHotelInfo] to that destination and transitions to [ShareUiState.Done].
+     * Loads the existing hotel for the destination and transitions to [ShareUiState.HotelConfirm]
+     * so the user can review the changes before they are saved.
      */
     fun onHotelDestinationSelected(destination: Destination) {
         val hotelInfo = pendingHotelInfo ?: run {
@@ -199,19 +196,91 @@ class ShareViewModel(
         pendingHotelInfo = null
         viewModelScope.launch {
             try {
-                applyHotelInfoToDestination(hotelInfo, destination)
+                val existingHotel = getHotelForDestination(destination.id).first()
+                // Guard against the user skipping/dismissing while the DB query was in-flight.
+                // compareAndSet ensures we only advance to HotelConfirm if the state has not
+                // been modified since we captured it (e.g. by onDisambiguationSkipped()).
+                val selectionState = _uiState.value
+                if (selectionState is ShareUiState.HotelDestinationSelection) {
+                    _uiState.compareAndSet(
+                        expect = selectionState,
+                        update = ShareUiState.HotelConfirm(
+                            hotelInfo = hotelInfo,
+                            destination = destination,
+                            existingHotel = existingHotel,
+                        ),
+                    )
+                }
             } catch (e: Exception) {
-                Log.w(TAG, "Failed to apply hotel info to selected destination", e)
-            } finally {
-                _uiState.value = ShareUiState.Done
+                Log.w(TAG, "Failed to load hotel for selected destination", e)
+                val selectionState = _uiState.value
+                if (selectionState is ShareUiState.HotelDestinationSelection) {
+                    _uiState.compareAndSet(expect = selectionState, update = ShareUiState.Done)
+                }
             }
         }
     }
 
     /** Skips the current disambiguation step and moves directly to [ShareUiState.Done]. */
     fun onDisambiguationSkipped() {
-        pendingFlightInfo = null
-        pendingHotelInfo = null
+        // Only act when in a selection state. Programmatic dismissal of the selection dialog
+        // (e.g. when the state advances to FlightConfirm / HotelConfirm) fires onDismissRequest
+        // asynchronously on the previous dialog — those spurious calls must be ignored.
+        val current = _uiState.value
+        if (current is ShareUiState.FlightLegSelection || current is ShareUiState.HotelDestinationSelection) {
+            pendingFlightInfo = null
+            pendingHotelInfo = null
+            _uiState.value = ShareUiState.Done
+        }
+    }
+
+    /**
+     * Called when the user confirms the flight info change from the [ShareUiState.FlightConfirm]
+     * dialog. Applies the flight info and leg stored in the confirm state and transitions to
+     * [ShareUiState.Done].
+     */
+    fun onFlightConfirmed() {
+        val state = _uiState.value as? ShareUiState.FlightConfirm ?: run {
+            _uiState.value = ShareUiState.Done
+            return
+        }
+        viewModelScope.launch {
+            try {
+                applyFlightInfoToLeg(state.flightInfo, state.matchedLeg)
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to apply flight info to confirmed leg", e)
+            } finally {
+                _uiState.value = ShareUiState.Done
+            }
+        }
+    }
+
+    /**
+     * Called when the user confirms the hotel info change from the [ShareUiState.HotelConfirm]
+     * dialog. Applies the hotel info and destination stored in the confirm state and transitions
+     * to [ShareUiState.Done].
+     */
+    fun onHotelConfirmed() {
+        val state = _uiState.value as? ShareUiState.HotelConfirm ?: run {
+            _uiState.value = ShareUiState.Done
+            return
+        }
+        viewModelScope.launch {
+            try {
+                applyHotelInfoToDestination(state.hotelInfo, state.destination)
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to apply hotel info to confirmed destination", e)
+            } finally {
+                _uiState.value = ShareUiState.Done
+            }
+        }
+    }
+
+    /**
+     * Called when the user cancels from the [ShareUiState.FlightConfirm] or
+     * [ShareUiState.HotelConfirm] dialog. Skips the update and transitions to [ShareUiState.Done].
+     */
+    fun onConfirmCancelled() {
         _uiState.value = ShareUiState.Done
     }
 
@@ -250,8 +319,10 @@ class ShareViewModel(
         }
 
         if (confidentMatch != null) {
-            applyFlightInfoToLeg(flightInfo, confidentMatch)
-            _uiState.value = ShareUiState.Done
+            _uiState.value = ShareUiState.FlightConfirm(
+                flightInfo = flightInfo,
+                matchedLeg = confidentMatch,
+            )
         } else {
             pendingFlightInfo = flightInfo
             _uiState.value = ShareUiState.FlightLegSelection(
@@ -297,8 +368,11 @@ class ShareViewModel(
         }
 
         if (confidentMatch != null) {
-            applyHotelInfoToDestination(hotelInfo, confidentMatch.first)
-            _uiState.value = ShareUiState.Done
+            _uiState.value = ShareUiState.HotelConfirm(
+                hotelInfo = hotelInfo,
+                destination = confidentMatch.first,
+                existingHotel = confidentMatch.second,
+            )
         } else {
             // Filter candidates to those whose stay period overlaps the hotel dates when
             // dates are available, so the user is presented with the most relevant options.

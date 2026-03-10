@@ -43,6 +43,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cat.company.wandervault.R
 import cat.company.wandervault.domain.model.Destination
 import cat.company.wandervault.domain.model.FlightInfo
+import cat.company.wandervault.domain.model.Hotel
 import cat.company.wandervault.domain.model.HotelInfo
 import cat.company.wandervault.domain.model.TransportLeg
 import cat.company.wandervault.domain.model.TransportType
@@ -151,12 +152,31 @@ private fun ShareScreenContent(shareIntent: Intent, sharedUri: String, onDismiss
             )
         }
 
+        is ShareUiState.FlightConfirm -> {
+            ShareFlightConfirmDialog(
+                flightInfo = state.flightInfo,
+                matchedLeg = state.matchedLeg,
+                onConfirm = viewModel::onFlightConfirmed,
+                onDismiss = viewModel::onConfirmCancelled,
+            )
+        }
+
         is ShareUiState.HotelDestinationSelection -> {
             ShareHotelDestinationSelectionDialog(
                 hotelInfo = state.hotelInfo,
                 candidates = state.candidates,
                 onDestinationSelected = viewModel::onHotelDestinationSelected,
                 onSkip = viewModel::onDisambiguationSkipped,
+            )
+        }
+
+        is ShareUiState.HotelConfirm -> {
+            ShareHotelConfirmDialog(
+                hotelInfo = state.hotelInfo,
+                destination = state.destination,
+                existingHotel = state.existingHotel,
+                onConfirm = viewModel::onHotelConfirmed,
+                onDismiss = viewModel::onConfirmCancelled,
             )
         }
 
@@ -379,18 +399,31 @@ private fun FlightLegItem(leg: TransportLeg, onClick: () -> Unit, modifier: Modi
             modifier = Modifier.size(18.dp),
         )
         Spacer(Modifier.width(12.dp))
-        Column {
-            val label = listOfNotNull(leg.company, leg.flightNumber)
-                .joinToString(" ")
-                .ifBlank { stringResource(R.string.share_unnamed_flight_leg) }
-            Text(text = label, style = MaterialTheme.typography.bodyMedium)
-            if (!leg.reservationConfirmationNumber.isNullOrBlank()) {
-                Text(
-                    text = stringResource(R.string.share_booking_ref, leg.reservationConfirmationNumber),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+        FlightLegDetails(leg = leg)
+    }
+}
+
+/** Renders the label, booking reference and stop name for a [TransportLeg]. */
+@Composable
+private fun FlightLegDetails(leg: TransportLeg, modifier: Modifier = Modifier) {
+    Column(modifier = modifier) {
+        val label = listOfNotNull(leg.company, leg.flightNumber)
+            .joinToString(" ")
+            .ifBlank { stringResource(R.string.share_unnamed_flight_leg) }
+        Text(text = label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+        if (!leg.reservationConfirmationNumber.isNullOrBlank()) {
+            Text(
+                text = stringResource(R.string.share_booking_ref, leg.reservationConfirmationNumber),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (!leg.stopName.isNullOrBlank()) {
+            Text(
+                text = stringResource(R.string.documents_analyze_to, leg.stopName),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
@@ -463,6 +496,152 @@ private fun HotelInfoSummary(hotelInfo: HotelInfo, modifier: Modifier = Modifier
             }
         }
     }
+}
+
+@Composable
+private fun ShareFlightConfirmDialog(
+    flightInfo: FlightInfo,
+    matchedLeg: TransportLeg,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.documents_analyze_confirm_flight_title)) },
+        text = {
+            Column {
+                FlightInfoSummary(flightInfo = flightInfo)
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = stringResource(R.string.documents_analyze_confirm_flight_message),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.AirplanemodeActive,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.size(20.dp),
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    FlightLegDetails(leg = matchedLeg)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(stringResource(R.string.documents_analyze_confirm_apply))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.dialog_cancel))
+            }
+        },
+    )
+}
+
+@Composable
+private fun ShareHotelConfirmDialog(
+    hotelInfo: HotelInfo,
+    destination: Destination,
+    existingHotel: Hotel?,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val dateFormatter = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.documents_analyze_confirm_hotel_title)) },
+        text = {
+            Column {
+                HotelInfoSummary(hotelInfo = hotelInfo)
+                Spacer(Modifier.height(4.dp))
+                if (existingHotel != null) {
+                    Text(
+                        text = stringResource(
+                            R.string.documents_analyze_confirm_hotel_message,
+                            destination.name,
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    Text(
+                        text = stringResource(
+                            R.string.documents_analyze_confirm_hotel_new_message,
+                            destination.name,
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Place,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.size(20.dp),
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            text = destination.name,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        val arrival = destination.arrivalDateTime?.toLocalDate()
+                        val departure = destination.departureDateTime?.toLocalDate()
+                        if (arrival != null || departure != null) {
+                            val dateRange = when {
+                                arrival != null && departure != null ->
+                                    "${arrival.format(dateFormatter)} – ${departure.format(dateFormatter)}"
+                                arrival != null -> arrival.format(dateFormatter)
+                                else -> requireNotNull(departure).format(dateFormatter)
+                            }
+                            Text(
+                                text = dateRange,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        existingHotel?.name?.ifBlank { null }?.let { hotelName ->
+                            Text(
+                                text = hotelName,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(stringResource(R.string.documents_analyze_confirm_apply))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.dialog_cancel))
+            }
+        },
+    )
 }
 
 @Composable
@@ -585,6 +764,63 @@ private fun ShareHotelSelectionDialogPreview() {
             ),
             onDestinationSelected = {},
             onSkip = {},
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun ShareFlightConfirmDialogPreview() {
+    WanderVaultTheme {
+        ShareFlightConfirmDialog(
+            flightInfo = FlightInfo(
+                airline = "Ryanair",
+                flightNumber = "FR1234",
+                bookingReference = "ABCDEF",
+                departurePlace = "BCN",
+                arrivalPlace = "CDG",
+            ),
+            matchedLeg = TransportLeg(
+                id = 1,
+                transportId = 1,
+                type = TransportType.FLIGHT,
+                company = "Ryanair",
+                flightNumber = "FR1234",
+                reservationConfirmationNumber = "ABCDEF",
+                stopName = "Paris CDG",
+            ),
+            onConfirm = {},
+            onDismiss = {},
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun ShareHotelConfirmDialogPreview() {
+    WanderVaultTheme {
+        ShareHotelConfirmDialog(
+            hotelInfo = HotelInfo(
+                name = "Hotel Colosseum",
+                address = "Via Sacra 1, Rome",
+                bookingReference = "HTL-99887",
+            ),
+            destination = Destination(
+                id = 1,
+                tripId = 1,
+                name = "Rome",
+                position = 0,
+                arrivalDateTime = LocalDate.of(2025, 7, 10).atStartOfDay(),
+                departureDateTime = LocalDate.of(2025, 7, 14).atStartOfDay(),
+            ),
+            existingHotel = Hotel(
+                destinationId = 1,
+                name = "Hotel Colosseum",
+                address = "",
+                reservationNumber = "HTL-99887",
+            ),
+            onConfirm = {},
+            onDismiss = {},
         )
     }
 }

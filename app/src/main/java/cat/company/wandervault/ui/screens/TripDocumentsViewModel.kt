@@ -615,7 +615,9 @@ class TripDocumentsViewModel(
 
     /**
      * Called when the user picks a [Destination] from the hotel disambiguation dialog.
-     * Applies [pendingHotelInfo] to that destination and dismisses the dialog.
+     * Loads the existing hotel for the destination and transitions to
+     * [AnalyzeDocumentUiState.HotelConfirm] so the user can review the changes before they
+     * are saved.
      */
     fun onHotelDestinationSelected(destination: Destination) {
         val hotelInfo = pendingHotelInfo ?: run {
@@ -626,11 +628,24 @@ class TripDocumentsViewModel(
         pendingHotelInfo = null
         viewModelScope.launch {
             try {
-                applyHotelInfoToDestination(hotelInfo, destination)
+                val existingHotel = getHotelForDestination(destination.id).first()
+                // Guard: only transition to HotelConfirm if the analyze flow has not been
+                // dismissed while the DB query was in-flight (e.g. user tapped Cancel).
+                // compareAndSet makes the check-and-update atomic.
+                val selectionState = _analyzeState.value
+                if (selectionState is AnalyzeDocumentUiState.HotelDestinationSelection) {
+                    _analyzeState.compareAndSet(
+                        expect = selectionState,
+                        update = AnalyzeDocumentUiState.HotelConfirm(
+                            hotelInfo = hotelInfo,
+                            destination = destination,
+                            existingHotel = existingHotel,
+                        ),
+                    )
+                }
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to apply hotel info to selected destination", e)
+                Log.e(TAG, "Failed to load hotel for selected destination", e)
                 setWriteError(DocumentsWriteError.Generic)
-            } finally {
                 dismissAnalyze()
             }
         }
@@ -660,7 +675,8 @@ class TripDocumentsViewModel(
 
     /**
      * Called when the user picks a [TransportLeg] from the flight disambiguation dialog.
-     * Applies [pendingFlightInfo] to the chosen leg and dismisses the dialog.
+     * Transitions to [AnalyzeDocumentUiState.FlightConfirm] so the user can review the changes
+     * before they are saved.
      */
     fun onFlightLegSelected(leg: TransportLeg) {
         val flightInfo = pendingFlightInfo ?: run {
@@ -669,16 +685,10 @@ class TripDocumentsViewModel(
             return
         }
         pendingFlightInfo = null
-        viewModelScope.launch {
-            try {
-                applyFlightInfoToLeg(flightInfo, leg)
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to apply flight info to selected leg", e)
-                setWriteError(DocumentsWriteError.Generic)
-            } finally {
-                dismissAnalyze()
-            }
-        }
+        _analyzeState.value = AnalyzeDocumentUiState.FlightConfirm(
+            flightInfo = flightInfo,
+            matchedLeg = leg,
+        )
     }
 
     /**
