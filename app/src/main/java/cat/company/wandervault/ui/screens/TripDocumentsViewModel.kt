@@ -553,8 +553,9 @@ class TripDocumentsViewModel(
      * matched destination before confirming. If no confident match, transitions to
      * [AnalyzeDocumentUiState.HotelDestinationSelection] so the user can pick the right destination.
      *
-     * For general trip info, the dialog is dismissed immediately and the info is applied in the
-     * background.
+     * For general trip info, transitions to [AnalyzeDocumentUiState.TripInfoConfirm] so the user
+     * can review the extracted text before it is saved as the trip description. Dismisses
+     * immediately when no relevant info was extracted.
      *
      * No-op when the analyze state is not [AnalyzeDocumentUiState.Result].
      */
@@ -590,24 +591,11 @@ class TripDocumentsViewModel(
                 }
             }
             else -> {
-                dismissAnalyze()
-                viewModelScope.launch {
-                    try {
-                        val relevantInfo = result.relevantTripInfo ?: return@launch
-                        val trip = getTrip(tripId).first()
-                        if (trip == null) {
-                            Log.w(TAG, "Trip $tripId not found; skipping description update for $documentName")
-                            return@launch
-                        }
-                        // Only set the AI description if one has not been set yet; preserve any
-                        // description the user or a previous document upload may have stored.
-                        if (trip.aiDescription == null) {
-                            saveTripDescription(trip, relevantInfo)
-                        }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Failed to apply analysis changes for trip $tripId", e)
-                        setWriteError(DocumentsWriteError.Generic)
-                    }
+                val relevantInfo = result.relevantTripInfo
+                if (relevantInfo == null) {
+                    dismissAnalyze()
+                } else {
+                    _analyzeState.value = AnalyzeDocumentUiState.TripInfoConfirm(relevantInfo)
                 }
             }
         }
@@ -722,6 +710,36 @@ class TripDocumentsViewModel(
         pendingFlightInfo = null
         pendingHotelInfo = null
         _analyzeState.value = null
+    }
+
+    /**
+     * Called when the user confirms the general trip-info change from the
+     * [AnalyzeDocumentUiState.TripInfoConfirm] dialog. Saves the extracted trip description
+     * (only when the trip does not already have one) and dismisses.
+     */
+    fun onTripInfoConfirmed() {
+        val state = _analyzeState.value as? AnalyzeDocumentUiState.TripInfoConfirm ?: run {
+            Log.w(TAG, "onTripInfoConfirmed called when not in TripInfoConfirm state; dismissing")
+            dismissAnalyze()
+            return
+        }
+        viewModelScope.launch {
+            try {
+                val trip = getTrip(tripId).first()
+                if (trip == null) {
+                    Log.w(TAG, "Trip $tripId not found after user confirmation; skipping description update")
+                } else if (trip.aiDescription == null) {
+                    // Only set the AI description if one has not been set yet; preserve any
+                    // description the user or a previous document upload may have stored.
+                    saveTripDescription(trip, state.relevantTripInfo)
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to save trip description for trip $tripId", e)
+                setWriteError(DocumentsWriteError.Generic)
+            } finally {
+                dismissAnalyze()
+            }
+        }
     }
 
     /**
