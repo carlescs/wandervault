@@ -1,7 +1,5 @@
 package cat.company.wandervault.ui.screens
 
-import android.content.ActivityNotFoundException
-import android.content.Intent
 import android.webkit.MimeTypeMap
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -88,8 +86,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.core.content.FileProvider
-import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cat.company.wandervault.R
 import cat.company.wandervault.domain.model.Destination
@@ -104,7 +100,6 @@ import cat.company.wandervault.domain.model.TripDocumentFolder
 import cat.company.wandervault.ui.theme.WanderVaultTheme
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
-import java.io.File
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
@@ -127,7 +122,6 @@ internal fun TripDocumentsTabContent(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    val noAppMessage = stringResource(R.string.documents_no_app_to_open)
 
     // Exit selection mode on back press when selection is active.
     val isSelectionMode = (uiState as? TripDocumentsUiState.Success)?.selectedDocumentIds?.isNotEmpty() == true
@@ -166,31 +160,7 @@ internal fun TripDocumentsTabContent(
         onMoveDocument = viewModel::moveDocument,
         onDeleteDocument = viewModel::removeDocument,
         onUploadFile = { filePicker.launch(arrayOf("*/*")) },
-        onOpenDocument = { document ->
-            try {
-                val uri = document.uri.toUri()
-                val contentUri = if (uri.scheme == "file") {
-                    val path = uri.path
-                        ?: throw IllegalArgumentException("File URI has no path: $uri")
-                    FileProvider.getUriForFile(
-                        context,
-                        "${context.packageName}.fileprovider",
-                        File(path),
-                    )
-                } else {
-                    uri
-                }
-                val intent = Intent(Intent.ACTION_VIEW).apply {
-                    setDataAndType(contentUri, document.mimeType.ifBlank { "*/*" })
-                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                }
-                context.startActivity(intent)
-            } catch (_: ActivityNotFoundException) {
-                android.widget.Toast.makeText(context, noAppMessage, android.widget.Toast.LENGTH_SHORT).show()
-            } catch (_: IllegalArgumentException) {
-                android.widget.Toast.makeText(context, noAppMessage, android.widget.Toast.LENGTH_SHORT).show()
-            }
-        },
+        onOpenDocument = { document -> openTripDocument(context, document) },
         onViewDocumentInfo = onNavigateToDocument,
         onAnalyzeDocument = viewModel::analyzeDocument,
         onAnalyzeApplyChanges = viewModel::applyAnalysisChanges,

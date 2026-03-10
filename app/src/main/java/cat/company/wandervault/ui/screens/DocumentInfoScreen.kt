@@ -1,7 +1,5 @@
 package cat.company.wandervault.ui.screens
 
-import android.content.ActivityNotFoundException
-import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,7 +35,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.core.content.FileProvider
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cat.company.wandervault.R
@@ -47,7 +44,6 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
-import java.io.File
 
 /**
  * Document Info screen entry point.
@@ -75,39 +71,7 @@ fun DocumentInfoScreen(
     DocumentInfoContent(
         uiState = uiState,
         onNavigateUp = onNavigateUp,
-        onOpenDocument = { document ->
-            try {
-                val uri = document.uri.toUri()
-                val contentUri = if (uri.scheme == "file") {
-                    val path = uri.path
-                        ?: throw IllegalArgumentException("File URI has no path: $uri")
-                    FileProvider.getUriForFile(
-                        context,
-                        "${context.packageName}.fileprovider",
-                        File(path),
-                    )
-                } else {
-                    uri
-                }
-                val intent = Intent(Intent.ACTION_VIEW).apply {
-                    setDataAndType(contentUri, document.mimeType.ifBlank { "*/*" })
-                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                }
-                context.startActivity(intent)
-            } catch (_: ActivityNotFoundException) {
-                android.widget.Toast.makeText(
-                    context,
-                    context.getString(R.string.documents_no_app_to_open),
-                    android.widget.Toast.LENGTH_SHORT,
-                ).show()
-            } catch (_: IllegalArgumentException) {
-                android.widget.Toast.makeText(
-                    context,
-                    context.getString(R.string.documents_no_app_to_open),
-                    android.widget.Toast.LENGTH_SHORT,
-                ).show()
-            }
-        },
+        onOpenDocument = { document -> openTripDocument(context, document) },
         modifier = modifier,
     )
 }
@@ -242,7 +206,12 @@ private fun DocumentInfoSuccessContent(
             }
             InfoRow(
                 label = stringResource(R.string.document_info_folder),
-                value = uiState.folderName ?: stringResource(R.string.document_info_folder_root),
+                value = uiState.folderName
+                    ?: if (uiState.document.folderId == null) {
+                        stringResource(R.string.document_info_folder_root)
+                    } else {
+                        stringResource(android.R.string.unknownName)
+                    },
             )
         }
 
