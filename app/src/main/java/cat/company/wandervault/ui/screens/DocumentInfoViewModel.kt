@@ -209,7 +209,7 @@ class DocumentInfoViewModel(
                         applyOrDisambiguateFlightInfo(result.flightInfo, documentName, tripId)
                     } catch (e: Exception) {
                         Log.e(TAG, "Failed to apply flight info for trip $tripId", e)
-                        dismissAnalyze()
+                        _analyzeState.value = AnalyzeDocumentUiState.Error(e.message ?: e.toString())
                     }
                 }
             }
@@ -219,7 +219,7 @@ class DocumentInfoViewModel(
                         applyOrDisambiguateHotelInfo(result.hotelInfo, documentName, tripId)
                     } catch (e: Exception) {
                         Log.e(TAG, "Failed to apply hotel info for trip $tripId", e)
-                        dismissAnalyze()
+                        _analyzeState.value = AnalyzeDocumentUiState.Error(e.message ?: e.toString())
                     }
                 }
             }
@@ -265,10 +265,10 @@ class DocumentInfoViewModel(
         viewModelScope.launch {
             try {
                 applyFlightInfoToLeg(state.flightInfo, state.matchedLeg)
+                dismissAnalyze()
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to apply flight info to confirmed leg", e)
-            } finally {
-                dismissAnalyze()
+                _analyzeState.value = AnalyzeDocumentUiState.Error(e.message ?: e.toString())
             }
         }
     }
@@ -302,7 +302,7 @@ class DocumentInfoViewModel(
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to load hotel for selected destination", e)
-                dismissAnalyze()
+                _analyzeState.value = AnalyzeDocumentUiState.Error(e.message ?: e.toString())
             }
         }
     }
@@ -320,10 +320,10 @@ class DocumentInfoViewModel(
         viewModelScope.launch {
             try {
                 applyHotelInfoToDestination(state.hotelInfo, state.destination)
+                dismissAnalyze()
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to apply hotel info to confirmed destination", e)
-            } finally {
-                dismissAnalyze()
+                _analyzeState.value = AnalyzeDocumentUiState.Error(e.message ?: e.toString())
             }
         }
     }
@@ -351,10 +351,10 @@ class DocumentInfoViewModel(
                 } else if (trip.aiDescription == null) {
                     saveTripDescription(trip, state.relevantTripInfo)
                 }
+                dismissAnalyze()
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to save trip description for trip $tripId", e)
-            } finally {
-                dismissAnalyze()
+                _analyzeState.value = AnalyzeDocumentUiState.Error(e.message ?: e.toString())
             }
         }
     }

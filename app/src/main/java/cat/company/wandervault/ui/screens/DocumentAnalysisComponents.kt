@@ -49,9 +49,9 @@ import java.time.format.FormatStyle
  * composition calls [android.app.Dialog.dismiss] on the underlying window, which asynchronously
  * fires the [android.content.DialogInterface.OnDismissListener] and therefore also invokes
  * [onDismissRequest]. If a separate dialog were used for each state the transition
- * Result → FlightConfirm / HotelConfirm / TripInfoConfirm would silently call [onDismiss] →
- * [DocumentInfoViewModel.dismissAnalyze], clearing [AnalyzeDocumentUiState] and preventing the
- * confirmation dialog from being displayed.
+ * Result → FlightConfirm / HotelConfirm / TripInfoConfirm would silently invoke [onDismiss],
+ * clearing the current [AnalyzeDocumentUiState] and preventing the confirmation dialog from being
+ * displayed.
  *
  * The dialog title, body, confirm button and dismiss button all adapt to [analyzeState]:
  * - [AnalyzeDocumentUiState.Loading] / [AnalyzeDocumentUiState.Downloading]: progress indicator.
