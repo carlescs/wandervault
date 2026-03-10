@@ -38,7 +38,7 @@ class DocumentInfoViewModel(
             if (document == null) {
                 flowOf(DocumentInfoUiState.NotFound)
             } else {
-                flow {
+                flow<DocumentInfoUiState> {
                     val fileSize = resolveFileSize(document.uri)
                     getAllFoldersForTrip(document.tripId).collect { folders ->
                         val folderName = document.folderId?.let { fid ->
