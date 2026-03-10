@@ -287,8 +287,9 @@ class TripDocumentsViewModel(
      * Matching priority:
      * 1. Leg whose [TransportLeg.flightNumber] matches the extracted flight number.
      * 2. Leg whose [TransportLeg.reservationConfirmationNumber] matches the extracted booking ref.
-     * 3. First FLIGHT leg with a blank [TransportLeg.flightNumber] (clearly incomplete data).
-     * 4. First FLIGHT leg found (last resort).
+     * 3. Leg whose owning destination's departure date matches the extracted [FlightInfo.departureDate].
+     * 4. First FLIGHT leg with a blank [TransportLeg.flightNumber] (clearly incomplete data).
+     * 5. First FLIGHT leg found (last resort).
      *
      * Only blank fields on the matched leg are updated; existing non-blank values are preserved.
      */
@@ -296,25 +297,33 @@ class TripDocumentsViewModel(
         flightInfo: FlightInfo,
         documentName: String,
     ) {
-        val allFlightLegs = getDestinationsForTrip(tripId).first()
-            .flatMap { dest -> dest.transport?.legs.orEmpty() }
-            .filter { it.type == TransportType.FLIGHT }
-        if (allFlightLegs.isEmpty()) {
+        // Keep destination context so that the departure date (priority 3) can be compared
+        // against the owning destination's departure time.
+        val destLegPairs = getDestinationsForTrip(tripId).first()
+            .flatMap { dest ->
+                dest.transport?.legs.orEmpty()
+                    .filter { it.type == TransportType.FLIGHT }
+                    .map { leg -> dest to leg }
+            }
+        if (destLegPairs.isEmpty()) {
             Log.d(TAG, "No flight legs in trip $tripId; skipping flight info from $documentName")
             return
         }
-        val matchedLeg = allFlightLegs.firstOrNull { leg ->
+        val matchedLeg = destLegPairs.firstOrNull { (_, leg) ->
             flightInfo.flightNumber != null &&
                 leg.flightNumber?.equals(flightInfo.flightNumber, ignoreCase = true) == true
-        } ?: allFlightLegs.firstOrNull { leg ->
+        }?.second ?: destLegPairs.firstOrNull { (_, leg) ->
             flightInfo.bookingReference != null &&
                 leg.reservationConfirmationNumber?.equals(
                     flightInfo.bookingReference,
                     ignoreCase = true,
                 ) == true
-        } ?: allFlightLegs.firstOrNull { leg ->
+        }?.second ?: destLegPairs.firstOrNull { (dest, _) ->
+            flightInfo.departureDate != null &&
+                dest.departureDateTime?.toLocalDate() == flightInfo.departureDate
+        }?.second ?: destLegPairs.firstOrNull { (_, leg) ->
             leg.flightNumber.isNullOrBlank()
-        } ?: allFlightLegs.first()
+        }?.second ?: destLegPairs.first().second
 
         // Only fill in fields that are currently blank; do not overwrite user-entered data.
         // FlightInfo.arrivalPlace maps to TransportLeg.stopName (the endpoint of the leg).
@@ -848,15 +857,21 @@ class TripDocumentsViewModel(
      * When there are no flight legs at all the info is silently skipped.
      */
     private suspend fun applyOrDisambiguateFlightInfo(flightInfo: FlightInfo, documentName: String) {
-        val allFlightLegs = getDestinationsForTrip(tripId).first()
-            .flatMap { dest -> dest.transport?.legs.orEmpty() }
-            .filter { it.type == TransportType.FLIGHT }
+        // Keep destination context for the departure-date tiebreaker used in candidate sorting.
+        val destLegPairs = getDestinationsForTrip(tripId).first()
+            .flatMap { dest ->
+                dest.transport?.legs.orEmpty()
+                    .filter { it.type == TransportType.FLIGHT }
+                    .map { leg -> dest to leg }
+            }
 
-        if (allFlightLegs.isEmpty()) {
+        if (destLegPairs.isEmpty()) {
             Log.d(TAG, "No flight legs in trip $tripId; skipping flight info from $documentName")
             dismissAnalyze()
             return
         }
+
+        val allFlightLegs = destLegPairs.map { (_, leg) -> leg }
 
         val confidentMatch = allFlightLegs.firstOrNull { leg ->
             flightInfo.flightNumber != null &&
@@ -876,34 +891,39 @@ class TripDocumentsViewModel(
             )
         } else {
             // Sort candidates by relevance: loose flight-number/booking-ref matches go first,
-            // then airline prefix matches, then the rest in their original (stable) order.
-            val sortedCandidates = allFlightLegs
+            // then airline prefix matches, then departure-date matches, then original order.
+            val sortedCandidates = destLegPairs
                 .withIndex()
                 .sortedWith(
-                    compareByDescending<IndexedValue<TransportLeg>> { indexed ->
+                    compareByDescending<IndexedValue<Pair<Destination, TransportLeg>>> { (_, pair) ->
                         !flightInfo.flightNumber.isNullOrBlank() &&
-                            indexed.value.flightNumber?.contains(
+                            pair.second.flightNumber?.contains(
                                 flightInfo.flightNumber,
                                 ignoreCase = true,
                             ) == true
-                    }.thenByDescending { indexed ->
+                    }.thenByDescending { (_, pair) ->
                         !flightInfo.bookingReference.isNullOrBlank() &&
-                            indexed.value.reservationConfirmationNumber?.contains(
+                            pair.second.reservationConfirmationNumber?.contains(
                                 flightInfo.bookingReference,
                                 ignoreCase = true,
                             ) == true
-                    }.thenByDescending { indexed ->
+                    }.thenByDescending { (_, pair) ->
                         !flightInfo.airline.isNullOrBlank() &&
-                            indexed.value.company?.contains(
+                            pair.second.company?.contains(
                                 flightInfo.airline,
                                 ignoreCase = true,
                             ) == true
-                    }.thenBy { indexed ->
+                    }.thenByDescending { (_, pair) ->
+                        // Destinations whose departure date matches the extracted flight date
+                        // are ranked above those with no date match.
+                        flightInfo.departureDate != null &&
+                            pair.first.departureDateTime?.toLocalDate() == flightInfo.departureDate
+                    }.thenBy { (index, _) ->
                         // Preserve original order among legs with equal relevance.
-                        indexed.index
+                        index
                     },
                 )
-                .map { it.value }
+                .map { it.value.second }
             pendingFlightInfo = flightInfo
             _analyzeState.value = AnalyzeDocumentUiState.FlightLegSelection(
                 flightInfo = flightInfo,
