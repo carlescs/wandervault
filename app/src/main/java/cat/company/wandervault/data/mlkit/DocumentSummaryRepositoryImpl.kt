@@ -8,8 +8,6 @@ import android.net.Uri
 import android.os.ParcelFileDescriptor
 import android.util.Log
 import cat.company.wandervault.domain.model.DocumentExtractionResult
-import cat.company.wandervault.domain.model.FlightInfo
-import cat.company.wandervault.domain.model.HotelInfo
 import cat.company.wandervault.domain.repository.DocumentSummaryRepository
 import com.google.mlkit.genai.common.DownloadStatus
 import com.google.mlkit.genai.common.FeatureStatus
@@ -26,8 +24,6 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.InputStream
-import java.time.LocalDate
-import java.time.format.DateTimeParseException
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
@@ -79,7 +75,7 @@ class DocumentSummaryRepositoryImpl(private val context: Context) : DocumentSumm
             val response = generationClient.generateContent(request)
             val rawOutput = response.candidates.firstOrNull()?.text
                 ?.trim() ?: return@withContext null
-            parseResponse(rawOutput)
+            parseDocumentResponse(rawOutput)
         }
     }
 
@@ -255,7 +251,7 @@ class DocumentSummaryRepositoryImpl(private val context: Context) : DocumentSumm
         appendLine(
             "- If it is a FLIGHT document (boarding pass, e-ticket, flight itinerary), " +
                 "output exactly one line: " +
-                "${FLIGHT_MARKER}<airline>|<flight number>|<booking reference>|<departure city>|<arrival city>",
+                "${FLIGHT_MARKER}<airline>|<flight number>|<booking reference>|<departure city>|<arrival city>|<departure date (YYYY-MM-DD)>",
         )
         appendLine(
             "- If it is a HOTEL document (booking confirmation, reservation, hotel voucher), " +
@@ -278,76 +274,8 @@ class DocumentSummaryRepositoryImpl(private val context: Context) : DocumentSumm
         appendLine("Document text:")
         append(documentText)
     }
-
-    /**
-     * Parses the two-section Gemini Nano response.
-     *
-     * Expected format:
-     * ```
-     * <summary text>
-     * ---
-     * FLIGHT|<airline>|<flight number>|<booking ref>|<departure>|<arrival>
-     * ```
-     * or
-     * ```
-     * <summary text>
-     * ---
-     * HOTEL|<hotel name>|<address>|<booking ref>
-     * ```
-     * or
-     * ```
-     * <summary text>
-     * ---
-     * <general trip info text or "None">
-     * ```
-     */
-    private fun parseResponse(raw: String): DocumentExtractionResult {
-        val parts = raw.split(SECTION_SEPARATOR, limit = 2)
-        val summary = parts.getOrNull(0)?.trim()?.ifBlank { null } ?: raw.trim()
-        val infoRaw = parts.getOrNull(1)?.trim()
-        if (infoRaw.isNullOrBlank() || infoRaw.equals("None", ignoreCase = true)) {
-            return DocumentExtractionResult(summary = summary)
-        }
-        // Use only the first non-blank line of section 2 to check for structured markers.
-        val infoFirstLine = infoRaw.lines().firstOrNull { it.isNotBlank() }?.trim()
-        if (infoFirstLine.isNullOrBlank()) {
-            return DocumentExtractionResult(summary = summary)
-        }
-        if (infoFirstLine.startsWith(FLIGHT_MARKER, ignoreCase = true)) {
-            val fields = infoFirstLine.substring(FLIGHT_MARKER.length).split("|")
-            return DocumentExtractionResult(
-                summary = summary,
-                flightInfo = FlightInfo(
-                    airline = fields.getOrNull(0)?.trim()?.ifBlank { null },
-                    flightNumber = fields.getOrNull(1)?.trim()?.ifBlank { null },
-                    bookingReference = fields.getOrNull(2)?.trim()?.ifBlank { null },
-                    departurePlace = fields.getOrNull(3)?.trim()?.ifBlank { null },
-                    arrivalPlace = fields.getOrNull(4)?.trim()?.ifBlank { null },
-                ),
-            )
-        }
-        if (infoFirstLine.startsWith(HOTEL_MARKER, ignoreCase = true)) {
-            val fields = infoFirstLine.substring(HOTEL_MARKER.length).split("|")
-            return DocumentExtractionResult(
-                summary = summary,
-                hotelInfo = HotelInfo(
-                    name = fields.getOrNull(0)?.trim()?.ifBlank { null },
-                    address = fields.getOrNull(1)?.trim()?.ifBlank { null },
-                    bookingReference = fields.getOrNull(2)?.trim()?.ifBlank { null },
-                    checkInDate = fields.getOrNull(3)?.trim()?.ifBlank { null }?.parseLocalDateOrNull(),
-                    checkOutDate = fields.getOrNull(4)?.trim()?.ifBlank { null }?.parseLocalDateOrNull(),
-                ),
-            )
-        }
-        // Fallback: treat the entire section 2 as general trip-relevant info (legacy behaviour).
-        return DocumentExtractionResult(summary = summary, relevantTripInfo = infoRaw)
-    }
-
     companion object {
         private const val TAG = "DocumentSummaryRepo"
-        private const val SECTION_SEPARATOR = "---"
-        private const val FLIGHT_MARKER = "FLIGHT|"
-        private const val HOTEL_MARKER = "HOTEL|"
 
         /** Maximum characters passed to Gemini Nano to stay within context limits. */
         private const val MAX_DOCUMENT_CHARS = 4_000
@@ -364,15 +292,5 @@ class DocumentSummaryRepositoryImpl(private val context: Context) : DocumentSumm
          * good OCR accuracy without excessive memory usage.
          */
         private const val RENDER_SCALE = 2
-
-        /**
-         * Parses an ISO-8601 date string (YYYY-MM-DD) into a [LocalDate], returning `null` if
-         * the string is malformed or represents an invalid date.
-         */
-        private fun String.parseLocalDateOrNull(): LocalDate? = try {
-            LocalDate.parse(this)
-        } catch (_: DateTimeParseException) {
-            null
-        }
     }
 }
