@@ -8,6 +8,7 @@ import cat.company.wandervault.domain.repository.TripDocumentRepository
 import cat.company.wandervault.domain.usecase.CopyDocumentToInternalStorageUseCase
 import cat.company.wandervault.domain.usecase.DeleteDocumentUseCase
 import cat.company.wandervault.domain.usecase.DeleteFolderUseCase
+import cat.company.wandervault.domain.usecase.GetDocumentByIdUseCase
 import cat.company.wandervault.domain.usecase.GetDocumentsInFolderUseCase
 import cat.company.wandervault.domain.usecase.GetRootDocumentsUseCase
 import cat.company.wandervault.domain.usecase.GetRootFoldersUseCase
@@ -45,6 +46,25 @@ class TripDocumentUseCaseTest {
         val result = GetRootFoldersUseCase(repository)(42).first()
 
         assertEquals(listOf(folder), result)
+    }
+
+    // ── GetDocumentByIdUseCase ────────────────────────────────────────────────
+
+    @Test
+    fun `GetDocumentByIdUseCase returns matching document`() = runTest {
+        val doc = TripDocument(id = 7, tripId = 1, folderId = 2, name = "ticket.pdf", uri = "uri", mimeType = "application/pdf")
+        repository.documents[2] = mutableListOf(doc)
+
+        val result = GetDocumentByIdUseCase(repository)(7).first()
+
+        assertEquals(doc, result)
+    }
+
+    @Test
+    fun `GetDocumentByIdUseCase returns null when document not found`() = runTest {
+        val result = GetDocumentByIdUseCase(repository)(999).first()
+
+        assertNull(result)
     }
 
     // ── GetSubFoldersUseCase ──────────────────────────────────────────────────
@@ -256,6 +276,12 @@ private class FakeTripDocumentRepository : TripDocumentRepository {
 
     override fun getRootDocuments(tripId: Int): Flow<List<TripDocument>> =
         flowOf(rootDocuments[tripId] ?: emptyList())
+
+    override fun getDocumentById(id: Int): Flow<TripDocument?> =
+        flowOf(
+            (documents.values.flatten() + rootDocuments.values.flatten())
+                .firstOrNull { it.id == id },
+        )
 
     override fun getAllFoldersForTrip(tripId: Int): Flow<List<TripDocumentFolder>> =
         flowOf(emptyList())

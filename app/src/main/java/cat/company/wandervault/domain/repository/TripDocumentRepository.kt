@@ -6,6 +6,9 @@ import kotlinx.coroutines.flow.Flow
 
 /** Repository for managing [TripDocumentFolder] and [TripDocument] data. */
 interface TripDocumentRepository {
+    /** Returns a [Flow] emitting the [TripDocument] with the given [id], or `null` if not found. */
+    fun getDocumentById(id: Int): Flow<TripDocument?>
+
     /** Returns a [Flow] emitting root-level folders for the given [tripId], ordered by name. */
     fun getRootFolders(tripId: Int): Flow<List<TripDocumentFolder>>
 

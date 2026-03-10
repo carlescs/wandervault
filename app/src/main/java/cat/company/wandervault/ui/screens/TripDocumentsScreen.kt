@@ -47,6 +47,7 @@ import androidx.compose.material.icons.filled.FindInPage
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Hotel
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.SelectAll
@@ -112,11 +113,13 @@ import java.time.format.FormatStyle
  *
  * @param tripId The ID of the trip whose documents are shown.
  * @param innerPadding Padding values provided by the parent [androidx.compose.material3.Scaffold].
+ * @param onNavigateToDocument Called with the document ID when the user selects "Info" for a document.
  */
 @Composable
 internal fun TripDocumentsTabContent(
     tripId: Int,
     innerPadding: PaddingValues,
+    onNavigateToDocument: (Int) -> Unit = {},
     viewModel: TripDocumentsViewModel = koinViewModel(
         key = "TripDocumentsViewModel:$tripId",
         parameters = { parametersOf(tripId) },
@@ -188,6 +191,7 @@ internal fun TripDocumentsTabContent(
                 android.widget.Toast.makeText(context, noAppMessage, android.widget.Toast.LENGTH_SHORT).show()
             }
         },
+        onViewDocumentInfo = onNavigateToDocument,
         onAnalyzeDocument = viewModel::analyzeDocument,
         onAnalyzeApplyChanges = viewModel::applyAnalysisChanges,
         onAnalyzeFlightLegSelected = viewModel::onFlightLegSelected,
@@ -228,6 +232,7 @@ internal fun TripDocumentsContent(
     onDeleteDocument: (TripDocument) -> Unit = {},
     onUploadFile: () -> Unit = {},
     onOpenDocument: (TripDocument) -> Unit = {},
+    onViewDocumentInfo: (Int) -> Unit = {},
     onAnalyzeDocument: (TripDocument) -> Unit = {},
     onAnalyzeApplyChanges: () -> Unit = {},
     onAnalyzeFlightLegSelected: (TransportLeg) -> Unit = {},
@@ -355,6 +360,7 @@ internal fun TripDocumentsContent(
                                 DocumentRow(
                                     document = document,
                                     onOpen = { onOpenDocument(document) },
+                                    onViewInfo = { onViewDocumentInfo(document.id) },
                                     onRename = { documentToRename = document },
                                     onMove = { documentToMove = document },
                                     onDelete = { documentToDelete = document },
@@ -806,6 +812,7 @@ private fun FolderRow(
 private fun DocumentRow(
     document: TripDocument,
     onOpen: () -> Unit,
+    onViewInfo: () -> Unit,
     onRename: () -> Unit,
     onMove: () -> Unit,
     onDelete: () -> Unit,
@@ -888,6 +895,14 @@ private fun DocumentRow(
                     expanded = menuExpanded,
                     onDismissRequest = { menuExpanded = false },
                 ) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.documents_info_action)) },
+                        onClick = {
+                            menuExpanded = false
+                            onViewInfo()
+                        },
+                        leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
+                    )
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.documents_analyze_action)) },
                         onClick = {
