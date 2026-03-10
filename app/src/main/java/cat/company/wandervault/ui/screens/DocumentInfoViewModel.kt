@@ -12,8 +12,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -40,20 +38,20 @@ class DocumentInfoViewModel(
             if (document == null) {
                 flowOf(DocumentInfoUiState.NotFound)
             } else {
-                flow {
+                flow<DocumentInfoUiState> {
                     val fileSize = resolveFileSize(document.uri)
-                    emitAll(
-                        getAllFoldersForTrip(document.tripId).map { folders ->
-                            val folderName = document.folderId?.let { fid ->
-                                folders.find { it.id == fid }?.name
-                            }
+                    getAllFoldersForTrip(document.tripId).collect { folders ->
+                        val folderName = document.folderId?.let { fid ->
+                            folders.find { it.id == fid }?.name
+                        }
+                        emit(
                             DocumentInfoUiState.Success(
                                 document = document,
                                 fileSizeBytes = fileSize,
                                 folderName = folderName,
                             )
-                        },
-                    )
+                        )
+                    }
                 }
             }
         }
