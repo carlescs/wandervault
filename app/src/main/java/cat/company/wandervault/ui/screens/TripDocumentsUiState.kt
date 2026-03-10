@@ -109,6 +109,14 @@ sealed class AnalyzeDocumentUiState {
         val hotelInfo: HotelInfo,
         val candidates: List<Destination>,
     ) : AnalyzeDocumentUiState()
+
+    /**
+     * ML Kit extracted general trip-relevant information (no flight or hotel document detected).
+     * The user reviews what will be saved as the trip's AI description and confirms or cancels.
+     *
+     * @param relevantTripInfo The extracted general trip info text that will be saved.
+     */
+    data class TripInfoConfirm(val relevantTripInfo: String) : AnalyzeDocumentUiState()
 }
 
 /**

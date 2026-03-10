@@ -265,6 +265,8 @@
     <string name="documents_analyze_confirm_hotel_message">The following hotel at destination "%s" will be updated with the extracted information:</string>
     <string name="documents_analyze_confirm_hotel_new_message">A new hotel will be created for destination "%s" with the extracted information.</string>
     <string name="documents_analyze_confirm_apply">Apply</string>
+    <string name="documents_analyze_confirm_trip_info_title">Update trip description?</string>
+    <string name="documents_analyze_confirm_trip_info_message">The following information will be saved as the trip description:</string>
     <plurals name="documents_selection_count">
         <item quantity="one">%d selected</item>
         <item quantity="other">%d selected</item>

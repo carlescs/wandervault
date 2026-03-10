@@ -174,6 +174,7 @@ internal fun TripDocumentsTabContent(
         onAnalyzeFlightConfirmed = viewModel::onFlightConfirmed,
         onAnalyzeHotelDestinationSelected = viewModel::onHotelDestinationSelected,
         onAnalyzeHotelConfirmed = viewModel::onHotelConfirmed,
+        onAnalyzeTripInfoConfirmed = viewModel::onTripInfoConfirmed,
         onAnalyzeDismiss = viewModel::dismissAnalyze,
         onErrorDismiss = viewModel::clearError,
         onToggleDocumentSelection = viewModel::toggleDocumentSelection,
@@ -215,6 +216,7 @@ internal fun TripDocumentsContent(
     onAnalyzeFlightConfirmed: () -> Unit = {},
     onAnalyzeHotelDestinationSelected: (Destination) -> Unit = {},
     onAnalyzeHotelConfirmed: () -> Unit = {},
+    onAnalyzeTripInfoConfirmed: () -> Unit = {},
     onAnalyzeDismiss: () -> Unit = {},
     onErrorDismiss: () -> Unit = {},
     onToggleDocumentSelection: (TripDocument) -> Unit = {},
@@ -531,11 +533,11 @@ internal fun TripDocumentsContent(
 
     // Show the unified analysis dialog whenever an analysis is active. A single AlertDialog
     // composable is used for all states (Loading, Downloading, Result, FlightConfirm,
-    // HotelConfirm, FlightLegSelection, HotelDestinationSelection, Unavailable, Error) so
-    // that the same dialog window persists throughout the entire analysis flow. Replacing the
-    // dialog composable with a different one during a state transition (e.g. Result →
-    // FlightConfirm) would trigger the old dialog's onDismissRequest via the underlying
-    // android.app.Dialog.dismiss(), which would call dismissAnalyze() and prevent the
+    // HotelConfirm, TripInfoConfirm, FlightLegSelection, HotelDestinationSelection, Unavailable,
+    // Error) so that the same dialog window persists throughout the entire analysis flow.
+    // Replacing the dialog composable with a different one during a state transition (e.g. Result →
+    // FlightConfirm / TripInfoConfirm) would trigger the old dialog's onDismissRequest via the
+    // underlying android.app.Dialog.dismiss(), which would call dismissAnalyze() and prevent the
     // confirmation dialog from being shown.
     val analyzeState = (uiState as? TripDocumentsUiState.Success)?.analyzeState
     if (analyzeState != null) {
@@ -546,6 +548,7 @@ internal fun TripDocumentsContent(
             onFlightConfirmed = onAnalyzeFlightConfirmed,
             onHotelDestinationSelected = onAnalyzeHotelDestinationSelected,
             onHotelConfirmed = onAnalyzeHotelConfirmed,
+            onTripInfoConfirmed = onAnalyzeTripInfoConfirmed,
             onDismiss = onAnalyzeDismiss,
         )
     }
@@ -1063,7 +1066,7 @@ private fun buildFolderPath(
  * composition calls [android.app.Dialog.dismiss] on the underlying window, which asynchronously
  * fires the [android.content.DialogInterface.OnDismissListener] and therefore also invokes
  * [onDismissRequest]. If a separate dialog were used for each state the transition
- * Result → FlightConfirm / HotelConfirm would silently call [onDismiss] → [TripDocumentsViewModel.dismissAnalyze],
+ * Result → FlightConfirm / HotelConfirm / TripInfoConfirm would silently call [onDismiss] → [TripDocumentsViewModel.dismissAnalyze],
  * clearing [AnalyzeDocumentUiState] and preventing the confirmation dialog from being displayed.
  *
  * The dialog title, body, confirm button and dismiss button all adapt to [analyzeState]:
@@ -1072,6 +1075,8 @@ private fun buildFolderPath(
  * - [AnalyzeDocumentUiState.Unavailable] / [AnalyzeDocumentUiState.Error]: status message.
  * - [AnalyzeDocumentUiState.FlightConfirm] / [AnalyzeDocumentUiState.HotelConfirm]: extracted
  *   info alongside the matched leg / destination; "Confirm" button applies the changes.
+ * - [AnalyzeDocumentUiState.TripInfoConfirm]: extracted general trip info text; "Apply" button
+ *   saves it as the trip description.
  * - [AnalyzeDocumentUiState.FlightLegSelection] / [AnalyzeDocumentUiState.HotelDestinationSelection]:
  *   scrollable candidate list; tapping an item applies the changes and dismisses.
  */
@@ -1083,6 +1088,7 @@ private fun AnalyzeDocumentDialog(
     onFlightConfirmed: () -> Unit,
     onHotelDestinationSelected: (Destination) -> Unit,
     onHotelConfirmed: () -> Unit,
+    onTripInfoConfirmed: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     val dateFormatter = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
@@ -1092,6 +1098,7 @@ private fun AnalyzeDocumentDialog(
         is AnalyzeDocumentUiState.HotelDestinationSelection -> R.string.share_hotel_selection_title
         is AnalyzeDocumentUiState.FlightConfirm -> R.string.documents_analyze_confirm_flight_title
         is AnalyzeDocumentUiState.HotelConfirm -> R.string.documents_analyze_confirm_hotel_title
+        is AnalyzeDocumentUiState.TripInfoConfirm -> R.string.documents_analyze_confirm_trip_info_title
         else -> R.string.documents_analyze_title
     }
 
@@ -1443,6 +1450,19 @@ private fun AnalyzeDocumentDialog(
                             }
                         }
                     }
+
+                    is AnalyzeDocumentUiState.TripInfoConfirm -> {
+                        Text(
+                            text = stringResource(R.string.documents_analyze_confirm_trip_info_message),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        HorizontalDivider()
+                        Text(
+                            text = analyzeState.relevantTripInfo,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
                 }
             }
         },
@@ -1461,6 +1481,11 @@ private fun AnalyzeDocumentDialog(
                 }
                 analyzeState is AnalyzeDocumentUiState.HotelConfirm -> {
                     TextButton(onClick = onHotelConfirmed) {
+                        Text(stringResource(R.string.documents_analyze_confirm_apply))
+                    }
+                }
+                analyzeState is AnalyzeDocumentUiState.TripInfoConfirm -> {
+                    TextButton(onClick = onTripInfoConfirmed) {
                         Text(stringResource(R.string.documents_analyze_confirm_apply))
                     }
                 }
