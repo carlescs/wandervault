@@ -94,7 +94,6 @@ import cat.company.wandervault.R
 import cat.company.wandervault.domain.model.Destination
 import cat.company.wandervault.domain.model.DocumentExtractionResult
 import cat.company.wandervault.domain.model.FlightInfo
-import cat.company.wandervault.domain.model.Hotel as DomainHotel
 import cat.company.wandervault.domain.model.HotelInfo
 import cat.company.wandervault.domain.model.TransportLeg
 import cat.company.wandervault.domain.model.TransportType
@@ -547,51 +546,25 @@ internal fun TripDocumentsContent(
         )
     }
 
-    // Show the analysis dialog when an analysis is in progress or has a result.
-    // When the state is FlightLegSelection or HotelDestinationSelection, show dedicated pickers.
-    // When the state is FlightConfirm or HotelConfirm, show a confirmation dialog.
+    // Show the unified analysis dialog whenever an analysis is active. A single AlertDialog
+    // composable is used for all states (Loading, Downloading, Result, FlightConfirm,
+    // HotelConfirm, FlightLegSelection, HotelDestinationSelection, Unavailable, Error) so
+    // that the same dialog window persists throughout the entire analysis flow. Replacing the
+    // dialog composable with a different one during a state transition (e.g. Result →
+    // FlightConfirm) would trigger the old dialog's onDismissRequest via the underlying
+    // android.app.Dialog.dismiss(), which would call dismissAnalyze() and prevent the
+    // confirmation dialog from being shown.
     val analyzeState = (uiState as? TripDocumentsUiState.Success)?.analyzeState
-    when {
-        analyzeState is AnalyzeDocumentUiState.FlightConfirm -> {
-            AnalyzeFlightConfirmDialog(
-                flightInfo = analyzeState.flightInfo,
-                matchedLeg = analyzeState.matchedLeg,
-                onConfirm = onAnalyzeFlightConfirmed,
-                onDismiss = onAnalyzeDismiss,
-            )
-        }
-        analyzeState is AnalyzeDocumentUiState.FlightLegSelection -> {
-            AnalyzeFlightLegSelectionDialog(
-                flightInfo = analyzeState.flightInfo,
-                candidates = analyzeState.candidates,
-                onLegSelected = onAnalyzeFlightLegSelected,
-                onSkip = onAnalyzeDismiss,
-            )
-        }
-        analyzeState is AnalyzeDocumentUiState.HotelConfirm -> {
-            AnalyzeHotelConfirmDialog(
-                hotelInfo = analyzeState.hotelInfo,
-                destination = analyzeState.destination,
-                existingHotel = analyzeState.existingHotel,
-                onConfirm = onAnalyzeHotelConfirmed,
-                onDismiss = onAnalyzeDismiss,
-            )
-        }
-        analyzeState is AnalyzeDocumentUiState.HotelDestinationSelection -> {
-            AnalyzeHotelDestinationSelectionDialog(
-                hotelInfo = analyzeState.hotelInfo,
-                candidates = analyzeState.candidates,
-                onDestinationSelected = onAnalyzeHotelDestinationSelected,
-                onSkip = onAnalyzeDismiss,
-            )
-        }
-        analyzeState != null -> {
-            AnalyzeDocumentDialog(
-                analyzeState = analyzeState,
-                onApplyChanges = onAnalyzeApplyChanges,
-                onDismiss = onAnalyzeDismiss,
-            )
-        }
+    if (analyzeState != null) {
+        AnalyzeDocumentDialog(
+            analyzeState = analyzeState,
+            onApplyChanges = onAnalyzeApplyChanges,
+            onFlightLegSelected = onAnalyzeFlightLegSelected,
+            onFlightConfirmed = onAnalyzeFlightConfirmed,
+            onHotelDestinationSelected = onAnalyzeHotelDestinationSelected,
+            onHotelConfirmed = onAnalyzeHotelConfirmed,
+            onDismiss = onAnalyzeDismiss,
+        )
     }
 
     // Show a dialog when a write operation fails (e.g. duplicate name).
@@ -1084,35 +1057,59 @@ private fun buildFolderPath(
 }
 
 /**
- * A dialog that shows the result of an in-progress or completed ML Kit document analysis.
+ * A single unified dialog that covers the entire document-analysis flow. Keeping one [AlertDialog]
+ * composable alive for the lifetime of the analysis (rather than swapping between separate
+ * composables per state) prevents a subtle Android bug: removing a Compose [AlertDialog] from the
+ * composition calls [android.app.Dialog.dismiss] on the underlying window, which asynchronously
+ * fires the [android.content.DialogInterface.OnDismissListener] and therefore also invokes
+ * [onDismissRequest]. If a separate dialog were used for each state the transition
+ * Result → FlightConfirm / HotelConfirm would silently call [onDismiss] → [TripDocumentsViewModel.dismissAnalyze],
+ * clearing [AnalyzeDocumentUiState] and preventing the confirmation dialog from being displayed.
  *
- * - While [analyzeState] is [AnalyzeDocumentUiState.Loading], a progress indicator is shown.
- * - While [analyzeState] is [AnalyzeDocumentUiState.Downloading], a progress indicator is shown
- *   together with the amount of model data downloaded so far.
- * - When [analyzeState] is [AnalyzeDocumentUiState.Result], the document summary and any
- *   proposed trip changes are displayed. If there are applicable changes, [onApplyChanges] is
- *   offered as an action.
- * - When [analyzeState] is [AnalyzeDocumentUiState.Unavailable], an informational message is
- *   shown explaining that AI analysis is not available on this device.
- * - When [analyzeState] is [AnalyzeDocumentUiState.Error], an error message with a retry hint
- *   is shown. If the error carries a [AnalyzeDocumentUiState.Error.message], it is shown below
- *   the generic error text to help diagnose the problem.
+ * The dialog title, body, confirm button and dismiss button all adapt to [analyzeState]:
+ * - [AnalyzeDocumentUiState.Loading] / [AnalyzeDocumentUiState.Downloading]: progress indicator.
+ * - [AnalyzeDocumentUiState.Result]: summary + optional "Apply Changes" button.
+ * - [AnalyzeDocumentUiState.Unavailable] / [AnalyzeDocumentUiState.Error]: status message.
+ * - [AnalyzeDocumentUiState.FlightConfirm] / [AnalyzeDocumentUiState.HotelConfirm]: extracted
+ *   info alongside the matched leg / destination; "Confirm" button applies the changes.
+ * - [AnalyzeDocumentUiState.FlightLegSelection] / [AnalyzeDocumentUiState.HotelDestinationSelection]:
+ *   scrollable candidate list; tapping an item applies the changes and dismisses.
  */
 @Composable
 private fun AnalyzeDocumentDialog(
     analyzeState: AnalyzeDocumentUiState,
     onApplyChanges: () -> Unit,
+    onFlightLegSelected: (TransportLeg) -> Unit,
+    onFlightConfirmed: () -> Unit,
+    onHotelDestinationSelected: (Destination) -> Unit,
+    onHotelConfirmed: () -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val dateFormatter = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
+
+    val titleRes = when (analyzeState) {
+        is AnalyzeDocumentUiState.FlightLegSelection -> R.string.share_flight_selection_title
+        is AnalyzeDocumentUiState.HotelDestinationSelection -> R.string.share_hotel_selection_title
+        is AnalyzeDocumentUiState.FlightConfirm -> R.string.documents_analyze_confirm_flight_title
+        is AnalyzeDocumentUiState.HotelConfirm -> R.string.documents_analyze_confirm_hotel_title
+        else -> R.string.documents_analyze_title
+    }
+
+    // FlightLegSelection and HotelDestinationSelection use an inner LazyColumn which must not be
+    // nested inside a verticalScroll container.
+    val scrollState = rememberScrollState()
+    val useScroll = analyzeState !is AnalyzeDocumentUiState.FlightLegSelection &&
+        analyzeState !is AnalyzeDocumentUiState.HotelDestinationSelection
+
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.documents_analyze_title)) },
+        title = { Text(stringResource(titleRes)) },
         text = {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(min = 48.dp)
-                    .verticalScroll(rememberScrollState()),
+                    .then(if (useScroll) Modifier.verticalScroll(scrollState) else Modifier),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 when (analyzeState) {
@@ -1172,22 +1169,6 @@ private fun AnalyzeDocumentDialog(
                         }
                     }
 
-                    is AnalyzeDocumentUiState.FlightLegSelection -> {
-                        // Handled separately by AnalyzeFlightLegSelectionDialog; not reached here.
-                    }
-
-                    is AnalyzeDocumentUiState.HotelDestinationSelection -> {
-                        // Handled separately by AnalyzeHotelDestinationSelectionDialog; not reached here.
-                    }
-
-                    is AnalyzeDocumentUiState.FlightConfirm -> {
-                        // Handled separately by AnalyzeFlightConfirmDialog; not reached here.
-                    }
-
-                    is AnalyzeDocumentUiState.HotelConfirm -> {
-                        // Handled separately by AnalyzeHotelConfirmDialog; not reached here.
-                    }
-
                     is AnalyzeDocumentUiState.Result -> {
                         val extraction = analyzeState.extractionResult
                         // Summary section
@@ -1245,56 +1226,19 @@ private fun AnalyzeDocumentDialog(
                             }
                         }
                     }
-                }
-            }
-        },
-        confirmButton = {
-            val result = analyzeState as? AnalyzeDocumentUiState.Result
-            if (result?.extractionResult?.hasProposedChanges() == true) {
-                TextButton(onClick = onApplyChanges) {
-                    Text(stringResource(R.string.documents_analyze_apply_changes))
-                }
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.dialog_cancel))
-            }
-        },
-    )
-}
 
-/**
- * A dialog shown when ML Kit extracted flight information from an analyzed document but could not
- * confidently determine which flight leg to update. The user selects one of [candidates] or skips.
- */
-@Composable
-private fun AnalyzeFlightLegSelectionDialog(
-    flightInfo: FlightInfo,
-    candidates: List<TransportLeg>,
-    onLegSelected: (TransportLeg) -> Unit,
-    onSkip: () -> Unit,
-) {
-    AlertDialog(
-        onDismissRequest = onSkip,
-        title = { Text(stringResource(R.string.share_flight_selection_title)) },
-        text = {
-            Column {
-                AnalyzeFlightInfoSummary(flightInfo = flightInfo)
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = stringResource(R.string.share_flight_selection_message),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                LazyColumn(modifier = Modifier.heightIn(max = 280.dp)) {
-                    items(candidates) { leg ->
+                    is AnalyzeDocumentUiState.FlightConfirm -> {
+                        AnalyzeFlightInfoSummary(flightInfo = analyzeState.flightInfo)
+                        Text(
+                            text = stringResource(R.string.documents_analyze_confirm_flight_message),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        HorizontalDivider()
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { onLegSelected(leg) }
-                                .padding(vertical = 10.dp, horizontal = 4.dp),
+                                .padding(vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Icon(
@@ -1304,15 +1248,31 @@ private fun AnalyzeFlightLegSelectionDialog(
                                 modifier = Modifier.padding(end = 12.dp),
                             )
                             Column {
-                                val label = listOfNotNull(leg.company, leg.flightNumber)
-                                    .joinToString(" ")
+                                val legLabel = listOfNotNull(
+                                    analyzeState.matchedLeg.company,
+                                    analyzeState.matchedLeg.flightNumber,
+                                ).joinToString(" ")
                                     .ifBlank { stringResource(R.string.share_unnamed_flight_leg) }
-                                Text(text = label, style = MaterialTheme.typography.bodyMedium)
-                                if (!leg.reservationConfirmationNumber.isNullOrBlank()) {
+                                Text(
+                                    text = legLabel,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                                if (!analyzeState.matchedLeg.reservationConfirmationNumber.isNullOrBlank()) {
                                     Text(
                                         text = stringResource(
                                             R.string.documents_analyze_ref,
-                                            leg.reservationConfirmationNumber,
+                                            analyzeState.matchedLeg.reservationConfirmationNumber,
+                                        ),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                                if (!analyzeState.matchedLeg.stopName.isNullOrBlank()) {
+                                    Text(
+                                        text = stringResource(
+                                            R.string.documents_analyze_to,
+                                            analyzeState.matchedLeg.stopName,
                                         ),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -1320,15 +1280,201 @@ private fun AnalyzeFlightLegSelectionDialog(
                                 }
                             }
                         }
+                    }
+
+                    is AnalyzeDocumentUiState.HotelConfirm -> {
+                        AnalyzeHotelInfoSummary(hotelInfo = analyzeState.hotelInfo)
+                        if (analyzeState.existingHotel != null) {
+                            Text(
+                                text = stringResource(
+                                    R.string.documents_analyze_confirm_hotel_message,
+                                    analyzeState.destination.name,
+                                ),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        } else {
+                            Text(
+                                text = stringResource(
+                                    R.string.documents_analyze_confirm_hotel_new_message,
+                                    analyzeState.destination.name,
+                                ),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                         HorizontalDivider()
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Place,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.secondary,
+                                modifier = Modifier.padding(end = 12.dp),
+                            )
+                            Column {
+                                Text(
+                                    text = analyzeState.destination.name,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                                val arrival = analyzeState.destination.arrivalDateTime?.toLocalDate()
+                                val departure = analyzeState.destination.departureDateTime?.toLocalDate()
+                                if (arrival != null || departure != null) {
+                                    val dateRange = when {
+                                        arrival != null && departure != null ->
+                                            "${arrival.format(dateFormatter)} – ${departure.format(dateFormatter)}"
+                                        arrival != null -> arrival.format(dateFormatter)
+                                        else -> requireNotNull(departure).format(dateFormatter)
+                                    }
+                                    Text(
+                                        text = dateRange,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                                analyzeState.existingHotel?.name?.ifBlank { null }?.let { hotelName ->
+                                    Text(
+                                        text = hotelName,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    is AnalyzeDocumentUiState.FlightLegSelection -> {
+                        AnalyzeFlightInfoSummary(flightInfo = analyzeState.flightInfo)
+                        Text(
+                            text = stringResource(R.string.share_flight_selection_message),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        LazyColumn(modifier = Modifier.heightIn(max = 280.dp)) {
+                            items(analyzeState.candidates) { leg ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { onFlightLegSelected(leg) }
+                                        .padding(vertical = 10.dp, horizontal = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.AirplanemodeActive,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.secondary,
+                                        modifier = Modifier.padding(end = 12.dp),
+                                    )
+                                    Column {
+                                        val label = listOfNotNull(leg.company, leg.flightNumber)
+                                            .joinToString(" ")
+                                            .ifBlank { stringResource(R.string.share_unnamed_flight_leg) }
+                                        Text(text = label, style = MaterialTheme.typography.bodyMedium)
+                                        if (!leg.reservationConfirmationNumber.isNullOrBlank()) {
+                                            Text(
+                                                text = stringResource(
+                                                    R.string.documents_analyze_ref,
+                                                    leg.reservationConfirmationNumber,
+                                                ),
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
+                                    }
+                                }
+                                HorizontalDivider()
+                            }
+                        }
+                    }
+
+                    is AnalyzeDocumentUiState.HotelDestinationSelection -> {
+                        AnalyzeHotelInfoSummary(hotelInfo = analyzeState.hotelInfo)
+                        Text(
+                            text = stringResource(R.string.share_hotel_selection_message),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        LazyColumn(modifier = Modifier.heightIn(max = 280.dp)) {
+                            items(analyzeState.candidates) { destination ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { onHotelDestinationSelected(destination) }
+                                        .padding(vertical = 10.dp, horizontal = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Place,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.secondary,
+                                        modifier = Modifier
+                                            .padding(end = 12.dp),
+                                    )
+                                    Column {
+                                        Text(
+                                            text = destination.name,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                        val arrival = destination.arrivalDateTime?.toLocalDate()
+                                        val departure = destination.departureDateTime?.toLocalDate()
+                                        if (arrival != null || departure != null) {
+                                            val dateRange = when {
+                                                arrival != null && departure != null ->
+                                                    "${arrival.format(dateFormatter)} – ${departure.format(dateFormatter)}"
+                                                arrival != null -> arrival.format(dateFormatter)
+                                                else -> requireNotNull(departure).format(dateFormatter)
+                                            }
+                                            Text(
+                                                text = dateRange,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
+                                    }
+                                }
+                                HorizontalDivider()
+                            }
+                        }
                     }
                 }
             }
         },
-        confirmButton = {},
+        confirmButton = {
+            when {
+                analyzeState is AnalyzeDocumentUiState.Result &&
+                    analyzeState.extractionResult.hasProposedChanges() -> {
+                    TextButton(onClick = onApplyChanges) {
+                        Text(stringResource(R.string.documents_analyze_apply_changes))
+                    }
+                }
+                analyzeState is AnalyzeDocumentUiState.FlightConfirm -> {
+                    TextButton(onClick = onFlightConfirmed) {
+                        Text(stringResource(R.string.documents_analyze_confirm_apply))
+                    }
+                }
+                analyzeState is AnalyzeDocumentUiState.HotelConfirm -> {
+                    TextButton(onClick = onHotelConfirmed) {
+                        Text(stringResource(R.string.documents_analyze_confirm_apply))
+                    }
+                }
+            }
+        },
         dismissButton = {
-            TextButton(onClick = onSkip) {
-                Text(stringResource(R.string.share_skip))
+            TextButton(onClick = onDismiss) {
+                val labelRes = when (analyzeState) {
+                    is AnalyzeDocumentUiState.FlightLegSelection,
+                    is AnalyzeDocumentUiState.HotelDestinationSelection,
+                    -> R.string.share_skip
+                    else -> R.string.dialog_cancel
+                }
+                Text(stringResource(labelRes))
             }
         },
     )
@@ -1362,263 +1508,6 @@ private fun AnalyzeFlightInfoSummary(flightInfo: FlightInfo, modifier: Modifier 
             }
         }
     }
-}
-
-/**
- * A dialog shown when ML Kit extracted hotel information from an analyzed document but could not
- * confidently determine which destination to update. The user selects one of [candidates] or skips.
- */
-@Composable
-private fun AnalyzeHotelDestinationSelectionDialog(
-    hotelInfo: HotelInfo,
-    candidates: List<Destination>,
-    onDestinationSelected: (Destination) -> Unit,
-    onSkip: () -> Unit,
-) {
-    val dateFormatter = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
-    AlertDialog(
-        onDismissRequest = onSkip,
-        title = { Text(stringResource(R.string.share_hotel_selection_title)) },
-        text = {
-            Column {
-                AnalyzeHotelInfoSummary(hotelInfo = hotelInfo)
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = stringResource(R.string.share_hotel_selection_message),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                LazyColumn(modifier = Modifier.heightIn(max = 280.dp)) {
-                    items(candidates) { destination ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { onDestinationSelected(destination) }
-                                .padding(vertical = 10.dp, horizontal = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Place,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.secondary,
-                                modifier = Modifier
-                                    .padding(end = 12.dp),
-                            )
-                            Column {
-                                Text(
-                                    text = destination.name,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                                val arrival = destination.arrivalDateTime?.toLocalDate()
-                                val departure = destination.departureDateTime?.toLocalDate()
-                                if (arrival != null || departure != null) {
-                                    val dateRange = when {
-                                        arrival != null && departure != null ->
-                                            "${arrival.format(dateFormatter)} – ${departure.format(dateFormatter)}"
-                                        arrival != null -> arrival.format(dateFormatter)
-                                        else -> requireNotNull(departure).format(dateFormatter)
-                                    }
-                                    Text(
-                                        text = dateRange,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
-                            }
-                        }
-                        HorizontalDivider()
-                    }
-                }
-            }
-        },
-        confirmButton = {},
-        dismissButton = {
-            TextButton(onClick = onSkip) {
-                Text(stringResource(R.string.share_skip))
-            }
-        },
-    )
-}
-
-/**
- * A dialog shown when ML Kit extracted flight information and found a confident match in the
- * trip's itinerary. The user reviews [matchedLeg] and [flightInfo] before confirming or cancelling.
- */
-@Composable
-private fun AnalyzeFlightConfirmDialog(
-    flightInfo: FlightInfo,
-    matchedLeg: TransportLeg,
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit,
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.documents_analyze_confirm_flight_title)) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                AnalyzeFlightInfoSummary(flightInfo = flightInfo)
-                Text(
-                    text = stringResource(R.string.documents_analyze_confirm_flight_message),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                HorizontalDivider()
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.AirplanemodeActive,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.secondary,
-                        modifier = Modifier.padding(end = 12.dp),
-                    )
-                    Column {
-                        val legLabel = listOfNotNull(matchedLeg.company, matchedLeg.flightNumber)
-                            .joinToString(" ")
-                            .ifBlank { stringResource(R.string.share_unnamed_flight_leg) }
-                        Text(
-                            text = legLabel,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold,
-                        )
-                        if (!matchedLeg.reservationConfirmationNumber.isNullOrBlank()) {
-                            Text(
-                                text = stringResource(
-                                    R.string.documents_analyze_ref,
-                                    matchedLeg.reservationConfirmationNumber,
-                                ),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        if (!matchedLeg.stopName.isNullOrBlank()) {
-                            Text(
-                                text = stringResource(
-                                    R.string.documents_analyze_to,
-                                    matchedLeg.stopName,
-                                ),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onConfirm) {
-                Text(stringResource(R.string.documents_analyze_confirm_apply))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.dialog_cancel))
-            }
-        },
-    )
-}
-
-/**
- * A dialog shown when ML Kit extracted hotel information and found a confident match in the
- * trip's itinerary. The user reviews [destination] / [existingHotel] and [hotelInfo] before
- * confirming or cancelling.
- */
-@Composable
-private fun AnalyzeHotelConfirmDialog(
-    hotelInfo: HotelInfo,
-    destination: Destination,
-    existingHotel: DomainHotel?,
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit,
-) {
-    val dateFormatter = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.documents_analyze_confirm_hotel_title)) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                AnalyzeHotelInfoSummary(hotelInfo = hotelInfo)
-                if (existingHotel != null) {
-                    Text(
-                        text = stringResource(
-                            R.string.documents_analyze_confirm_hotel_message,
-                            destination.name,
-                        ),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                } else {
-                    Text(
-                        text = stringResource(
-                            R.string.documents_analyze_confirm_hotel_new_message,
-                            destination.name,
-                        ),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                HorizontalDivider()
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Place,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.secondary,
-                        modifier = Modifier.padding(end = 12.dp),
-                    )
-                    Column {
-                        Text(
-                            text = destination.name,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold,
-                        )
-                        val arrival = destination.arrivalDateTime?.toLocalDate()
-                        val departure = destination.departureDateTime?.toLocalDate()
-                        if (arrival != null || departure != null) {
-                            val dateRange = when {
-                                arrival != null && departure != null ->
-                                    "${arrival.format(dateFormatter)} – ${departure.format(dateFormatter)}"
-                                arrival != null -> arrival.format(dateFormatter)
-                                else -> requireNotNull(departure).format(dateFormatter)
-                            }
-                            Text(
-                                text = dateRange,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        existingHotel?.name?.ifBlank { null }?.let { hotelName ->
-                            Text(
-                                text = hotelName,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onConfirm) {
-                Text(stringResource(R.string.documents_analyze_confirm_apply))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.dialog_cancel))
-            }
-        },
-    )
 }
 
 @Composable
