@@ -131,6 +131,12 @@ internal fun TripDocumentsTabContent(
         viewModel.clearSelection()
     }
 
+    // Navigate up one folder level on back press when inside a subfolder (and not in selection mode).
+    val isInFolder = (uiState as? TripDocumentsUiState.Success)?.currentFolder != null
+    BackHandler(enabled = isInFolder && !isSelectionMode) {
+        viewModel.navigateUp()
+    }
+
     val filePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument(),
     ) { uri ->
