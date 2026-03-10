@@ -1063,7 +1063,7 @@ private fun buildFolderPath(
  * composition calls [android.app.Dialog.dismiss] on the underlying window, which asynchronously
  * fires the [android.content.DialogInterface.OnDismissListener] and therefore also invokes
  * [onDismissRequest]. If a separate dialog were used for each state the transition
- * Result → FlightConfirm / HotelConfirm would silently call [onDismiss] → [dismissAnalyze],
+ * Result → FlightConfirm / HotelConfirm would silently call [onDismiss] → [TripDocumentsViewModel.dismissAnalyze],
  * clearing [AnalyzeDocumentUiState] and preventing the confirmation dialog from being displayed.
  *
  * The dialog title, body, confirm button and dismiss button all adapt to [analyzeState]:
@@ -1350,13 +1350,11 @@ private fun AnalyzeDocumentDialog(
 
                     is AnalyzeDocumentUiState.FlightLegSelection -> {
                         AnalyzeFlightInfoSummary(flightInfo = analyzeState.flightInfo)
-                        Spacer(modifier = Modifier.height(8.dp))
                         Text(
                             text = stringResource(R.string.share_flight_selection_message),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
                         LazyColumn(modifier = Modifier.heightIn(max = 280.dp)) {
                             items(analyzeState.candidates) { leg ->
                                 Row(
@@ -1396,13 +1394,11 @@ private fun AnalyzeDocumentDialog(
 
                     is AnalyzeDocumentUiState.HotelDestinationSelection -> {
                         AnalyzeHotelInfoSummary(hotelInfo = analyzeState.hotelInfo)
-                        Spacer(modifier = Modifier.height(8.dp))
                         Text(
                             text = stringResource(R.string.share_hotel_selection_message),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
                         LazyColumn(modifier = Modifier.heightIn(max = 280.dp)) {
                             items(analyzeState.candidates) { destination ->
                                 Row(
