@@ -197,14 +197,26 @@ class ShareViewModel(
         viewModelScope.launch {
             try {
                 val existingHotel = getHotelForDestination(destination.id).first()
-                _uiState.value = ShareUiState.HotelConfirm(
-                    hotelInfo = hotelInfo,
-                    destination = destination,
-                    existingHotel = existingHotel,
-                )
+                // Guard against the user skipping/dismissing while the DB query was in-flight.
+                // compareAndSet ensures we only advance to HotelConfirm if the state has not
+                // been modified since we captured it (e.g. by onDisambiguationSkipped()).
+                val selectionState = _uiState.value
+                if (selectionState is ShareUiState.HotelDestinationSelection) {
+                    _uiState.compareAndSet(
+                        expect = selectionState,
+                        update = ShareUiState.HotelConfirm(
+                            hotelInfo = hotelInfo,
+                            destination = destination,
+                            existingHotel = existingHotel,
+                        ),
+                    )
+                }
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to load hotel for selected destination", e)
-                _uiState.value = ShareUiState.Done
+                val selectionState = _uiState.value
+                if (selectionState is ShareUiState.HotelDestinationSelection) {
+                    _uiState.compareAndSet(expect = selectionState, update = ShareUiState.Done)
+                }
             }
         }
     }

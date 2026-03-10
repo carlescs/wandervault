@@ -629,14 +629,20 @@ class TripDocumentsViewModel(
         viewModelScope.launch {
             try {
                 val existingHotel = getHotelForDestination(destination.id).first()
-                // On success: transition to HotelConfirm (keep dialog open for user to confirm).
-                // dismissAnalyze() is intentionally NOT called here; it is called later in
-                // onHotelConfirmed() or when the user cancels.
-                _analyzeState.value = AnalyzeDocumentUiState.HotelConfirm(
-                    hotelInfo = hotelInfo,
-                    destination = destination,
-                    existingHotel = existingHotel,
-                )
+                // Guard: only transition to HotelConfirm if the analyze flow has not been
+                // dismissed while the DB query was in-flight (e.g. user tapped Cancel).
+                // compareAndSet makes the check-and-update atomic.
+                val selectionState = _analyzeState.value
+                if (selectionState is AnalyzeDocumentUiState.HotelDestinationSelection) {
+                    _analyzeState.compareAndSet(
+                        expect = selectionState,
+                        update = AnalyzeDocumentUiState.HotelConfirm(
+                            hotelInfo = hotelInfo,
+                            destination = destination,
+                            existingHotel = existingHotel,
+                        ),
+                    )
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to load hotel for selected destination", e)
                 setWriteError(DocumentsWriteError.Generic)
