@@ -56,6 +56,14 @@ val presentationModule = module {
             documentId = params.get(),
             getDocumentById = get(),
             getAllFoldersForTrip = get(),
+            summarizeDocument = get(),
+            updateDocument = get(),
+            getTrip = get(),
+            saveTripDescription = get(),
+            getDestinationsForTrip = get(),
+            getHotelForDestination = get(),
+            saveHotel = get(),
+            updateTransportLeg = get(),
         )
     }
     viewModel { params ->

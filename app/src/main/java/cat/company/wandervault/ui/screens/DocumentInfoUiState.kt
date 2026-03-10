@@ -15,11 +15,14 @@ sealed class DocumentInfoUiState {
      * @param document The document whose information is displayed.
      * @param fileSizeBytes The size of the document file in bytes, or `null` if unavailable.
      * @param folderName The name of the folder this document belongs to, or `null` for root-level documents.
+     * @param analyzeState The current state of an in-progress or completed document analysis,
+     *   or `null` when no analysis is active. Call [DocumentInfoViewModel.dismissAnalyze] to dismiss.
      */
     data class Success(
         val document: TripDocument,
         val fileSizeBytes: Long? = null,
         val folderName: String? = null,
+        val analyzeState: AnalyzeDocumentUiState? = null,
     ) : DocumentInfoUiState()
 
     /** The requested document could not be found. */

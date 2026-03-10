@@ -138,8 +138,6 @@ sealed class TripDocumentsUiState {
      * @param allFolders All folders in the trip regardless of depth, used for the move-document picker.
      * @param writeError A one-off error from a failed write operation (create/rename/delete),
      *   or `null` when there is no pending error. Call [TripDocumentsViewModel.clearError] to dismiss.
-     * @param analyzeState The current state of an in-progress or completed document analysis,
-     *   or `null` when no analysis is active. Call [TripDocumentsViewModel.dismissAnalyze] to dismiss.
      * @param selectedDocumentIds IDs of documents currently selected in multi-select mode.
      *   Empty when no selection is active. Call [TripDocumentsViewModel.clearSelection] to exit selection mode.
      */
@@ -150,7 +148,6 @@ sealed class TripDocumentsUiState {
         val folderStack: List<TripDocumentFolder> = emptyList(),
         val allFolders: List<TripDocumentFolder> = emptyList(),
         val writeError: DocumentsWriteError? = null,
-        val analyzeState: AnalyzeDocumentUiState? = null,
         val selectedDocumentIds: Set<Int> = emptySet(),
     ) : TripDocumentsUiState()
 }
