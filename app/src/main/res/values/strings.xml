@@ -292,4 +292,5 @@
     <string name="document_info_no_ai_description">No AI description yet. Use the Analyze action to generate one.</string>
     <string name="document_info_preview_content_desc">Preview of %s</string>
     <string name="documents_info_action">Info</string>
+    <string name="documents_view_info_content_desc">View info: %s</string>
 </resources>
