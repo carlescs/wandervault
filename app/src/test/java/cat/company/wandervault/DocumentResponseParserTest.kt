@@ -204,7 +204,7 @@ class DocumentResponseParserTest {
     }
 
     @Test
-    fun `section 2 of 'None.' (with trailing period) produces no structured info`() {
+    fun `section 2 of 'None' with trailing period produces no structured info`() {
         val raw = "Summary.\n---\nNone."
 
         val result = parseDocumentResponse(raw)
