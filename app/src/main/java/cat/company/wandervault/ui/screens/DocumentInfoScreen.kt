@@ -252,7 +252,12 @@ private fun DocumentInfoSuccessContent(
         ),
     )
     val scope = rememberCoroutineScope()
-    val isSheetHidden by remember { derivedStateOf { scaffoldState.bottomSheetState.currentValue == SheetValue.Hidden } }
+    val isSheetHidden by remember {
+        derivedStateOf {
+            scaffoldState.bottomSheetState.currentValue == SheetValue.Hidden &&
+                scaffoldState.bottomSheetState.targetValue == SheetValue.Hidden
+        }
+    }
 
     Box(modifier = modifier.fillMaxSize().padding(innerPadding)) {
         BottomSheetScaffold(
