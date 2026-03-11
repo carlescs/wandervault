@@ -81,14 +81,7 @@ val presentationModule = module {
             updateDocument = get(),
             deleteDocument = get(),
             copyDocumentToInternalStorage = get(),
-            summarizeDocument = get(),
             getAllFoldersForTrip = get(),
-            getTrip = get(),
-            saveTripDescription = get(),
-            getDestinationsForTrip = get(),
-            getHotelForDestination = get(),
-            saveHotel = get(),
-            updateTransportLeg = get(),
         )
     }
     viewModel { params ->
