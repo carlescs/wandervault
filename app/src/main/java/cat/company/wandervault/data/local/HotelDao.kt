@@ -13,6 +13,9 @@ interface HotelDao {
     @Query("SELECT * FROM hotels WHERE destinationId = :destinationId")
     fun getByDestinationId(destinationId: Int): Flow<HotelEntity?>
 
+    @Query("SELECT * FROM hotels WHERE destinationId IN (:destinationIds)")
+    suspend fun getByDestinationIds(destinationIds: List<Int>): List<HotelEntity>
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(hotel: HotelEntity)
 

@@ -62,6 +62,7 @@ val presentationModule = module {
             saveTripDescription = get(),
             getDestinationsForTrip = get(),
             getHotelForDestination = get(),
+            getHotelsForDestinations = get(),
             saveHotel = get(),
             updateTransportLeg = get(),
         )

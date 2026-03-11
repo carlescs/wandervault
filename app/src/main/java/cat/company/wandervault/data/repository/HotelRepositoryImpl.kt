@@ -12,6 +12,9 @@ class HotelRepositoryImpl(private val dao: HotelDao) : HotelRepository {
     override fun getHotelForDestination(destinationId: Int): Flow<Hotel?> =
         dao.getByDestinationId(destinationId).map { it?.toDomain() }
 
+    override suspend fun getHotelsForDestinations(destinationIds: List<Int>): Map<Int, Hotel> =
+        dao.getByDestinationIds(destinationIds).associate { it.destinationId to it.toDomain() }
+
     override suspend fun saveHotel(hotel: Hotel) {
         if (hotel.id == 0) {
             dao.insert(hotel.toEntity())

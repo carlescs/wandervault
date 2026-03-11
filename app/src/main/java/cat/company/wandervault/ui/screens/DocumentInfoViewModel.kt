@@ -14,6 +14,7 @@ import cat.company.wandervault.domain.usecase.GetAllFoldersForTripUseCase
 import cat.company.wandervault.domain.usecase.GetDestinationsForTripUseCase
 import cat.company.wandervault.domain.usecase.GetDocumentByIdUseCase
 import cat.company.wandervault.domain.usecase.GetHotelForDestinationUseCase
+import cat.company.wandervault.domain.usecase.GetHotelsForDestinationsUseCase
 import cat.company.wandervault.domain.usecase.GetTripUseCase
 import cat.company.wandervault.domain.usecase.SaveHotelUseCase
 import cat.company.wandervault.domain.usecase.SaveTripDescriptionUseCase
@@ -51,7 +52,8 @@ import java.io.File
  * @param getTrip Use-case that retrieves the parent trip.
  * @param saveTripDescription Use-case that saves the trip AI description.
  * @param getDestinationsForTrip Use-case that streams destinations for the trip.
- * @param getHotelForDestination Use-case that streams the hotel for a destination.
+ * @param getHotelForDestination Use-case that streams the hotel for a single destination.
+ * @param getHotelsForDestinations Use-case that fetches hotels for multiple destinations in one query.
  * @param saveHotel Use-case that saves a hotel record.
  * @param updateTransportLeg Use-case that persists an updated transport leg.
  */
@@ -66,6 +68,7 @@ class DocumentInfoViewModel(
     private val saveTripDescription: SaveTripDescriptionUseCase,
     private val getDestinationsForTrip: GetDestinationsForTripUseCase,
     private val getHotelForDestination: GetHotelForDestinationUseCase,
+    private val getHotelsForDestinations: GetHotelsForDestinationsUseCase,
     private val saveHotel: SaveHotelUseCase,
     private val updateTransportLeg: UpdateTransportLegUseCase,
 ) : ViewModel() {
@@ -169,9 +172,13 @@ class DocumentInfoViewModel(
                 return@launch
             }
 
-            // Persist the refreshed summary on the document record (best-effort).
+            // Reload the latest document before updating to avoid clobbering concurrent changes
+            // (e.g. rename/move) that may have happened while analysis was running (best-effort).
             try {
-                updateDocument(document.copy(summary = result.summary))
+                val latestDocument = getDocumentById(documentId).first()
+                if (latestDocument != null) {
+                    updateDocument(latestDocument.copy(summary = result.summary))
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to persist refreshed summary for ${document.name}", e)
             }
@@ -487,8 +494,9 @@ class DocumentInfoViewModel(
             return
         }
 
-        val destinationHotels = destinations.map { dest ->
-            dest to getHotelForDestination(dest.id).first()
+        val destinationHotels = run {
+            val hotelsByDestId = getHotelsForDestinations(destinations.map { it.id })
+            destinations.map { dest -> dest to hotelsByDestId[dest.id] }
         }
 
         val confidentMatch = destinationHotels.firstOrNull { (_, hotel) ->
