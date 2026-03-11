@@ -41,9 +41,7 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material3.AlertDialog
@@ -186,7 +184,6 @@ internal fun TripDocumentsTabContent(
         onMoveDocument = viewModel::moveDocument,
         onDeleteDocument = viewModel::removeDocument,
         onUploadFile = { filePicker.launch(arrayOf("*/*")) },
-        onOpenDocument = { document -> openTripDocument(context, document) },
         onViewDocumentInfo = onNavigateToDocument,
         onErrorDismiss = viewModel::clearError,
         onToggleDocumentSelection = viewModel::toggleDocumentSelection,
@@ -204,7 +201,7 @@ internal fun TripDocumentsTabContent(
  * Stateless presentation of the Documents tab content.
  *
  * Supports folder navigation, create/rename/delete dialogs, document rename/delete/move,
- * file upload (via [onUploadFile]), and document open (via [onOpenDocument]).
+ * file upload (via [onUploadFile]).
  * [onErrorDismiss] is called when the user acknowledges a transient writing error.
  * Multi-select mode is entered by long-pressing a document row; [onToggleDocumentSelection],
  * [onSelectAllDocuments], [onClearSelection], [onDeleteSelectedDocuments], and
@@ -226,7 +223,6 @@ internal fun TripDocumentsContent(
     onMoveDocument: (TripDocument, Int?) -> Unit = { _, _ -> },
     onDeleteDocument: (TripDocument) -> Unit = {},
     onUploadFile: () -> Unit = {},
-    onOpenDocument: (TripDocument) -> Unit = {},
     onViewDocumentInfo: (Int) -> Unit = {},
     onErrorDismiss: () -> Unit = {},
     onToggleDocumentSelection: (TripDocument) -> Unit = {},
@@ -350,7 +346,6 @@ internal fun TripDocumentsContent(
                             items(uiState.documents, key = { "doc-${it.id}" }) { document ->
                                 DocumentRow(
                                     document = document,
-                                    onOpen = { onOpenDocument(document) },
                                     onViewInfo = { onViewDocumentInfo(document.id) },
                                     onRename = { documentToRename = document },
                                     onMove = { documentToMove = document },
@@ -760,7 +755,6 @@ private fun FolderRow(
 @Composable
 private fun DocumentRow(
     document: TripDocument,
-    onOpen: () -> Unit,
     onViewInfo: () -> Unit,
     onRename: () -> Unit,
     onMove: () -> Unit,
@@ -843,22 +837,6 @@ private fun DocumentRow(
                     expanded = menuExpanded,
                     onDismissRequest = { menuExpanded = false },
                 ) {
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.documents_open_action)) },
-                        onClick = {
-                            menuExpanded = false
-                            onOpen()
-                        },
-                        leadingIcon = { Icon(Icons.Default.OpenInNew, contentDescription = null) },
-                    )
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.documents_info_action)) },
-                        onClick = {
-                            menuExpanded = false
-                            onViewInfo()
-                        },
-                        leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
-                    )
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.documents_rename_action)) },
                         onClick = {
