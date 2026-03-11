@@ -100,7 +100,7 @@ class DocumentInfoViewModel(
     private val remainingHotelInfos = ArrayDeque<HotelInfo>()
 
     /** Trip ID for the document currently being analysed; stored for use in [processNextExtractedInfo]. */
-    private var pendingAnalysisTripId: Int = -1
+    private var pendingAnalysisTripId: Int = NO_TRIP_PENDING
 
     /** Document name for the document currently being analysed; stored for logging in [processNextExtractedInfo]. */
     private var pendingAnalysisDocumentName: String = ""
@@ -632,5 +632,8 @@ class DocumentInfoViewModel(
 
     companion object {
         private const val TAG = "DocumentInfoViewModel"
+
+        /** Sentinel value for [pendingAnalysisTripId] when no analysis is in progress. */
+        private const val NO_TRIP_PENDING = -1
     }
 }
