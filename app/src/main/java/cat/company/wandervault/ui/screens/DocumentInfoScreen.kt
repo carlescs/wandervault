@@ -224,7 +224,7 @@ private fun DocumentInfoSuccessContent(
         sheetContent = {
             DocumentInfoSheetContent(uiState = uiState)
         },
-        sheetPeekHeight = DocumentInfoSheetPeekHeight,
+        sheetPeekHeight = DOCUMENT_INFO_SHEET_PEEK_HEIGHT,
         modifier = modifier.padding(innerPadding),
     ) {
         DocumentPreview(
