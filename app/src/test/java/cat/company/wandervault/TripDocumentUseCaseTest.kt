@@ -16,6 +16,7 @@ import cat.company.wandervault.domain.usecase.GetSubFoldersUseCase
 import cat.company.wandervault.domain.usecase.SaveDocumentUseCase
 import cat.company.wandervault.domain.usecase.SaveFolderUseCase
 import cat.company.wandervault.domain.usecase.SummarizeDocumentUseCase
+import cat.company.wandervault.domain.usecase.SuggestDocumentNameUseCase
 import cat.company.wandervault.domain.usecase.UpdateDocumentUseCase
 import cat.company.wandervault.domain.usecase.UpdateFolderUseCase
 import kotlinx.coroutines.flow.Flow
@@ -250,6 +251,35 @@ class TripDocumentUseCaseTest {
         assertEquals("Some document.", result?.summary)
         assertNull(fakeRepo.lastTripYear)
     }
+
+    // ── SuggestDocumentNameUseCase ────────────────────────────────────────────
+
+    @Test
+    fun `SuggestDocumentNameUseCase returns suggested name from repository`() = runTest {
+        val fakeRepo = FakeDocumentSummaryRepository(
+            null,
+            suggestedName = "Paris Flight Ticket",
+        )
+
+        val result = SuggestDocumentNameUseCase(fakeRepo)(
+            "file:///documents/ticket.pdf",
+            "application/pdf",
+        )
+
+        assertEquals("Paris Flight Ticket", result)
+    }
+
+    @Test
+    fun `SuggestDocumentNameUseCase returns null when repository returns null`() = runTest {
+        val fakeRepo = FakeDocumentSummaryRepository(null, suggestedName = null)
+
+        val result = SuggestDocumentNameUseCase(fakeRepo)(
+            "file:///documents/photo.jpg",
+            "image/jpeg",
+        )
+
+        assertNull(result)
+    }
 }
 
 private class FakeTripDocumentRepository : TripDocumentRepository {
@@ -324,6 +354,7 @@ private class FakeTripDocumentRepository : TripDocumentRepository {
 
 private class FakeDocumentSummaryRepository(
     private val result: DocumentExtractionResult?,
+    private val suggestedName: String? = null,
 ) : DocumentSummaryRepository {
     var lastTripYear: Int? = null
 
@@ -336,4 +367,10 @@ private class FakeDocumentSummaryRepository(
         lastTripYear = tripYear
         return result
     }
+
+    override suspend fun suggestDocumentName(
+        fileUri: String,
+        mimeType: String,
+        onDownloadProgress: ((bytesDownloaded: Long) -> Unit)?,
+    ): String? = suggestedName
 }

@@ -31,4 +31,23 @@ interface DocumentSummaryRepository {
         tripYear: Int? = null,
         onDownloadProgress: ((bytesDownloaded: Long) -> Unit)? = null,
     ): DocumentExtractionResult?
+
+    /**
+     * Reads the document at [fileUri] and uses on-device AI to suggest a concise filename
+     * that reflects the document's content.
+     *
+     * @param fileUri URI of the document file (internal storage or content URI).
+     * @param mimeType MIME type of the document (e.g. "text/plain", "application/pdf").
+     * @param onDownloadProgress Optional callback invoked with the number of bytes downloaded
+     *   so far while the Gemini Nano model is being downloaded to the device.
+     * @return A suggested filename string (without file extension), or `null` if on-device AI
+     *   is permanently unavailable on this device or the document content cannot be read.
+     * @throws Exception for transient failures so callers can distinguish permanent
+     *   unavailability (null) from retriable errors.
+     */
+    suspend fun suggestDocumentName(
+        fileUri: String,
+        mimeType: String,
+        onDownloadProgress: ((bytesDownloaded: Long) -> Unit)? = null,
+    ): String?
 }

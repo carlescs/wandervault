@@ -219,6 +219,12 @@
     <string name="documents_no_app_to_open">No app available to open this document</string>
     <string name="documents_empty_root_subtitle">Create a folder or upload a file to get started</string>
     <string name="documents_empty_folder_subtitle">Upload a file or create a sub-folder</string>
+    <string name="documents_name_document_title">Name Document</string>
+    <string name="documents_suggest_name">Suggest name</string>
+    <string name="documents_suggest_name_loading">Suggesting name…</string>
+    <string name="documents_suggest_name_downloading">Downloading AI model…</string>
+    <string name="documents_suggest_name_unavailable">Name suggestion is not available on this device.</string>
+    <string name="documents_suggest_name_error">Could not suggest a name. Please try again.</string>
 
     <!-- Share-to-WanderVault flow -->
     <string name="share_title">Attach to Trip</string>

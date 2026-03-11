@@ -63,6 +63,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -107,6 +108,7 @@ internal fun TripDocumentsTabContent(
     ),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val suggestNameState by viewModel.suggestNameState.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
     // Exit selection mode on back press when selection is active.
@@ -121,6 +123,12 @@ internal fun TripDocumentsTabContent(
         viewModel.navigateUp()
     }
 
+    // Pending file waiting for a name confirmation before being added to the trip.
+    // Each field is saved separately so the confirmation dialog survives configuration changes.
+    var pendingSourceUri by rememberSaveable { mutableStateOf<String?>(null) }
+    var pendingMimeType by rememberSaveable { mutableStateOf<String?>(null) }
+    var pendingOriginalName by rememberSaveable { mutableStateOf<String?>(null) }
+
     val filePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument(),
     ) { uri ->
@@ -133,10 +141,36 @@ internal fun TripDocumentsTabContent(
             val ext = MimeTypeMap.getSingleton().getExtensionFromMimeType(mimeType) ?: "file"
             "document.$ext"
         }
-        viewModel.addDocument(
-            name = fileName,
-            sourceUri = uri.toString(),
-            mimeType = mimeType,
+        // Show a name confirmation dialog instead of adding immediately.
+        pendingSourceUri = uri.toString()
+        pendingMimeType = mimeType
+        pendingOriginalName = fileName
+    }
+
+    // Name confirmation dialog shown after the file picker returns.
+    val pendingUri = pendingSourceUri
+    val pendingMime = pendingMimeType
+    val pendingName = pendingOriginalName
+    if (pendingUri != null && pendingMime != null && pendingName != null) {
+        DocumentNameInputDialog(
+            title = stringResource(R.string.documents_name_document_title),
+            label = stringResource(R.string.documents_name_label),
+            initialName = pendingName,
+            suggestNameState = suggestNameState,
+            onSuggest = { viewModel.requestSuggestName(pendingUri, pendingMime) },
+            onConfirm = { name ->
+                pendingSourceUri = null
+                pendingMimeType = null
+                pendingOriginalName = null
+                viewModel.clearSuggestName()
+                viewModel.addDocument(name = name, sourceUri = pendingUri, mimeType = pendingMime)
+            },
+            onDismiss = {
+                pendingSourceUri = null
+                pendingMimeType = null
+                pendingOriginalName = null
+                viewModel.clearSuggestName()
+            },
         )
     }
 
@@ -160,6 +194,9 @@ internal fun TripDocumentsTabContent(
         onClearSelection = viewModel::clearSelection,
         onDeleteSelectedDocuments = viewModel::deleteSelectedDocuments,
         onMoveSelectedDocuments = viewModel::moveSelectedDocuments,
+        suggestNameState = suggestNameState,
+        onRequestSuggestName = viewModel::requestSuggestName,
+        onClearSuggestName = viewModel::clearSuggestName,
     )
 }
 
@@ -172,6 +209,9 @@ internal fun TripDocumentsTabContent(
  * Multi-select mode is entered by long-pressing a document row; [onToggleDocumentSelection],
  * [onSelectAllDocuments], [onClearSelection], [onDeleteSelectedDocuments], and
  * [onMoveSelectedDocuments] handle the bulk-operation actions.
+ *
+ * [suggestNameState], [onRequestSuggestName], and [onClearSuggestName] drive the AI name
+ * suggestion feature inside the rename-document dialog.
  */
 @Composable
 internal fun TripDocumentsContent(
@@ -194,6 +234,9 @@ internal fun TripDocumentsContent(
     onClearSelection: () -> Unit = {},
     onDeleteSelectedDocuments: () -> Unit = {},
     onMoveSelectedDocuments: (targetFolderId: Int?) -> Unit = {},
+    suggestNameState: SuggestNameUiState? = null,
+    onRequestSuggestName: (fileUri: String, mimeType: String) -> Unit = { _, _ -> },
+    onClearSuggestName: () -> Unit = {},
 ) {
     var isFabExpanded by rememberSaveable { mutableStateOf(false) }
     var showCreateFolderDialog by rememberSaveable { mutableStateOf(false) }
@@ -437,15 +480,21 @@ internal fun TripDocumentsContent(
     }
 
     documentToRename?.let { document ->
-        NameInputDialog(
+        DocumentNameInputDialog(
             title = stringResource(R.string.documents_rename_document_title),
             label = stringResource(R.string.documents_name_label),
             initialName = document.name,
+            suggestNameState = suggestNameState,
+            onSuggest = { onRequestSuggestName(document.uri, document.mimeType) },
             onConfirm = { newName ->
                 documentToRename = null
+                onClearSuggestName()
                 onRenameDocument(document, newName)
             },
-            onDismiss = { documentToRename = null },
+            onDismiss = {
+                documentToRename = null
+                onClearSuggestName()
+            },
         )
     }
 
@@ -873,6 +922,111 @@ private fun NameInputDialog(
         dismissButton = {
             TextButton(onClick = onDismiss) {
                 Text(stringResource(R.string.dialog_cancel))
+            }
+        },
+    )
+}
+
+/**
+ * A name-input dialog with an optional AI filename suggestion button.
+ *
+ * The "Suggest" button is shown in the dismiss-button slot to keep the confirm button prominent.
+ * While a suggestion is in-flight the [suggestNameState] drives a progress indicator; when
+ * [SuggestNameUiState.Success] arrives the text field is updated automatically.
+ */
+@Composable
+private fun DocumentNameInputDialog(
+    title: String,
+    label: String,
+    initialName: String,
+    suggestNameState: SuggestNameUiState?,
+    onSuggest: () -> Unit,
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var text by rememberSaveable(initialName) { mutableStateOf(initialName) }
+
+    // Update the text field when a new suggestion arrives.
+    LaunchedEffect(suggestNameState) {
+        if (suggestNameState is SuggestNameUiState.Success) {
+            text = suggestNameState.suggestedName
+        }
+    }
+
+    val isSuggesting = suggestNameState is SuggestNameUiState.Loading ||
+        suggestNameState is SuggestNameUiState.Downloading
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    label = { Text(label) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                val statusText = when (suggestNameState) {
+                    is SuggestNameUiState.Loading ->
+                        stringResource(R.string.documents_suggest_name_loading)
+                    is SuggestNameUiState.Downloading ->
+                        stringResource(R.string.documents_suggest_name_downloading)
+                    is SuggestNameUiState.Unavailable ->
+                        stringResource(R.string.documents_suggest_name_unavailable)
+                    is SuggestNameUiState.Error ->
+                        stringResource(R.string.documents_suggest_name_error)
+                    else -> null
+                }
+                if (isSuggesting || statusText != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        if (isSuggesting) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp,
+                            )
+                        }
+                        if (statusText != null) {
+                            Text(
+                                text = statusText,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (suggestNameState is SuggestNameUiState.Unavailable ||
+                                    suggestNameState is SuggestNameUiState.Error
+                                ) {
+                                    MaterialTheme.colorScheme.error
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                },
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { if (text.isNotBlank()) onConfirm(text) },
+                enabled = text.isNotBlank(),
+            ) {
+                Text(stringResource(R.string.dialog_save))
+            }
+        },
+        dismissButton = {
+            Row {
+                TextButton(
+                    onClick = onSuggest,
+                    enabled = !isSuggesting,
+                ) {
+                    Text(stringResource(R.string.documents_suggest_name))
+                }
+                TextButton(onClick = onDismiss) {
+                    Text(stringResource(R.string.dialog_cancel))
+                }
             }
         },
     )
