@@ -460,7 +460,7 @@ private fun formatFileSize(bytes: Long): String {
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 /** How much of the bottom sheet is visible when in its collapsed (peeked) state. */
-private val DocumentInfoSheetPeekHeight = 120.dp
+private val DOCUMENT_INFO_SHEET_PEEK_HEIGHT = 120.dp
 
 // ── Previews ──────────────────────────────────────────────────────────────────
 
