@@ -24,6 +24,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.FindInPage
 import androidx.compose.material.icons.filled.OpenInNew
+import androidx.compose.material3.BottomSheetScaffold
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -212,92 +213,94 @@ internal fun DocumentInfoContent(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DocumentInfoSuccessContent(
     uiState: DocumentInfoUiState.Success,
     innerPadding: PaddingValues,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(innerPadding)
-            .verticalScroll(rememberScrollState()),
+    BottomSheetScaffold(
+        sheetContent = {
+            DocumentInfoSheetContent(uiState = uiState)
+        },
+        sheetPeekHeight = DocumentInfoSheetPeekHeight,
+        modifier = modifier.padding(innerPadding),
     ) {
-        // ── Document preview ──────────────────────────────────────────────────
-
         DocumentPreview(
             document = uiState.document,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxSize(),
         )
+    }
+}
 
-        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
+@Composable
+private fun DocumentInfoSheetContent(
+    uiState: DocumentInfoUiState.Success,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
         // ── File info ─────────────────────────────────────────────────────────
 
-        Column(
-            modifier = Modifier.padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            Text(
-                text = stringResource(R.string.document_info_section_info),
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary,
-            )
-            Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = stringResource(R.string.document_info_section_info),
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.primary,
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        InfoRow(
+            label = stringResource(R.string.document_info_name),
+            value = uiState.document.name,
+        )
+        InfoRow(
+            label = stringResource(R.string.document_info_type),
+            value = uiState.document.mimeType.ifBlank { stringResource(R.string.document_info_type_unknown) },
+        )
+        if (uiState.fileSizeBytes != null) {
             InfoRow(
-                label = stringResource(R.string.document_info_name),
-                value = uiState.document.name,
-            )
-            InfoRow(
-                label = stringResource(R.string.document_info_type),
-                value = uiState.document.mimeType.ifBlank { stringResource(R.string.document_info_type_unknown) },
-            )
-            if (uiState.fileSizeBytes != null) {
-                InfoRow(
-                    label = stringResource(R.string.document_info_size),
-                    value = formatFileSize(uiState.fileSizeBytes),
-                )
-            }
-            InfoRow(
-                label = stringResource(R.string.document_info_folder),
-                value = uiState.folderName
-                    ?: if (uiState.document.folderId == null) {
-                        stringResource(R.string.document_info_folder_root)
-                    } else {
-                        stringResource(android.R.string.unknownName)
-                    },
+                label = stringResource(R.string.document_info_size),
+                value = formatFileSize(uiState.fileSizeBytes),
             )
         }
+        InfoRow(
+            label = stringResource(R.string.document_info_folder),
+            value = uiState.folderName
+                ?: if (uiState.document.folderId == null) {
+                    stringResource(R.string.document_info_folder_root)
+                } else {
+                    stringResource(android.R.string.unknownName)
+                },
+        )
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
         // ── AI description ────────────────────────────────────────────────────
 
-        Column(
-            modifier = Modifier.padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
+        Text(
+            text = stringResource(R.string.document_info_section_ai_description),
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.primary,
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        val summary = uiState.document.summary
+        if (summary.isNullOrBlank()) {
             Text(
-                text = stringResource(R.string.document_info_section_ai_description),
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary,
+                text = stringResource(R.string.document_info_no_ai_description),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontStyle = FontStyle.Italic,
             )
-            Spacer(modifier = Modifier.height(4.dp))
-            val summary = uiState.document.summary
-            if (summary.isNullOrBlank()) {
-                Text(
-                    text = stringResource(R.string.document_info_no_ai_description),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontStyle = FontStyle.Italic,
-                )
-            } else {
-                Text(
-                    text = summary,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
+        } else {
+            Text(
+                text = summary,
+                style = MaterialTheme.typography.bodyMedium,
+            )
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -321,9 +324,7 @@ private fun DocumentPreview(
                     .build(),
                 contentDescription = stringResource(R.string.document_info_preview_content_desc, document.name),
                 contentScale = ContentScale.Fit,
-                modifier = modifier
-                    .height(240.dp)
-                    .fillMaxWidth(),
+                modifier = modifier,
             )
         }
         isPdf && document.uri.isNotBlank() -> {
@@ -342,9 +343,7 @@ private fun DocumentPreview(
             when {
                 !done -> {
                     Box(
-                        modifier = modifier
-                            .height(160.dp)
-                            .fillMaxWidth(),
+                        modifier = modifier,
                         contentAlignment = Alignment.Center,
                     ) {
                         CircularProgressIndicator()
@@ -355,16 +354,12 @@ private fun DocumentPreview(
                         bitmap = bitmap.asImageBitmap(),
                         contentDescription = stringResource(R.string.document_info_preview_content_desc, document.name),
                         contentScale = ContentScale.Fit,
-                        modifier = modifier
-                            .height(240.dp)
-                            .fillMaxWidth(),
+                        modifier = modifier,
                     )
                 }
                 else -> {
                     Box(
-                        modifier = modifier
-                            .height(160.dp)
-                            .fillMaxWidth(),
+                        modifier = modifier,
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
@@ -379,9 +374,7 @@ private fun DocumentPreview(
         }
         else -> {
             Box(
-                modifier = modifier
-                    .height(160.dp)
-                    .fillMaxWidth(),
+                modifier = modifier,
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
@@ -463,6 +456,11 @@ private fun formatFileSize(bytes: Long): String {
         else -> "%.1f MB".format(bytes.toDouble() / mb)
     }
 }
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+/** How much of the bottom sheet is visible when in its collapsed (peeked) state. */
+private val DocumentInfoSheetPeekHeight = 120.dp
 
 // ── Previews ──────────────────────────────────────────────────────────────────
 
