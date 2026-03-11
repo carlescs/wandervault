@@ -278,14 +278,17 @@ class DocumentSummaryRepositoryImpl(private val context: Context) : DocumentSumm
         )
         appendLine("Section 2: Identify the document type and extract structured info:")
         appendLine(
-            "- If it is a FLIGHT document (boarding pass, e-ticket, flight itinerary), " +
-                "output exactly one line: " +
+            "- If it contains FLIGHT information (boarding pass, e-ticket, flight itinerary), " +
+                "output one line per flight leg: " +
                 "${FLIGHT_MARKER}<airline>|<flight number>|<booking reference>|<departure city>|<arrival city>|<departure date (YYYY-MM-DD)>",
         )
         appendLine(
-            "- If it is a HOTEL document (booking confirmation, reservation, hotel voucher), " +
-                "output exactly one line: " +
+            "- If it contains HOTEL information (booking confirmation, reservation, hotel voucher), " +
+                "output one line per hotel booking: " +
                 "${HOTEL_MARKER}<hotel name>|<address>|<booking reference>|<check-in date (YYYY-MM-DD)>|<check-out date (YYYY-MM-DD)>",
+        )
+        appendLine(
+            "- A document may contain multiple FLIGHT lines, multiple HOTEL lines, or both.",
         )
         appendLine(
             "- Otherwise, list any trip-relevant info (travel dates, destinations, " +

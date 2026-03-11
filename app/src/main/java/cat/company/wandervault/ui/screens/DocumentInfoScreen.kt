@@ -122,6 +122,7 @@ fun DocumentInfoScreen(
         onAnalyzeHotelConfirmed = viewModel::onHotelConfirmed,
         onAnalyzeTripInfoConfirmed = viewModel::onTripInfoConfirmed,
         onAnalyzeDismiss = viewModel::dismissAnalyze,
+        onAnalyzeSkipItem = viewModel::skipCurrentAnalysisItem,
         modifier = modifier,
     )
 }
@@ -143,6 +144,7 @@ internal fun DocumentInfoContent(
     onAnalyzeHotelConfirmed: () -> Unit = {},
     onAnalyzeTripInfoConfirmed: () -> Unit = {},
     onAnalyzeDismiss: () -> Unit = {},
+    onAnalyzeSkipItem: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val title = if (uiState is DocumentInfoUiState.Success) {
@@ -234,6 +236,7 @@ internal fun DocumentInfoContent(
             onHotelConfirmed = onAnalyzeHotelConfirmed,
             onTripInfoConfirmed = onAnalyzeTripInfoConfirmed,
             onDismiss = onAnalyzeDismiss,
+            onSkipItem = onAnalyzeSkipItem,
         )
     }
 }

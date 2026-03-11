@@ -75,6 +75,18 @@ class ShareViewModel(
     /** The ID of the trip the user selected; set when entering [ShareUiState.Processing]. */
     private var selectedTripId: Int = NO_TRIP_SELECTED
 
+    /**
+     * Queue of flight infos extracted from the shared document that have not yet been processed.
+     * Populated when ML extraction completes and consumed one item at a time.
+     */
+    private val remainingFlightInfos = ArrayDeque<FlightInfo>()
+
+    /**
+     * Queue of hotel infos extracted from the shared document that have not yet been processed.
+     * Populated when ML extraction completes and consumed one item at a time.
+     */
+    private val remainingHotelInfos = ArrayDeque<HotelInfo>()
+
     init {
         viewModelScope.launch {
             getTrips()
@@ -138,23 +150,22 @@ class ShareViewModel(
                         updateDocument(savedDoc.copy(summary = result.summary))
                     }
 
-                    when {
-                        result.flightInfo != null ->
-                            handleFlightInfo(result.flightInfo)
+                    remainingFlightInfos.clear()
+                    remainingFlightInfos.addAll(result.flightInfoList)
+                    remainingHotelInfos.clear()
+                    remainingHotelInfos.addAll(result.hotelInfoList)
 
-                        result.hotelInfo != null ->
-                            handleHotelInfo(result.hotelInfo)
-
-                        else -> {
-                            val relevantInfo = result.relevantTripInfo
-                            if (relevantInfo != null) {
-                                val trip = getTrip(tripId).first()
-                                if (trip != null && trip.aiDescription == null) {
-                                    saveTripDescription(trip, relevantInfo)
-                                }
+                    if (result.flightInfoList.isEmpty() && result.hotelInfoList.isEmpty()) {
+                        val relevantInfo = result.relevantTripInfo
+                        if (relevantInfo != null) {
+                            val trip = getTrip(tripId).first()
+                            if (trip != null && trip.aiDescription == null) {
+                                saveTripDescription(trip, relevantInfo)
                             }
-                            _uiState.value = ShareUiState.Done
                         }
+                        _uiState.value = ShareUiState.Done
+                    } else {
+                        handleNextExtractedInfo()
                     }
                 } else {
                     _uiState.value = ShareUiState.Done
@@ -173,7 +184,7 @@ class ShareViewModel(
      */
     fun onFlightLegSelected(leg: TransportLeg) {
         val flightInfo = pendingFlightInfo ?: run {
-            _uiState.value = ShareUiState.Done
+            viewModelScope.launch { handleNextExtractedInfo() }
             return
         }
         pendingFlightInfo = null
@@ -190,7 +201,7 @@ class ShareViewModel(
      */
     fun onHotelDestinationSelected(destination: Destination) {
         val hotelInfo = pendingHotelInfo ?: run {
-            _uiState.value = ShareUiState.Done
+            viewModelScope.launch { handleNextExtractedInfo() }
             return
         }
         pendingHotelInfo = null
@@ -221,27 +232,31 @@ class ShareViewModel(
         }
     }
 
-    /** Skips the current disambiguation step and moves directly to [ShareUiState.Done]. */
+    /**
+     * Skips the current disambiguation step and advances to the next pending item. If no more
+     * items remain, transitions to [ShareUiState.Done].
+     *
+     * Only acts when in a selection state. Programmatic dismissal of the selection dialog
+     * (e.g. when the state advances to FlightConfirm / HotelConfirm) fires onDismissRequest
+     * asynchronously on the previous dialog — those spurious calls must be ignored.
+     */
     fun onDisambiguationSkipped() {
-        // Only act when in a selection state. Programmatic dismissal of the selection dialog
-        // (e.g. when the state advances to FlightConfirm / HotelConfirm) fires onDismissRequest
-        // asynchronously on the previous dialog — those spurious calls must be ignored.
         val current = _uiState.value
         if (current is ShareUiState.FlightLegSelection || current is ShareUiState.HotelDestinationSelection) {
             pendingFlightInfo = null
             pendingHotelInfo = null
-            _uiState.value = ShareUiState.Done
+            viewModelScope.launch { handleNextExtractedInfo() }
         }
     }
 
     /**
      * Called when the user confirms the flight info change from the [ShareUiState.FlightConfirm]
-     * dialog. Applies the flight info and leg stored in the confirm state and transitions to
-     * [ShareUiState.Done].
+     * dialog. Applies the flight info and leg stored in the confirm state, then advances to the
+     * next pending item.
      */
     fun onFlightConfirmed() {
         val state = _uiState.value as? ShareUiState.FlightConfirm ?: run {
-            _uiState.value = ShareUiState.Done
+            viewModelScope.launch { handleNextExtractedInfo() }
             return
         }
         viewModelScope.launch {
@@ -249,20 +264,19 @@ class ShareViewModel(
                 applyFlightInfoToLeg(state.flightInfo, state.matchedLeg)
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to apply flight info to confirmed leg", e)
-            } finally {
-                _uiState.value = ShareUiState.Done
             }
+            handleNextExtractedInfo()
         }
     }
 
     /**
      * Called when the user confirms the hotel info change from the [ShareUiState.HotelConfirm]
-     * dialog. Applies the hotel info and destination stored in the confirm state and transitions
-     * to [ShareUiState.Done].
+     * dialog. Applies the hotel info and destination stored in the confirm state, then advances
+     * to the next pending item.
      */
     fun onHotelConfirmed() {
         val state = _uiState.value as? ShareUiState.HotelConfirm ?: run {
-            _uiState.value = ShareUiState.Done
+            viewModelScope.launch { handleNextExtractedInfo() }
             return
         }
         viewModelScope.launch {
@@ -270,23 +284,35 @@ class ShareViewModel(
                 applyHotelInfoToDestination(state.hotelInfo, state.destination)
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to apply hotel info to confirmed destination", e)
-            } finally {
-                _uiState.value = ShareUiState.Done
             }
+            handleNextExtractedInfo()
         }
     }
 
     /**
      * Called when the user cancels from the [ShareUiState.FlightConfirm] or
-     * [ShareUiState.HotelConfirm] dialog. Skips the update and transitions to [ShareUiState.Done].
+     * [ShareUiState.HotelConfirm] dialog. Skips the update and advances to the next pending item.
      */
     fun onConfirmCancelled() {
-        _uiState.value = ShareUiState.Done
+        viewModelScope.launch { handleNextExtractedInfo() }
     }
 
     // -----------------------------------------------------------------
     // Private helpers
     // -----------------------------------------------------------------
+
+    /**
+     * Processes the next pending item from the queues. Dequeues the first available
+     * [FlightInfo] and calls [handleFlightInfo], or the first available [HotelInfo] and calls
+     * [handleHotelInfo]. Transitions to [ShareUiState.Done] when all queues are exhausted.
+     */
+    private suspend fun handleNextExtractedInfo() {
+        when {
+            remainingFlightInfos.isNotEmpty() -> handleFlightInfo(remainingFlightInfos.removeFirst())
+            remainingHotelInfos.isNotEmpty() -> handleHotelInfo(remainingHotelInfos.removeFirst())
+            else -> _uiState.value = ShareUiState.Done
+        }
+    }
 
     /**
      * Checks [flightInfo] against all FLIGHT-type legs in the selected trip.
@@ -303,7 +329,7 @@ class ShareViewModel(
 
         if (allFlightLegs.isEmpty()) {
             Log.d(TAG, "No flight legs in trip $selectedTripId; skipping extracted flight info")
-            _uiState.value = ShareUiState.Done
+            handleNextExtractedInfo()
             return
         }
 
@@ -380,7 +406,7 @@ class ShareViewModel(
 
         if (destinations.isEmpty()) {
             Log.d(TAG, "No destinations in trip $selectedTripId; skipping extracted hotel info")
-            _uiState.value = ShareUiState.Done
+            handleNextExtractedInfo()
             return
         }
 

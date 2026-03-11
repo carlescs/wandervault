@@ -6,6 +6,7 @@ import cat.company.wandervault.domain.model.DocumentExtractionResult
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
 
@@ -14,12 +15,13 @@ import java.time.LocalDate
  * into a structured [DocumentExtractionResult].
  *
  * These tests cover:
- * - Happy-path parsing for FLIGHT and HOTEL documents.
+ * - Happy-path parsing for FLIGHT and HOTEL documents (single and multiple items).
  * - Resilience for non-standard layouts where the model emits a prefix line before the
- *   FLIGHT or HOTEL marker (the parser scans all non-blank lines, not just the first).
+ *   FLIGHT or HOTEL marker (the parser scans all non-blank lines).
+ * - Mixed documents containing both FLIGHT and HOTEL lines.
  * - "None" variants with and without trailing punctuation.
  * - Missing or blank fields within the structured line.
- * - The new [cat.company.wandervault.domain.model.FlightInfo.departureDate] field (index 5).
+ * - The [cat.company.wandervault.domain.model.FlightInfo.departureDate] field (index 5).
  */
 class DocumentResponseParserTest {
 
@@ -45,6 +47,8 @@ class DocumentResponseParserTest {
         assertEquals(LocalDate.of(2024, 6, 15), fi.departureDate)
         assertNull(result.hotelInfo)
         assertNull(result.relevantTripInfo)
+        assertEquals(1, result.flightInfoList.size)
+        assertTrue(result.hotelInfoList.isEmpty())
     }
 
     @Test
@@ -128,6 +132,54 @@ class DocumentResponseParserTest {
         assertEquals("KL867", result.flightInfo!!.flightNumber)
     }
 
+    // ── Multiple FLIGHT lines ─────────────────────────────────────────────────
+
+    @Test
+    fun `multiple flight lines are all parsed into flightInfoList`() {
+        val raw = """
+            Multi-leg itinerary with two flights.
+            ---
+            FLIGHT|Lufthansa|LH1234|ABC123|Frankfurt|London|2024-06-15
+            FLIGHT|British Airways|BA456|DEF456|London|New York|2024-06-16
+        """.trimIndent()
+
+        val result = parseDocumentResponse(raw)
+
+        assertEquals(2, result.flightInfoList.size)
+        assertTrue(result.hotelInfoList.isEmpty())
+        assertNull(result.relevantTripInfo)
+
+        val first = result.flightInfoList[0]
+        assertEquals("Lufthansa", first.airline)
+        assertEquals("LH1234", first.flightNumber)
+        assertEquals("ABC123", first.bookingReference)
+        assertEquals(LocalDate.of(2024, 6, 15), first.departureDate)
+
+        val second = result.flightInfoList[1]
+        assertEquals("British Airways", second.airline)
+        assertEquals("BA456", second.flightNumber)
+        assertEquals("DEF456", second.bookingReference)
+        assertEquals(LocalDate.of(2024, 6, 16), second.departureDate)
+    }
+
+    @Test
+    fun `three flight lines are all parsed into flightInfoList`() {
+        val raw = """
+            Three-leg booking.
+            ---
+            FLIGHT|Air France|AF100|REF1|Paris|Frankfurt|2025-03-01
+            FLIGHT|Lufthansa|LH200|REF1|Frankfurt|Singapore|2025-03-01
+            FLIGHT|Singapore Airlines|SQ300|REF1|Singapore|Sydney|2025-03-02
+        """.trimIndent()
+
+        val result = parseDocumentResponse(raw)
+
+        assertEquals(3, result.flightInfoList.size)
+        assertEquals("Air France", result.flightInfoList[0].airline)
+        assertEquals("Lufthansa", result.flightInfoList[1].airline)
+        assertEquals("Singapore Airlines", result.flightInfoList[2].airline)
+    }
+
     // ── HOTEL document — standard and non-standard format ─────────────────────
 
     @Test
@@ -149,6 +201,8 @@ class DocumentResponseParserTest {
         assertEquals(LocalDate.of(2024, 9, 14), hi.checkOutDate)
         assertNull(result.flightInfo)
         assertNull(result.relevantTripInfo)
+        assertEquals(1, result.hotelInfoList.size)
+        assertTrue(result.flightInfoList.isEmpty())
     }
 
     @Test
@@ -179,6 +233,78 @@ class DocumentResponseParserTest {
         assertNull(result.hotelInfo!!.checkOutDate)
     }
 
+    // ── Multiple HOTEL lines ──────────────────────────────────────────────────
+
+    @Test
+    fun `multiple hotel lines are all parsed into hotelInfoList`() {
+        val raw = """
+            Multi-city booking with two hotel stays.
+            ---
+            HOTEL|Grand Hotel Paris|1 Place Vendome|REFP|2024-09-10|2024-09-14
+            HOTEL|Hotel Roma|Via Veneto 9|REFR|2024-09-15|2024-09-18
+        """.trimIndent()
+
+        val result = parseDocumentResponse(raw)
+
+        assertEquals(2, result.hotelInfoList.size)
+        assertTrue(result.flightInfoList.isEmpty())
+        assertNull(result.relevantTripInfo)
+
+        val first = result.hotelInfoList[0]
+        assertEquals("Grand Hotel Paris", first.name)
+        assertEquals("REFP", first.bookingReference)
+        assertEquals(LocalDate.of(2024, 9, 10), first.checkInDate)
+
+        val second = result.hotelInfoList[1]
+        assertEquals("Hotel Roma", second.name)
+        assertEquals("REFR", second.bookingReference)
+        assertEquals(LocalDate.of(2024, 9, 15), second.checkInDate)
+    }
+
+    // ── Mixed FLIGHT and HOTEL lines ──────────────────────────────────────────
+
+    @Test
+    fun `document with both flight and hotel lines produces both lists`() {
+        val raw = """
+            Round-trip flight and hotel booking.
+            ---
+            FLIGHT|Lufthansa|LH1234|ABC123|Frankfurt|London|2024-06-15
+            HOTEL|The Savoy|Strand London|HOTELREF|2024-06-15|2024-06-18
+        """.trimIndent()
+
+        val result = parseDocumentResponse(raw)
+
+        assertEquals(1, result.flightInfoList.size)
+        assertEquals(1, result.hotelInfoList.size)
+        assertNull(result.relevantTripInfo)
+
+        assertEquals("Lufthansa", result.flightInfoList[0].airline)
+        assertEquals("The Savoy", result.hotelInfoList[0].name)
+    }
+
+    @Test
+    fun `document with multiple flights and multiple hotels produces complete lists`() {
+        val raw = """
+            Complex itinerary.
+            ---
+            FLIGHT|Air France|AF100|REF1|Paris|London|2025-06-01
+            FLIGHT|British Airways|BA200|REF1|London|New York|2025-06-02
+            HOTEL|London Marriott|Grosvenor Square|REF1|2025-06-01|2025-06-02
+            HOTEL|New York Hilton|1335 Ave Americas|REF2|2025-06-02|2025-06-07
+        """.trimIndent()
+
+        val result = parseDocumentResponse(raw)
+
+        assertEquals(2, result.flightInfoList.size)
+        assertEquals(2, result.hotelInfoList.size)
+        assertNull(result.relevantTripInfo)
+
+        assertEquals("Air France", result.flightInfoList[0].airline)
+        assertEquals("British Airways", result.flightInfoList[1].airline)
+        assertEquals("London Marriott", result.hotelInfoList[0].name)
+        assertEquals("New York Hilton", result.hotelInfoList[1].name)
+    }
+
     // ── "None" and empty section 2 variants ──────────────────────────────────
 
     @Test
@@ -191,6 +317,8 @@ class DocumentResponseParserTest {
         assertNull(result.hotelInfo)
         assertNull(result.relevantTripInfo)
         assertEquals("Just a receipt summary.", result.summary)
+        assertTrue(result.flightInfoList.isEmpty())
+        assertTrue(result.hotelInfoList.isEmpty())
     }
 
     @Test

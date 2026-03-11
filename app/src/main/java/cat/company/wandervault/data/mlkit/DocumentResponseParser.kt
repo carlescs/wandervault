@@ -18,24 +18,26 @@ internal const val HOTEL_MARKER = "HOTEL|"
  * <summary text>
  * ---
  * FLIGHT|<airline>|<flight number>|<booking ref>|<departure city>|<arrival city>|<departure date (YYYY-MM-DD)>
+ * FLIGHT|<airline>|<flight number>|<booking ref>|<departure city>|<arrival city>|<departure date (YYYY-MM-DD)>
  * ```
  * or
  * ```
  * <summary text>
  * ---
  * HOTEL|<hotel name>|<address>|<booking ref>|<check-in (YYYY-MM-DD)>|<check-out (YYYY-MM-DD)>
+ * HOTEL|<hotel name>|<address>|<booking ref>|<check-in (YYYY-MM-DD)>|<check-out (YYYY-MM-DD)>
  * ```
- * or
+ * or a mix of both, or
  * ```
  * <summary text>
  * ---
  * <general trip info text or "None">
  * ```
  *
- * The parser scans **all non-blank lines** of section 2 for a FLIGHT or HOTEL marker, so
- * a model that emits a brief prefix sentence before the structured line (common for
- * non-standard document layouts) still produces a valid extraction. The first matching
- * line is used; subsequent lines are ignored.
+ * The parser scans **all non-blank lines** of section 2 for FLIGHT and HOTEL markers, so
+ * a model that emits prefix text before the structured lines (common for non-standard document
+ * layouts) still produces a valid extraction. **All** matching lines are collected, enabling
+ * multi-leg itineraries and multi-hotel bookings to be fully represented.
  *
  * Section 2 values of "None" (case-insensitive, with optional trailing punctuation) are
  * treated as absent and result in a [DocumentExtractionResult] with no structured info.
@@ -55,48 +57,47 @@ internal fun parseDocumentResponse(raw: String): DocumentExtractionResult {
         return DocumentExtractionResult(summary = summary)
     }
 
-    // Scan all non-blank lines of section 2 for a structured FLIGHT or HOTEL marker.
-    // The model sometimes emits a brief prefix before the marker line, especially for
-    // non-standard document layouts, so checking only the first line is insufficient.
-    val structuredLine = infoRaw.lines()
-        .map { it.trim() }
-        .filter { it.isNotBlank() }
-        .firstOrNull { line ->
-            line.startsWith(FLIGHT_MARKER, ignoreCase = true) ||
-                line.startsWith(HOTEL_MARKER, ignoreCase = true)
+    // Collect ALL non-blank lines from section 2 that start with a structured marker.
+    // A document may contain multiple FLIGHT lines (multi-leg itinerary), multiple HOTEL
+    // lines (multi-property booking), or a mix of both.
+    val nonBlankLines = infoRaw.lines().map { it.trim() }.filter { it.isNotBlank() }
+
+    val flightInfoList = nonBlankLines
+        .filter { it.startsWith(FLIGHT_MARKER, ignoreCase = true) }
+        .map { line ->
+            val fields = line.substring(FLIGHT_MARKER.length).split("|")
+            FlightInfo(
+                airline = fields.getOrNull(0)?.trim()?.ifBlank { null },
+                flightNumber = fields.getOrNull(1)?.trim()?.ifBlank { null },
+                bookingReference = fields.getOrNull(2)?.trim()?.ifBlank { null },
+                departurePlace = fields.getOrNull(3)?.trim()?.ifBlank { null },
+                arrivalPlace = fields.getOrNull(4)?.trim()?.ifBlank { null },
+                departureDate = fields.getOrNull(5)?.trim()?.ifBlank { null }
+                    ?.parseLocalDateOrNull(),
+            )
         }
 
-    if (structuredLine != null) {
-        if (structuredLine.startsWith(FLIGHT_MARKER, ignoreCase = true)) {
-            val fields = structuredLine.substring(FLIGHT_MARKER.length).split("|")
-            return DocumentExtractionResult(
-                summary = summary,
-                flightInfo = FlightInfo(
-                    airline = fields.getOrNull(0)?.trim()?.ifBlank { null },
-                    flightNumber = fields.getOrNull(1)?.trim()?.ifBlank { null },
-                    bookingReference = fields.getOrNull(2)?.trim()?.ifBlank { null },
-                    departurePlace = fields.getOrNull(3)?.trim()?.ifBlank { null },
-                    arrivalPlace = fields.getOrNull(4)?.trim()?.ifBlank { null },
-                    departureDate = fields.getOrNull(5)?.trim()?.ifBlank { null }
-                        ?.parseLocalDateOrNull(),
-                ),
+    val hotelInfoList = nonBlankLines
+        .filter { it.startsWith(HOTEL_MARKER, ignoreCase = true) }
+        .map { line ->
+            val fields = line.substring(HOTEL_MARKER.length).split("|")
+            HotelInfo(
+                name = fields.getOrNull(0)?.trim()?.ifBlank { null },
+                address = fields.getOrNull(1)?.trim()?.ifBlank { null },
+                bookingReference = fields.getOrNull(2)?.trim()?.ifBlank { null },
+                checkInDate = fields.getOrNull(3)?.trim()?.ifBlank { null }
+                    ?.parseLocalDateOrNull(),
+                checkOutDate = fields.getOrNull(4)?.trim()?.ifBlank { null }
+                    ?.parseLocalDateOrNull(),
             )
         }
-        if (structuredLine.startsWith(HOTEL_MARKER, ignoreCase = true)) {
-            val fields = structuredLine.substring(HOTEL_MARKER.length).split("|")
-            return DocumentExtractionResult(
-                summary = summary,
-                hotelInfo = HotelInfo(
-                    name = fields.getOrNull(0)?.trim()?.ifBlank { null },
-                    address = fields.getOrNull(1)?.trim()?.ifBlank { null },
-                    bookingReference = fields.getOrNull(2)?.trim()?.ifBlank { null },
-                    checkInDate = fields.getOrNull(3)?.trim()?.ifBlank { null }
-                        ?.parseLocalDateOrNull(),
-                    checkOutDate = fields.getOrNull(4)?.trim()?.ifBlank { null }
-                        ?.parseLocalDateOrNull(),
-                ),
-            )
-        }
+
+    if (flightInfoList.isNotEmpty() || hotelInfoList.isNotEmpty()) {
+        return DocumentExtractionResult(
+            summary = summary,
+            flightInfoList = flightInfoList,
+            hotelInfoList = hotelInfoList,
+        )
     }
 
     // Fallback: treat the entire section 2 as general trip-relevant info.
