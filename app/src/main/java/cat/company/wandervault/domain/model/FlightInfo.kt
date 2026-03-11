@@ -1,5 +1,7 @@
 package cat.company.wandervault.domain.model
 
+import java.time.LocalDate
+
 /**
  * Structured flight information extracted from a travel document.
  *
@@ -8,6 +10,9 @@ package cat.company.wandervault.domain.model
  * @param bookingReference The booking or PNR confirmation code, or `null` if not found.
  * @param departurePlace The departure city or airport name/code, or `null` if not found.
  * @param arrivalPlace The arrival city or airport name/code, or `null` if not found.
+ * @param departureDate The scheduled departure date, or `null` if not found. Used as a
+ *   secondary matching criterion when the flight number and booking reference are absent
+ *   or do not match any existing leg.
  */
 data class FlightInfo(
     val airline: String? = null,
@@ -15,4 +20,5 @@ data class FlightInfo(
     val bookingReference: String? = null,
     val departurePlace: String? = null,
     val arrivalPlace: String? = null,
+    val departureDate: LocalDate? = null,
 )

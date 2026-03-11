@@ -293,8 +293,8 @@ class ShareViewModel(
      *
      * A *confident* match requires the flight number **or** booking reference to match exactly
      * (case-insensitive).  When there is no confident match but there are candidates, the state
-     * transitions to [ShareUiState.FlightLegSelection].  When there are no flight legs at all
-     * the info is silently skipped.
+     * transitions to [ShareUiState.FlightLegSelection] with candidates sorted by relevance
+     * (closest partial match first).  When there are no flight legs at all the info is skipped.
      */
     private suspend fun handleFlightInfo(flightInfo: FlightInfo) {
         val allFlightLegs = getDestinationsForTrip(selectedTripId).first()
@@ -324,10 +324,39 @@ class ShareViewModel(
                 matchedLeg = confidentMatch,
             )
         } else {
+            // Sort candidates by relevance: loose flight-number/booking-ref matches go first,
+            // then airline substring matches, then the rest in their original (stable) order.
+            val sortedCandidates = allFlightLegs
+                .withIndex()
+                .sortedWith(
+                    compareByDescending<IndexedValue<TransportLeg>> { indexed ->
+                        !flightInfo.flightNumber.isNullOrBlank() &&
+                            indexed.value.flightNumber?.contains(
+                                flightInfo.flightNumber,
+                                ignoreCase = true,
+                            ) == true
+                    }.thenByDescending { indexed ->
+                        !flightInfo.bookingReference.isNullOrBlank() &&
+                            indexed.value.reservationConfirmationNumber?.contains(
+                                flightInfo.bookingReference,
+                                ignoreCase = true,
+                            ) == true
+                    }.thenByDescending { indexed ->
+                        !flightInfo.airline.isNullOrBlank() &&
+                            indexed.value.company?.contains(
+                                flightInfo.airline,
+                                ignoreCase = true,
+                            ) == true
+                    }.thenBy { indexed ->
+                        // Preserve original order among legs with equal relevance.
+                        indexed.index
+                    },
+                )
+                .map { it.value }
             pendingFlightInfo = flightInfo
             _uiState.value = ShareUiState.FlightLegSelection(
                 flightInfo = flightInfo,
-                candidates = allFlightLegs,
+                candidates = sortedCandidates,
             )
         }
     }
