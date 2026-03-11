@@ -7,10 +7,14 @@ import android.net.Uri
 import android.os.ParcelFileDescriptor
 import android.util.Log
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.rememberTransformableState
+import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -23,7 +27,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.FindInPage
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.OpenInNew
+import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.BottomSheetScaffold
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -32,14 +39,26 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SheetValue
+import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberBottomSheetScaffoldState
+import androidx.compose.material3.rememberStandardBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -56,6 +75,7 @@ import cat.company.wandervault.ui.theme.WanderVaultTheme
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
@@ -220,17 +240,59 @@ private fun DocumentInfoSuccessContent(
     innerPadding: PaddingValues,
     modifier: Modifier = Modifier,
 ) {
-    BottomSheetScaffold(
-        sheetContent = {
-            DocumentInfoSheetContent(uiState = uiState)
-        },
-        sheetPeekHeight = DOCUMENT_INFO_SHEET_PEEK_HEIGHT,
-        modifier = modifier.padding(innerPadding),
-    ) {
-        DocumentPreview(
-            document = uiState.document,
+    val scaffoldState = rememberBottomSheetScaffoldState(
+        bottomSheetState = rememberStandardBottomSheetState(skipHiddenState = false),
+    )
+    val scope = rememberCoroutineScope()
+    val isSheetHidden by remember { derivedStateOf { scaffoldState.bottomSheetState.currentValue == SheetValue.Hidden } }
+
+    Box(modifier = modifier.fillMaxSize().padding(innerPadding)) {
+        BottomSheetScaffold(
+            scaffoldState = scaffoldState,
+            sheetContent = {
+                DocumentInfoSheetContent(uiState = uiState)
+            },
+            sheetDragHandle = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Spacer(modifier = Modifier.weight(1f))
+                    BottomSheetDefaults.DragHandle()
+                    Spacer(modifier = Modifier.weight(1f))
+                    IconButton(
+                        onClick = { scope.launch { scaffoldState.bottomSheetState.hide() } },
+                        modifier = Modifier.padding(end = 8.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.KeyboardArrowDown,
+                            contentDescription = stringResource(R.string.document_info_hide_sheet),
+                        )
+                    }
+                }
+            },
+            sheetPeekHeight = DOCUMENT_INFO_SHEET_PEEK_HEIGHT,
             modifier = Modifier.fillMaxSize(),
-        )
+        ) {
+            ZoomableDocumentPreview(
+                document = uiState.document,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+
+        if (isSheetHidden) {
+            SmallFloatingActionButton(
+                onClick = { scope.launch { scaffoldState.bottomSheetState.partialExpand() } },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(16.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Default.KeyboardArrowUp,
+                    contentDescription = stringResource(R.string.document_info_show_sheet),
+                )
+            }
+        }
     }
 }
 
@@ -304,6 +366,50 @@ private fun DocumentInfoSheetContent(
         }
 
         Spacer(modifier = Modifier.height(16.dp))
+    }
+}
+
+/**
+ * Wraps [DocumentPreview] with pinch-to-zoom (1×–[MAX_ZOOM]×) and pan support.
+ *
+ * Zoom and pan state are intentionally kept local to this composable: they are purely
+ * ephemeral visual state that does not need to survive configuration changes or be shared
+ * with the ViewModel. Double-tapping resets the view to the original scale and position.
+ */
+@Composable
+private fun ZoomableDocumentPreview(
+    document: TripDocument,
+    modifier: Modifier = Modifier,
+) {
+    var scale by remember { mutableFloatStateOf(1f) }
+    var offset by remember { mutableStateOf(Offset.Zero) }
+
+    val transformState = rememberTransformableState { zoomChange, panChange, _ ->
+        scale = (scale * zoomChange).coerceIn(MIN_ZOOM, MAX_ZOOM)
+        offset = if (scale <= MIN_ZOOM) Offset.Zero else offset + panChange
+    }
+
+    Box(
+        modifier = modifier
+            .pointerInput(Unit) {
+                detectTapGestures(onDoubleTap = {
+                    scale = MIN_ZOOM
+                    offset = Offset.Zero
+                })
+            }
+            .transformable(state = transformState),
+    ) {
+        DocumentPreview(
+            document = document,
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                    translationX = offset.x
+                    translationY = offset.y
+                },
+        )
     }
 }
 
@@ -461,6 +567,12 @@ private fun formatFileSize(bytes: Long): String {
 
 /** How much of the bottom sheet is visible when in its collapsed (peeked) state. */
 private val DOCUMENT_INFO_SHEET_PEEK_HEIGHT = 120.dp
+
+/** Minimum zoom scale for the document preview (no zoom-out below original size). */
+private const val MIN_ZOOM = 1f
+
+/** Maximum zoom scale for the document preview. */
+private const val MAX_ZOOM = 5f
 
 // ── Previews ──────────────────────────────────────────────────────────────────
 
