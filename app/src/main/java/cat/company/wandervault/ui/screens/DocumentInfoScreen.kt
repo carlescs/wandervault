@@ -42,7 +42,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SheetValue
-import androidx.compose.material3.SmallFloatingActionButton
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -246,7 +246,10 @@ private fun DocumentInfoSuccessContent(
     modifier: Modifier = Modifier,
 ) {
     val scaffoldState = rememberBottomSheetScaffoldState(
-        bottomSheetState = rememberStandardBottomSheetState(skipHiddenState = false),
+        bottomSheetState = rememberStandardBottomSheetState(
+            initialValue = SheetValue.Hidden,
+            skipHiddenState = false,
+        ),
     )
     val scope = rememberCoroutineScope()
     val isSheetHidden by remember { derivedStateOf { scaffoldState.bottomSheetState.currentValue == SheetValue.Hidden } }
@@ -286,11 +289,11 @@ private fun DocumentInfoSuccessContent(
         }
 
         if (isSheetHidden) {
-            SmallFloatingActionButton(
+            FilledTonalIconButton(
                 onClick = { scope.launch { scaffoldState.bottomSheetState.partialExpand() } },
                 modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(16.dp),
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 16.dp),
             ) {
                 Icon(
                     imageVector = Icons.Default.KeyboardArrowUp,
