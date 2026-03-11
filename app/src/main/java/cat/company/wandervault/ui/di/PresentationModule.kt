@@ -82,6 +82,7 @@ val presentationModule = module {
             deleteDocument = get(),
             copyDocumentToInternalStorage = get(),
             getAllFoldersForTrip = get(),
+            suggestDocumentName = get(),
         )
     }
     viewModel { params ->

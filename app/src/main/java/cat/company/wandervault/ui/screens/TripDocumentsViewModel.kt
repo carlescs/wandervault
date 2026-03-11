@@ -16,9 +16,11 @@ import cat.company.wandervault.domain.usecase.GetRootFoldersUseCase
 import cat.company.wandervault.domain.usecase.GetSubFoldersUseCase
 import cat.company.wandervault.domain.usecase.SaveDocumentUseCase
 import cat.company.wandervault.domain.usecase.SaveFolderUseCase
+import cat.company.wandervault.domain.usecase.SuggestDocumentNameUseCase
 import cat.company.wandervault.domain.usecase.UpdateDocumentUseCase
 import cat.company.wandervault.domain.usecase.UpdateFolderUseCase
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -53,6 +55,7 @@ class TripDocumentsViewModel(
     private val deleteDocument: DeleteDocumentUseCase,
     private val copyDocumentToInternalStorage: CopyDocumentToInternalStorageUseCase,
     private val getAllFoldersForTrip: GetAllFoldersForTripUseCase,
+    private val suggestDocumentName: SuggestDocumentNameUseCase,
 ) : ViewModel() {
 
     /** Stack of folders the user has navigated into; empty = at root. */
@@ -67,6 +70,16 @@ class TripDocumentsViewModel(
 
     private val _uiState = MutableStateFlow<TripDocumentsUiState>(TripDocumentsUiState.Loading)
     val uiState: StateFlow<TripDocumentsUiState> = _uiState.asStateFlow()
+
+    /**
+     * Current state of an in-flight filename suggestion request, or `null` when no suggestion
+     * is active. Collect this in the UI to update name-input dialogs while AI analysis runs.
+     */
+    private val _suggestNameState = MutableStateFlow<SuggestNameUiState?>(null)
+    val suggestNameState: StateFlow<SuggestNameUiState?> = _suggestNameState.asStateFlow()
+
+    /** Tracks the running suggestion job so it can be cancelled on demand. */
+    private var suggestNameJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -133,6 +146,49 @@ class TripDocumentsViewModel(
     fun clearError() {
         val current = _uiState.value as? TripDocumentsUiState.Success ?: return
         _uiState.value = current.copy(writeError = null)
+    }
+
+    /**
+     * Starts an ML Kit analysis on the document at [fileUri] to produce a suggested filename.
+     *
+     * Progress is exposed via [suggestNameState]:
+     * - [SuggestNameUiState.Loading] while the request is running.
+     * - [SuggestNameUiState.Downloading] while the Gemini Nano model is being downloaded.
+     * - [SuggestNameUiState.Success] when a name is produced.
+     * - [SuggestNameUiState.Unavailable] if the on-device AI is permanently unavailable.
+     * - [SuggestNameUiState.Error] for transient failures.
+     *
+     * Any previous in-flight suggestion is cancelled before a new one starts.
+     */
+    fun requestSuggestName(fileUri: String, mimeType: String) {
+        suggestNameJob?.cancel()
+        suggestNameJob = viewModelScope.launch {
+            _suggestNameState.value = SuggestNameUiState.Loading
+            try {
+                val suggested = suggestDocumentName(
+                    fileUri = fileUri,
+                    mimeType = mimeType,
+                    onDownloadProgress = { bytes ->
+                        _suggestNameState.value = SuggestNameUiState.Downloading(bytes)
+                    },
+                )
+                _suggestNameState.value = if (suggested != null) {
+                    SuggestNameUiState.Success(suggested)
+                } else {
+                    SuggestNameUiState.Unavailable
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Filename suggestion failed", e)
+                _suggestNameState.value = SuggestNameUiState.Error(e.message)
+            }
+        }
+    }
+
+    /** Clears the current filename suggestion state and cancels any in-flight suggestion. */
+    fun clearSuggestName() {
+        suggestNameJob?.cancel()
+        suggestNameJob = null
+        _suggestNameState.value = null
     }
 
     /** Creates a new folder with [name] at the current navigation level. */

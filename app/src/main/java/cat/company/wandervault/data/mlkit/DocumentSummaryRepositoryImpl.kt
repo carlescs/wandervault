@@ -239,6 +239,37 @@ class DocumentSummaryRepositoryImpl(private val context: Context) : DocumentSumm
                 .addOnFailureListener { e -> cont.resumeWithException(e) }
         }
 
+    override suspend fun suggestDocumentName(
+        fileUri: String,
+        mimeType: String,
+        onDownloadProgress: ((bytesDownloaded: Long) -> Unit)?,
+    ): String? {
+        val text = readDocumentText(fileUri, mimeType) ?: return null
+        return withContext(Dispatchers.IO) {
+            when (generationClient.checkStatus()) {
+                FeatureStatus.UNAVAILABLE -> return@withContext null
+                FeatureStatus.DOWNLOADABLE -> awaitDownload(onDownloadProgress)
+                FeatureStatus.AVAILABLE -> Unit
+            }
+            val prompt = buildString {
+                appendLine(
+                    "Read the following travel document and suggest a concise filename for it " +
+                        "(2 to 5 words, no file extension, use spaces between words). " +
+                        "Return only the filename, nothing else.",
+                )
+                appendLine()
+                appendLine("Document text:")
+                append(text)
+            }
+            val request = generateContentRequest(TextPart(prompt)) {
+                maxOutputTokens = NAME_SUGGESTION_MAX_TOKENS
+            }
+            val response = generationClient.generateContent(request)
+            val candidateText = response.candidates.firstOrNull()?.text?.trim()
+            candidateText?.takeIf { it.isNotBlank() }
+        }
+    }
+
     private fun buildPrompt(documentText: String, tripYear: Int?): String = buildString {
         appendLine(
             "Analyze the following travel document and respond with exactly two sections " +
@@ -282,6 +313,9 @@ class DocumentSummaryRepositoryImpl(private val context: Context) : DocumentSumm
 
         /** Maximum tokens Gemini Nano may generate for the extraction response (hard limit: 256). */
         private const val MAX_OUTPUT_TOKENS = 256
+
+        /** Maximum tokens Gemini Nano may generate for a filename suggestion. */
+        private const val NAME_SUGGESTION_MAX_TOKENS = 32
 
         /** Maximum number of PDF pages to process (avoids excessive OCR time on large documents). */
         private const val MAX_PDF_PAGES = 10
