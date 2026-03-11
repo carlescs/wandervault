@@ -33,6 +33,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.DriveFileMove
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CheckBox
 import androidx.compose.material.icons.filled.CheckBoxOutlineBlank
 import androidx.compose.material.icons.filled.Close
@@ -73,6 +74,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -906,11 +908,11 @@ private fun NameInputDialog(
 }
 
 /**
- * A name-input dialog with an optional AI filename suggestion button.
+ * A name-input dialog with an optional AI filename suggestion icon.
  *
- * The "Suggest" button is shown in the dismiss-button slot to keep the confirm button prominent.
- * While a suggestion is in-flight the [suggestNameState] drives a progress indicator; when
- * [SuggestNameUiState.Success] arrives the text field is updated automatically.
+ * The suggestion is triggered via a trailing icon inside the name text field. While a suggestion
+ * is in-flight the icon is replaced by a progress indicator; when [SuggestNameUiState.Success]
+ * arrives the text field is updated automatically.
  */
 @Composable
 private fun DocumentNameInputDialog(
@@ -934,6 +936,8 @@ private fun DocumentNameInputDialog(
     val isSuggesting = suggestNameState is SuggestNameUiState.Loading ||
         suggestNameState is SuggestNameUiState.Downloading
 
+    val suggestLoadingDesc = stringResource(R.string.documents_suggest_name_loading)
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
@@ -945,6 +949,35 @@ private fun DocumentNameInputDialog(
                     label = { Text(label) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
+                    trailingIcon = {
+                        if (isSuggesting) {
+                            CircularProgressIndicator(
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .semantics {
+                                        contentDescription = suggestLoadingDesc
+                                    },
+                                strokeWidth = 2.dp,
+                            )
+                        } else {
+                            IconButton(
+                                onClick = onSuggest,
+                                enabled = suggestNameState !is SuggestNameUiState.Unavailable,
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.AutoAwesome,
+                                    contentDescription = stringResource(R.string.documents_suggest_name),
+                                    tint = if (suggestNameState is SuggestNameUiState.Unavailable ||
+                                        suggestNameState is SuggestNameUiState.Error
+                                    ) {
+                                        MaterialTheme.colorScheme.error
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    },
+                                )
+                            }
+                        }
+                    },
                 )
                 val statusText = when (suggestNameState) {
                     is SuggestNameUiState.Loading ->
@@ -957,32 +990,19 @@ private fun DocumentNameInputDialog(
                         stringResource(R.string.documents_suggest_name_error)
                     else -> null
                 }
-                if (isSuggesting || statusText != null) {
+                if (statusText != null) {
                     Spacer(modifier = Modifier.height(8.dp))
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        if (isSuggesting) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(16.dp),
-                                strokeWidth = 2.dp,
-                            )
-                        }
-                        if (statusText != null) {
-                            Text(
-                                text = statusText,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = if (suggestNameState is SuggestNameUiState.Unavailable ||
-                                    suggestNameState is SuggestNameUiState.Error
-                                ) {
-                                    MaterialTheme.colorScheme.error
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                },
-                            )
-                        }
-                    }
+                    Text(
+                        text = statusText,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (suggestNameState is SuggestNameUiState.Unavailable ||
+                            suggestNameState is SuggestNameUiState.Error
+                        ) {
+                            MaterialTheme.colorScheme.error
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                    )
                 }
             }
         },
@@ -995,16 +1015,8 @@ private fun DocumentNameInputDialog(
             }
         },
         dismissButton = {
-            Row {
-                TextButton(
-                    onClick = onSuggest,
-                    enabled = !isSuggesting,
-                ) {
-                    Text(stringResource(R.string.documents_suggest_name))
-                }
-                TextButton(onClick = onDismiss) {
-                    Text(stringResource(R.string.dialog_cancel))
-                }
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.dialog_cancel))
             }
         },
     )
