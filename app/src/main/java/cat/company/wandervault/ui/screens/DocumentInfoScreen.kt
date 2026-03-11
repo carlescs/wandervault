@@ -28,6 +28,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.FindInPage
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material3.BottomSheetDefaults
@@ -41,6 +43,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.SmallFloatingActionButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberBottomSheetScaffoldState
@@ -49,6 +52,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -376,6 +380,10 @@ private fun DocumentInfoSheetContent(
  * Zoom and pan state are intentionally kept local to this composable: they are purely
  * ephemeral visual state that does not need to survive configuration changes or be shared
  * with the ViewModel. Double-tapping resets the view to the original scale and position.
+ *
+ * For multi-page PDFs, page-navigation state is also kept here so that the [PdfPageNavigator]
+ * overlay sits outside the [graphicsLayer] transform, keeping it unaffected by zoom/pan.
+ * Navigating to a new page resets zoom and pan to their initial values.
  */
 @Composable
 private fun ZoomableDocumentPreview(
@@ -384,6 +392,8 @@ private fun ZoomableDocumentPreview(
 ) {
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
+    var currentPage by remember(document.uri) { mutableIntStateOf(0) }
+    var pageCount by remember(document.uri) { mutableIntStateOf(0) }
 
     val transformState = rememberTransformableState { zoomChange, panChange, _ ->
         scale = (scale * zoomChange).coerceIn(MIN_ZOOM, MAX_ZOOM)
@@ -402,6 +412,8 @@ private fun ZoomableDocumentPreview(
     ) {
         DocumentPreview(
             document = document,
+            currentPage = currentPage,
+            onPageCountAvailable = { pageCount = it },
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer {
@@ -411,12 +423,34 @@ private fun ZoomableDocumentPreview(
                     translationY = offset.y
                 },
         )
+
+        if (pageCount > 1) {
+            PdfPageNavigator(
+                currentPage = currentPage,
+                pageCount = pageCount,
+                onPreviousPage = {
+                    currentPage--
+                    scale = MIN_ZOOM
+                    offset = Offset.Zero
+                },
+                onNextPage = {
+                    currentPage++
+                    scale = MIN_ZOOM
+                    offset = Offset.Zero
+                },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 8.dp),
+            )
+        }
     }
 }
 
 @Composable
 private fun DocumentPreview(
     document: TripDocument,
+    currentPage: Int = 0,
+    onPageCountAvailable: (Int) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val isImage = document.mimeType.startsWith("image/")
@@ -440,14 +474,17 @@ private fun DocumentPreview(
         isPdf && document.uri.isNotBlank() -> {
             val context = LocalContext.current
             // State: false = still loading; true = done (bitmap = success, null bitmap = failed/empty).
+            // Keyed on both uri and currentPage so it re-renders whenever the page changes.
             val pdfRenderState by produceState<Pair<Boolean, Bitmap?>>(
                 initialValue = false to null,
                 key1 = document.uri,
+                key2 = currentPage,
             ) {
-                val bitmap = withContext(Dispatchers.IO) {
-                    renderPdfFirstPage(context, document.uri)
+                val result = withContext(Dispatchers.IO) {
+                    renderPdfPage(context, document.uri, currentPage)
                 }
-                value = true to bitmap
+                if (result != null) onPageCountAvailable(result.first)
+                value = true to result?.second
             }
             val (done, bitmap) = pdfRenderState
             when {
@@ -499,42 +536,121 @@ private fun DocumentPreview(
 }
 
 /**
- * Renders the first page of a PDF file at [fileUri] to a [Bitmap] scaled to fit within
+ * Renders page [pageIndex] of a PDF at [fileUri] to a [Bitmap] scaled to fit within
  * [maxDimension] pixels on the longest side, bounding memory use for large/scanned PDFs.
+ * Also returns the total page count so callers can drive page-navigation UI.
  *
- * Supports both `file://` and `content://` URIs. Returns `null` if the file cannot be opened,
- * the PDF has no pages, or any other non-cancellation error occurs during rendering.
+ * Supports both `file://` and `content://` URIs. Returns `null` if the file cannot be opened
+ * or the PDF has no pages. Returns `Pair(pageCount, null)` if the file opened successfully
+ * but the specific page could not be rendered.
  *
  * @throws kotlinx.coroutines.CancellationException if the calling coroutine was cancelled.
  */
-private fun renderPdfFirstPage(context: Context, fileUri: String, maxDimension: Int = 1080): Bitmap? {
-    return try {
-        val uri = Uri.parse(fileUri)
-        val pfd = if (uri.scheme == "file") {
+private fun renderPdfPage(
+    context: Context,
+    fileUri: String,
+    pageIndex: Int = 0,
+    maxDimension: Int = 1080,
+): Pair<Int, Bitmap?>? {
+    val uri = Uri.parse(fileUri)
+    val pfd = try {
+        if (uri.scheme == "file") {
             val path = uri.path ?: return null
             ParcelFileDescriptor.open(File(path), ParcelFileDescriptor.MODE_READ_ONLY)
         } else {
             context.contentResolver.openFileDescriptor(uri, "r") ?: return null
         }
-        pfd.use { descriptor ->
-            PdfRenderer(descriptor).use { renderer ->
-                if (renderer.pageCount == 0) return null
-                renderer.openPage(0).use { page ->
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Log.w("DocumentInfoScreen", "Failed to open PDF file $fileUri", e)
+        return null
+    }
+    return pfd.use { descriptor ->
+        val renderer = try {
+            PdfRenderer(descriptor)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w("DocumentInfoScreen", "Failed to create PdfRenderer for $fileUri", e)
+            return null
+        }
+        renderer.use { r ->
+            val pageCount = r.pageCount
+            if (pageCount == 0) return null
+            val safeIndex = pageIndex.coerceIn(0, pageCount - 1)
+            val bitmap = try {
+                r.openPage(safeIndex).use { page ->
                     val scale = minOf(1f, maxDimension.toFloat() / maxOf(page.width, page.height))
                     // coerceAtLeast(1) guards against zero-dimension bitmaps due to float rounding.
                     val bitmapWidth = (page.width * scale).toInt().coerceAtLeast(1)
                     val bitmapHeight = (page.height * scale).toInt().coerceAtLeast(1)
-                    val bitmap = Bitmap.createBitmap(bitmapWidth, bitmapHeight, Bitmap.Config.ARGB_8888)
-                    page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
-                    bitmap
+                    val bmp = Bitmap.createBitmap(bitmapWidth, bitmapHeight, Bitmap.Config.ARGB_8888)
+                    page.render(bmp, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                    bmp
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w("DocumentInfoScreen", "Failed to render PDF page $pageIndex for $fileUri", e)
+                null
+            }
+            pageCount to bitmap
+        }
+    }
+}
+
+/**
+ * Overlay bar with previous/next page buttons and a "Page X of Y" indicator.
+ *
+ * Rendered as a sibling of [DocumentPreview] inside [ZoomableDocumentPreview]'s [Box],
+ * so it is not affected by the zoom/pan [graphicsLayer] transform applied to the preview.
+ *
+ * @param currentPage 0-based index of the currently displayed page.
+ * @param pageCount   Total number of pages in the document.
+ */
+@Composable
+private fun PdfPageNavigator(
+    currentPage: Int,
+    pageCount: Int,
+    onPreviousPage: () -> Unit,
+    onNextPage: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier,
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f),
+        tonalElevation = 4.dp,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            IconButton(
+                onClick = onPreviousPage,
+                enabled = currentPage > 0,
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                    contentDescription = stringResource(R.string.document_info_pdf_prev_page),
+                )
+            }
+            Text(
+                text = stringResource(R.string.document_info_pdf_page_indicator, currentPage + 1, pageCount),
+                style = MaterialTheme.typography.bodySmall,
+            )
+            IconButton(
+                onClick = onNextPage,
+                enabled = currentPage < pageCount - 1,
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = stringResource(R.string.document_info_pdf_next_page),
+                )
             }
         }
-    } catch (e: kotlinx.coroutines.CancellationException) {
-        throw e
-    } catch (e: Exception) {
-        Log.w("DocumentInfoScreen", "Failed to render PDF preview for $fileUri", e)
-        null
     }
 }
 
