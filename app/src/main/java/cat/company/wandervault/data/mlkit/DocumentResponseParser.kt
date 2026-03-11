@@ -112,3 +112,26 @@ internal fun String.parseLocalDateOrNull(): LocalDate? = try {
 } catch (_: DateTimeParseException) {
     null
 }
+
+/**
+ * Cleans raw Gemini Nano output into a safe, single-line filename string.
+ *
+ * - Takes only the first non-blank line (models sometimes add preamble or newlines).
+ * - Strips surrounding quotation marks and common model preamble patterns (e.g. "Filename:").
+ * - Replaces characters that are invalid in file names (`/`, `\`, `:`, `*`, `?`, `"`, `<`,
+ *   `>`, `|`) with spaces.
+ * - Collapses consecutive spaces and trims the result.
+ * - Returns `null` if nothing meaningful remains after cleaning.
+ */
+internal fun normalizeSuggestedFilename(raw: String): String? {
+    val firstLine = raw.lineSequence().firstOrNull { it.isNotBlank() } ?: return null
+    // Strip surrounding quotes (single or double)
+    val unquoted = firstLine.trim().removeSurrounding("\"").removeSurrounding("'").trim()
+    // Remove common preamble patterns the model sometimes adds (case-insensitive, single pass)
+    val withoutPreamble = unquoted.replace(Regex("^(?:file ?name|filename)\\s*:\\s*", RegexOption.IGNORE_CASE), "").trim()
+    // Replace characters that are illegal in filenames
+    val sanitized = withoutPreamble.replace(Regex("[/\\\\:*?\"<>|]"), " ")
+    // Collapse consecutive whitespace and trim
+    val collapsed = sanitized.replace(Regex("\\s+"), " ").trim()
+    return collapsed.takeIf { it.isNotBlank() }
+}

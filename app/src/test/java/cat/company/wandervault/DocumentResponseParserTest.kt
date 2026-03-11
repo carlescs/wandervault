@@ -1,5 +1,6 @@
 package cat.company.wandervault
 
+import cat.company.wandervault.data.mlkit.normalizeSuggestedFilename
 import cat.company.wandervault.data.mlkit.parseDocumentResponse
 import cat.company.wandervault.domain.model.DocumentExtractionResult
 import org.junit.Assert.assertEquals
@@ -261,5 +262,77 @@ class DocumentResponseParserTest {
             "Travel dates: 2024-07-01 to 2024-07-10. Destination: Tokyo.",
             result.relevantTripInfo,
         )
+    }
+
+    // ── normalizeSuggestedFilename ─────────────────────────────────────────────
+
+    @Test
+    fun `normalizeSuggestedFilename returns clean name for plain input`() {
+        assertEquals("Paris Flight Ticket", normalizeSuggestedFilename("Paris Flight Ticket"))
+    }
+
+    @Test
+    fun `normalizeSuggestedFilename strips surrounding double quotes`() {
+        assertEquals("Paris Hotel Booking", normalizeSuggestedFilename("\"Paris Hotel Booking\""))
+    }
+
+    @Test
+    fun `normalizeSuggestedFilename strips surrounding single quotes`() {
+        assertEquals("Rome Trip Invoice", normalizeSuggestedFilename("'Rome Trip Invoice'"))
+    }
+
+    @Test
+    fun `normalizeSuggestedFilename removes Filename colon prefix`() {
+        assertEquals("London Train Ticket", normalizeSuggestedFilename("Filename: London Train Ticket"))
+    }
+
+    @Test
+    fun `normalizeSuggestedFilename removes filename lowercase colon prefix`() {
+        assertEquals("London Train Ticket", normalizeSuggestedFilename("filename: London Train Ticket"))
+    }
+
+    @Test
+    fun `normalizeSuggestedFilename removes File name colon prefix`() {
+        assertEquals("Berlin Bus Pass", normalizeSuggestedFilename("File name: Berlin Bus Pass"))
+    }
+
+    @Test
+    fun `normalizeSuggestedFilename removes FILENAME uppercase colon prefix`() {
+        assertEquals("Tokyo Metro Pass", normalizeSuggestedFilename("FILENAME: Tokyo Metro Pass"))
+    }
+
+    @Test
+    fun `normalizeSuggestedFilename uses first non-blank line only`() {
+        assertEquals("Madrid Hotel Receipt", normalizeSuggestedFilename("\n\nMadrid Hotel Receipt\nSome extra line"))
+    }
+
+    @Test
+    fun `normalizeSuggestedFilename skips whitespace-only first lines`() {
+        assertEquals("Madrid Hotel Receipt", normalizeSuggestedFilename("  \t  \nMadrid Hotel Receipt"))
+    }
+
+    @Test
+    fun `normalizeSuggestedFilename replaces invalid filename characters with spaces`() {
+        assertEquals("A B C D E F G H I", normalizeSuggestedFilename("A/B\\C:D*E?F\"G<H>I"))
+    }
+
+    @Test
+    fun `normalizeSuggestedFilename collapses consecutive whitespace`() {
+        assertEquals("Flight Booking Confirmation", normalizeSuggestedFilename("Flight   Booking  Confirmation"))
+    }
+
+    @Test
+    fun `normalizeSuggestedFilename returns null for blank input`() {
+        assertNull(normalizeSuggestedFilename("   "))
+    }
+
+    @Test
+    fun `normalizeSuggestedFilename returns null for empty string`() {
+        assertNull(normalizeSuggestedFilename(""))
+    }
+
+    @Test
+    fun `normalizeSuggestedFilename returns null when only invalid chars remain`() {
+        assertNull(normalizeSuggestedFilename("///"))
     }
 }

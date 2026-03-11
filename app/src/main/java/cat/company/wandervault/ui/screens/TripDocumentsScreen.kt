@@ -90,13 +90,6 @@ import cat.company.wandervault.ui.theme.WanderVaultTheme
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
 
-/** Holds the information about a newly picked file while the user confirms its name. */
-private data class PendingAddFile(
-    val sourceUri: String,
-    val mimeType: String,
-    val originalName: String,
-)
-
 /**
  * Documents tab entry point for the Trip Detail screen.
  *
@@ -131,7 +124,10 @@ internal fun TripDocumentsTabContent(
     }
 
     // Pending file waiting for a name confirmation before being added to the trip.
-    var pendingAddFile by remember { mutableStateOf<PendingAddFile?>(null) }
+    // Each field is saved separately so the confirmation dialog survives configuration changes.
+    var pendingSourceUri by rememberSaveable { mutableStateOf<String?>(null) }
+    var pendingMimeType by rememberSaveable { mutableStateOf<String?>(null) }
+    var pendingOriginalName by rememberSaveable { mutableStateOf<String?>(null) }
 
     val filePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument(),
@@ -146,24 +142,33 @@ internal fun TripDocumentsTabContent(
             "document.$ext"
         }
         // Show a name confirmation dialog instead of adding immediately.
-        pendingAddFile = PendingAddFile(uri.toString(), mimeType, fileName)
+        pendingSourceUri = uri.toString()
+        pendingMimeType = mimeType
+        pendingOriginalName = fileName
     }
 
     // Name confirmation dialog shown after the file picker returns.
-    pendingAddFile?.let { pending ->
+    val pendingUri = pendingSourceUri
+    val pendingMime = pendingMimeType
+    val pendingName = pendingOriginalName
+    if (pendingUri != null && pendingMime != null && pendingName != null) {
         DocumentNameInputDialog(
             title = stringResource(R.string.documents_name_document_title),
             label = stringResource(R.string.documents_name_label),
-            initialName = pending.originalName,
+            initialName = pendingName,
             suggestNameState = suggestNameState,
-            onSuggest = { viewModel.requestSuggestName(pending.sourceUri, pending.mimeType) },
+            onSuggest = { viewModel.requestSuggestName(pendingUri, pendingMime) },
             onConfirm = { name ->
-                pendingAddFile = null
+                pendingSourceUri = null
+                pendingMimeType = null
+                pendingOriginalName = null
                 viewModel.clearSuggestName()
-                viewModel.addDocument(name = name, sourceUri = pending.sourceUri, mimeType = pending.mimeType)
+                viewModel.addDocument(name = name, sourceUri = pendingUri, mimeType = pendingMime)
             },
             onDismiss = {
-                pendingAddFile = null
+                pendingSourceUri = null
+                pendingMimeType = null
+                pendingOriginalName = null
                 viewModel.clearSuggestName()
             },
         )
