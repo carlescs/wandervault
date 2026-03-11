@@ -28,8 +28,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.FindInPage
 import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material3.BottomSheetDefaults
@@ -552,20 +552,35 @@ private fun renderPdfPage(
     pageIndex: Int = 0,
     maxDimension: Int = 1080,
 ): Pair<Int, Bitmap?>? {
-    return try {
-        val uri = Uri.parse(fileUri)
-        val pfd = if (uri.scheme == "file") {
+    val uri = Uri.parse(fileUri)
+    val pfd = try {
+        if (uri.scheme == "file") {
             val path = uri.path ?: return null
             ParcelFileDescriptor.open(File(path), ParcelFileDescriptor.MODE_READ_ONLY)
         } else {
             context.contentResolver.openFileDescriptor(uri, "r") ?: return null
         }
-        pfd.use { descriptor ->
-            PdfRenderer(descriptor).use { renderer ->
-                val pageCount = renderer.pageCount
-                if (pageCount == 0) return null
-                val safeIndex = pageIndex.coerceIn(0, pageCount - 1)
-                val bitmap = renderer.openPage(safeIndex).use { page ->
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Log.w("DocumentInfoScreen", "Failed to open PDF file $fileUri", e)
+        return null
+    }
+    return pfd.use { descriptor ->
+        val renderer = try {
+            PdfRenderer(descriptor)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w("DocumentInfoScreen", "Failed to create PdfRenderer for $fileUri", e)
+            return null
+        }
+        renderer.use { r ->
+            val pageCount = r.pageCount
+            if (pageCount == 0) return null
+            val safeIndex = pageIndex.coerceIn(0, pageCount - 1)
+            val bitmap = try {
+                r.openPage(safeIndex).use { page ->
                     val scale = minOf(1f, maxDimension.toFloat() / maxOf(page.width, page.height))
                     // coerceAtLeast(1) guards against zero-dimension bitmaps due to float rounding.
                     val bitmapWidth = (page.width * scale).toInt().coerceAtLeast(1)
@@ -574,14 +589,14 @@ private fun renderPdfPage(
                     page.render(bmp, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
                     bmp
                 }
-                pageCount to bitmap
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w("DocumentInfoScreen", "Failed to render PDF page $pageIndex for $fileUri", e)
+                null
             }
+            pageCount to bitmap
         }
-    } catch (e: kotlinx.coroutines.CancellationException) {
-        throw e
-    } catch (e: Exception) {
-        Log.w("DocumentInfoScreen", "Failed to render PDF page $pageIndex for $fileUri", e)
-        null
     }
 }
 
@@ -618,7 +633,7 @@ private fun PdfPageNavigator(
                 enabled = currentPage > 0,
             ) {
                 Icon(
-                    imageVector = Icons.Default.KeyboardArrowLeft,
+                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
                     contentDescription = stringResource(R.string.document_info_pdf_prev_page),
                 )
             }
@@ -631,7 +646,7 @@ private fun PdfPageNavigator(
                 enabled = currentPage < pageCount - 1,
             ) {
                 Icon(
-                    imageVector = Icons.Default.KeyboardArrowRight,
+                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                     contentDescription = stringResource(R.string.document_info_pdf_next_page),
                 )
             }
