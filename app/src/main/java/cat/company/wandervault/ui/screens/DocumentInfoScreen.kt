@@ -423,11 +423,14 @@ private fun DocumentPreview(
     when {
         isImage && document.uri.isNotBlank() -> {
             val context = LocalContext.current
-            AsyncImage(
-                model = ImageRequest.Builder(context)
+            val imageRequest = remember(document.uri) {
+                ImageRequest.Builder(context)
                     .data(document.uri.toUri())
                     .crossfade(true)
-                    .build(),
+                    .build()
+            }
+            AsyncImage(
+                model = imageRequest,
                 contentDescription = stringResource(R.string.document_info_preview_content_desc, document.name),
                 contentScale = ContentScale.Fit,
                 modifier = modifier,
