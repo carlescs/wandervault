@@ -22,6 +22,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.FindInPage
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -47,6 +48,8 @@ import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cat.company.wandervault.R
+import cat.company.wandervault.domain.model.Destination
+import cat.company.wandervault.domain.model.TransportLeg
 import cat.company.wandervault.domain.model.TripDocument
 import cat.company.wandervault.ui.theme.WanderVaultTheme
 import coil.compose.AsyncImage
@@ -61,7 +64,8 @@ import java.io.File
  * Document Info screen entry point.
  *
  * Displays a preview of the document file (image) or a generic icon (other types), the last
- * saved AI description, and basic file metadata (name, MIME type, size, folder).
+ * saved AI description, and basic file metadata (name, MIME type, size, folder). Also provides
+ * an "Analyze Document" action that runs ML Kit document analysis inline.
  *
  * @param documentId The ID of the document to display.
  * @param onNavigateUp Called when the user taps the back/up button.
@@ -84,6 +88,14 @@ fun DocumentInfoScreen(
         uiState = uiState,
         onNavigateUp = onNavigateUp,
         onOpenDocument = { document -> openTripDocument(context, document) },
+        onAnalyzeDocument = viewModel::analyzeDocument,
+        onAnalyzeApplyChanges = viewModel::applyAnalysisChanges,
+        onAnalyzeFlightLegSelected = viewModel::onFlightLegSelected,
+        onAnalyzeFlightConfirmed = viewModel::onFlightConfirmed,
+        onAnalyzeHotelDestinationSelected = viewModel::onHotelDestinationSelected,
+        onAnalyzeHotelConfirmed = viewModel::onHotelConfirmed,
+        onAnalyzeTripInfoConfirmed = viewModel::onTripInfoConfirmed,
+        onAnalyzeDismiss = viewModel::dismissAnalyze,
         modifier = modifier,
     )
 }
@@ -97,6 +109,14 @@ internal fun DocumentInfoContent(
     uiState: DocumentInfoUiState,
     onNavigateUp: () -> Unit,
     onOpenDocument: (TripDocument) -> Unit = {},
+    onAnalyzeDocument: () -> Unit = {},
+    onAnalyzeApplyChanges: () -> Unit = {},
+    onAnalyzeFlightLegSelected: (TransportLeg) -> Unit = {},
+    onAnalyzeFlightConfirmed: () -> Unit = {},
+    onAnalyzeHotelDestinationSelected: (Destination) -> Unit = {},
+    onAnalyzeHotelConfirmed: () -> Unit = {},
+    onAnalyzeTripInfoConfirmed: () -> Unit = {},
+    onAnalyzeDismiss: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val title = if (uiState is DocumentInfoUiState.Success) {
@@ -125,6 +145,12 @@ internal fun DocumentInfoContent(
                 },
                 actions = {
                     if (uiState is DocumentInfoUiState.Success) {
+                        IconButton(onClick = onAnalyzeDocument) {
+                            Icon(
+                                imageVector = Icons.Default.FindInPage,
+                                contentDescription = stringResource(R.string.documents_analyze_action),
+                            )
+                        }
                         IconButton(onClick = { onOpenDocument(uiState.document) }) {
                             Icon(
                                 imageVector = Icons.Default.OpenInNew,
@@ -166,6 +192,23 @@ internal fun DocumentInfoContent(
                 )
             }
         }
+    }
+
+    // Show the unified analysis dialog whenever an analysis is active. A single AlertDialog
+    // composable is used for all states so that the same dialog window persists throughout the
+    // entire analysis flow, avoiding spurious onDismissRequest calls on state transitions.
+    val analyzeState = (uiState as? DocumentInfoUiState.Success)?.analyzeState
+    if (analyzeState != null) {
+        AnalyzeDocumentDialog(
+            analyzeState = analyzeState,
+            onApplyChanges = onAnalyzeApplyChanges,
+            onFlightLegSelected = onAnalyzeFlightLegSelected,
+            onFlightConfirmed = onAnalyzeFlightConfirmed,
+            onHotelDestinationSelected = onAnalyzeHotelDestinationSelected,
+            onHotelConfirmed = onAnalyzeHotelConfirmed,
+            onTripInfoConfirmed = onAnalyzeTripInfoConfirmed,
+            onDismiss = onAnalyzeDismiss,
+        )
     }
 }
 
