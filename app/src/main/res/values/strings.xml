@@ -177,6 +177,8 @@
     <string name="transport_detail_destination_label">To</string>
     <string name="transport_detail_stop_name_label">Intermediate stop</string>
     <string name="transport_detail_no_destination">End of trip</string>
+    <string name="transport_detail_departure_label">Departure</string>
+    <string name="transport_detail_arrival_label">Arrival</string>
     <string name="editable_label_edit_action">Edit %s</string>
     <string name="editable_label_not_set">—</string>
     <string name="editable_label_save">Save %s</string>

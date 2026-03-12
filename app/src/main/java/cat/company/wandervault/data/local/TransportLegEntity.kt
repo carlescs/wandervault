@@ -4,6 +4,7 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import java.time.LocalDateTime
 
 /**
  * Room entity for a single transport leg that belongs to a parent [TransportEntity].
@@ -47,4 +48,8 @@ data class TransportLegEntity(
      * Only one leg per transport should have this flag set.
      */
     val isDefault: Boolean = false,
+    /** When the traveller departs for this leg.  Stored as ISO-8601 string via [DateConverters]. */
+    val departureDateTime: LocalDateTime? = null,
+    /** When the traveller arrives at the end of this leg.  Stored as ISO-8601 string via [DateConverters]. */
+    val arrivalDateTime: LocalDateTime? = null,
 )

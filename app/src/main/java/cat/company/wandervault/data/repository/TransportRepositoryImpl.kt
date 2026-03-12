@@ -53,6 +53,8 @@ internal fun TransportLegEntity.toDomain() = TransportLeg(
     flightNumber = flightNumber,
     reservationConfirmationNumber = reservationConfirmationNumber,
     isDefault = isDefault,
+    departureDateTime = departureDateTime,
+    arrivalDateTime = arrivalDateTime,
 )
 
 private fun Transport.toEntity() = TransportEntity(
@@ -70,4 +72,6 @@ private fun TransportLeg.toEntity() = TransportLegEntity(
     flightNumber = flightNumber,
     reservationConfirmationNumber = reservationConfirmationNumber,
     isDefault = isDefault,
+    departureDateTime = departureDateTime,
+    arrivalDateTime = arrivalDateTime,
 )

@@ -11,6 +11,7 @@ import cat.company.wandervault.domain.usecase.GetDestinationByIdUseCase
 import cat.company.wandervault.domain.usecase.GetNextDestinationUseCase
 import cat.company.wandervault.domain.usecase.GetOrCreateTransportForDestinationUseCase
 import cat.company.wandervault.domain.usecase.SaveTransportLegUseCase
+import cat.company.wandervault.domain.usecase.UpdateDestinationUseCase
 import cat.company.wandervault.domain.usecase.UpdateTransportLegUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -22,6 +23,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import java.time.LocalDateTime
 
 /**
  * ViewModel for the Transport Detail screen.
@@ -40,6 +42,8 @@ import kotlinx.coroutines.launch
  * @param updateTransportLeg Use-case that updates an existing transport leg.
  * @param deleteTransportLeg Use-case that removes a transport leg.
  * @param deleteTransport Use-case that removes the parent transport (and all legs via CASCADE).
+ * @param updateDestination Use-case that updates a destination (used to sync the first leg's
+ *   departure and the last leg's arrival with the corresponding destination date-times).
  */
 class TransportDetailViewModel(
     private val getDestinationById: GetDestinationByIdUseCase,
@@ -49,12 +53,16 @@ class TransportDetailViewModel(
     private val updateTransportLeg: UpdateTransportLegUseCase,
     private val deleteTransportLeg: DeleteTransportLegUseCase,
     private val deleteTransport: DeleteTransportUseCase,
+    private val updateDestination: UpdateDestinationUseCase,
 ) : ViewModel() {
 
     private val _destinationId = MutableStateFlow<Int?>(null)
 
     /** The last destination snapshot received from the database (used in [onSave]). */
     private var _lastDestination: Destination? = null
+
+    /** The last next-destination snapshot received from the database (used to sync last-leg arrival). */
+    private var _lastNextDestination: Destination? = null
 
     /**
      * True when the user has made unsaved edits.  While true, incoming DB emissions do not
@@ -92,17 +100,28 @@ class TransportDetailViewModel(
                         _uiState.value = TransportDetailUiState.Error
                     } else {
                         _lastDestination = destination
+                        _lastNextDestination = nextDestination
                         // Preserve in-progress edits; only remap from the DB when there are none.
                         val legs = if (_hasUnsavedEdits && _uiState.value is TransportDetailUiState.Success) {
                             (_uiState.value as TransportDetailUiState.Success).legs
                         } else {
-                            destination.transport?.legs?.map { it.toEditState() } ?: emptyList()
+                            val dbLegs = destination.transport?.legs ?: emptyList()
+                            dbLegs.mapIndexed { idx, leg ->
+                                leg.toEditState(
+                                    isFirst = idx == 0,
+                                    destinationDepartureDateTime = destination.departureDateTime,
+                                    isLast = idx == dbLegs.lastIndex,
+                                    nextArrivalDateTime = nextDestination?.arrivalDateTime,
+                                )
+                            }
                         }
                         _uiState.value = TransportDetailUiState.Success(
                             destinationName = destination.name,
                             originName = destination.name,
                             nextDestinationName = nextDestination?.name,
                             legs = legs,
+                            destinationDepartureDateTime = destination.departureDateTime,
+                            nextDestinationArrivalDateTime = nextDestination?.arrivalDateTime,
                         )
                     }
                 }
@@ -122,6 +141,7 @@ class TransportDetailViewModel(
     fun loadDestination(id: Int) {
         _uiState.value = TransportDetailUiState.Loading
         _lastDestination = null
+        _lastNextDestination = null
         _hasUnsavedEdits = false
         // Force a new emission even if the same ID is loaded again (StateFlow deduplicates equal values).
         _destinationId.value = null
@@ -178,6 +198,43 @@ class TransportDetailViewModel(
     fun onConfirmationNumberChange(index: Int, value: String) {
         _hasUnsavedEdits = true
         updateLeg(index) { copy(confirmationNumber = value) }
+    }
+
+    /**
+     * Updates the departure date/time for the leg at [index].
+     *
+     * When [index] is 0 (the first leg), also persists the new value to the parent destination's
+     * [Destination.departureDateTime] so that the itinerary timeline stays in sync.
+     */
+    fun onDepartureDateTimeChange(index: Int, dateTime: LocalDateTime?) {
+        _hasUnsavedEdits = true
+        updateLeg(index) { copy(departureDateTime = dateTime) }
+        if (index == 0) {
+            val destination = _lastDestination ?: return
+            viewModelScope.launch {
+                updateDestination(destination.copy(departureDateTime = dateTime))
+                _lastDestination = destination.copy(departureDateTime = dateTime)
+            }
+        }
+    }
+
+    /**
+     * Updates the arrival date/time for the leg at [index].
+     *
+     * When [index] is the last leg, also persists the new value to the next destination's
+     * [Destination.arrivalDateTime] so that the itinerary timeline stays in sync.
+     */
+    fun onArrivalDateTimeChange(index: Int, dateTime: LocalDateTime?) {
+        _hasUnsavedEdits = true
+        updateLeg(index) { copy(arrivalDateTime = dateTime) }
+        val current = _uiState.value as? TransportDetailUiState.Success ?: return
+        if (current.legs.isNotEmpty() && index == current.legs.lastIndex) {
+            val nextDestination = _lastNextDestination ?: return
+            viewModelScope.launch {
+                updateDestination(nextDestination.copy(arrivalDateTime = dateTime))
+                _lastNextDestination = nextDestination.copy(arrivalDateTime = dateTime)
+            }
+        }
     }
 
     /**
@@ -282,6 +339,8 @@ class TransportDetailViewModel(
                             flightNumber = leg.flightNumber.trim().takeIf { it.isNotBlank() },
                             reservationConfirmationNumber = leg.confirmationNumber.trim().takeIf { it.isNotBlank() },
                             isDefault = leg.isDefault,
+                            departureDateTime = leg.departureDateTime,
+                            arrivalDateTime = leg.arrivalDateTime,
                         ),
                     )
                 }
@@ -297,6 +356,8 @@ class TransportDetailViewModel(
                         flightNumber = leg.flightNumber.trim().takeIf { it.isNotBlank() },
                         reservationConfirmationNumber = leg.confirmationNumber.trim().takeIf { it.isNotBlank() },
                         isDefault = leg.isDefault,
+                        departureDateTime = leg.departureDateTime,
+                        arrivalDateTime = leg.arrivalDateTime,
                     ),
                 )
             }
@@ -343,7 +404,12 @@ class TransportDetailViewModel(
     }
 }
 
-private fun TransportLeg.toEditState() = TransportLegEditState(
+private fun TransportLeg.toEditState(
+    isFirst: Boolean = false,
+    destinationDepartureDateTime: LocalDateTime? = null,
+    isLast: Boolean = false,
+    nextArrivalDateTime: LocalDateTime? = null,
+) = TransportLegEditState(
     id = id,
     clientKey = id,
     typeName = type.name,
@@ -352,5 +418,20 @@ private fun TransportLeg.toEditState() = TransportLegEditState(
     flightNumber = flightNumber ?: "",
     confirmationNumber = reservationConfirmationNumber ?: "",
     isDefault = isDefault,
+    // use the destination value as the authoritative source when loading, but only when
+    // a non-null value is available to avoid clobbering an existing leg date-time.
+    departureDateTime = if (isFirst && destinationDepartureDateTime != null) {
+        destinationDepartureDateTime
+    } else {
+        departureDateTime
+    },
+    // The last leg's arrival is always kept in sync with the next destination's arrival;
+    // use the next destination value as the authoritative source when loading, but only when
+    // a non-null value is available to avoid clobbering an existing leg date-time.
+    arrivalDateTime = if (isLast && nextArrivalDateTime != null) {
+        nextArrivalDateTime
+    } else {
+        arrivalDateTime
+    },
 )
 
