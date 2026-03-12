@@ -69,6 +69,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -91,9 +92,9 @@ import java.io.File
 /**
  * Document Info screen entry point.
  *
- * Displays a preview of the document file (image) or a generic icon (other types), the last
- * saved AI description, and basic file metadata (name, MIME type, size, folder). Also provides
- * an "Analyze Document" action that runs ML Kit document analysis inline.
+ * Displays a preview of the document file (image, PDF, or text) or a generic icon (other types),
+ * the last saved AI description, and basic file metadata (name, MIME type, size, folder). Also
+ * provides an "Analyze Document" action that runs ML Kit document analysis inline.
  *
  * @param documentId The ID of the document to display.
  * @param onNavigateUp Called when the user taps the back/up button.
@@ -474,6 +475,7 @@ private fun DocumentPreview(
 ) {
     val isImage = document.mimeType.startsWith("image/")
     val isPdf = document.mimeType == "application/pdf"
+    val isText = document.mimeType.startsWith("text/")
     when {
         isImage && document.uri.isNotBlank() -> {
             val context = LocalContext.current
@@ -522,6 +524,76 @@ private fun DocumentPreview(
                         contentScale = ContentScale.Fit,
                         modifier = modifier,
                     )
+                }
+                else -> {
+                    Box(
+                        modifier = modifier,
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Description,
+                            contentDescription = null,
+                            modifier = Modifier.size(80.dp),
+                            tint = MaterialTheme.colorScheme.secondary,
+                        )
+                    }
+                }
+            }
+        }
+        isText && document.uri.isNotBlank() -> {
+            val context = LocalContext.current
+            // State: false = still loading; true = done (text = success, null text = failed/empty).
+            val textState by produceState<Pair<Boolean, String?>>(
+                initialValue = false to null,
+                key1 = document.uri,
+            ) {
+                value = true to withContext(Dispatchers.IO) {
+                    try {
+                        val uri = Uri.parse(document.uri)
+                        val inputStream = if (uri.scheme == "file") {
+                            val path = uri.path ?: return@withContext null
+                            File(path).inputStream()
+                        } else {
+                            context.contentResolver.openInputStream(uri)
+                        }
+                        inputStream?.bufferedReader()?.use { reader ->
+                            val builder = StringBuilder(MAX_TEXT_PREVIEW_CHARS)
+                            val buffer = CharArray(8_192)
+                            while (builder.length < MAX_TEXT_PREVIEW_CHARS) {
+                                val toRead = minOf(buffer.size, MAX_TEXT_PREVIEW_CHARS - builder.length)
+                                val charsRead = reader.read(buffer, 0, toRead)
+                                if (charsRead == -1) break
+                                builder.append(buffer, 0, charsRead)
+                            }
+                            builder.toString().ifEmpty { null }
+                        }
+                    } catch (e: Exception) {
+                        Log.w("DocumentInfoScreen", "Failed to read text file ${document.uri}", e)
+                        null
+                    }
+                }
+            }
+            val (done, text) = textState
+            when {
+                !done -> {
+                    Box(
+                        modifier = modifier,
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        CircularProgressIndicator()
+                    }
+                }
+                text != null -> {
+                    Box(modifier = modifier) {
+                        Text(
+                            text = text,
+                            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .verticalScroll(rememberScrollState())
+                                .padding(16.dp),
+                        )
+                    }
                 }
                 else -> {
                     Box(
@@ -714,6 +786,9 @@ private const val MIN_ZOOM = 1f
 /** Maximum zoom scale for the document preview. */
 private const val MAX_ZOOM = 5f
 
+/** Maximum characters loaded from a plain-text file for the in-screen preview. */
+private const val MAX_TEXT_PREVIEW_CHARS = 20_000
+
 // ── Previews ──────────────────────────────────────────────────────────────────
 
 @Preview(showBackground = true)
@@ -778,6 +853,29 @@ private fun DocumentInfoWithSummaryPreview() {
                 document = document,
                 fileSizeBytes = 1_234_567L,
                 folderName = null,
+            ),
+            onNavigateUp = {},
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun DocumentInfoTextFilePreview() {
+    val document = TripDocument(
+        id = 3,
+        tripId = 1,
+        name = "itinerary.txt",
+        uri = "",
+        mimeType = "text/plain",
+        summary = null,
+    )
+    WanderVaultTheme {
+        DocumentInfoContent(
+            uiState = DocumentInfoUiState.Success(
+                document = document,
+                fileSizeBytes = 2_048L,
+                folderName = "Travel Plans",
             ),
             onNavigateUp = {},
         )
