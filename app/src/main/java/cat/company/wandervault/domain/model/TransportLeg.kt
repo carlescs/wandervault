@@ -1,5 +1,7 @@
 package cat.company.wandervault.domain.model
 
+import java.time.LocalDateTime
+
 /**
  * Represents a single leg within the transport journey from one itinerary stop to the next.
  *
@@ -20,6 +22,10 @@ package cat.company.wandervault.domain.model
  * @param isDefault When `true` this leg's transport type icon is shown in the itinerary
  *   timeline.  Only one leg per transport should have this flag set; when no leg has it the
  *   first leg is used as a fallback.
+ * @param departureDateTime When the traveller departs for this leg.  For the first leg this
+ *   matches the parent [Destination.departureDateTime].  `null` when not yet set.
+ * @param arrivalDateTime When the traveller arrives at the end of this leg.  For the last leg
+ *   this matches the next [Destination.arrivalDateTime].  `null` when not yet set.
  */
 data class TransportLeg(
     val id: Int = 0,
@@ -31,4 +37,6 @@ data class TransportLeg(
     val flightNumber: String? = null,
     val reservationConfirmationNumber: String? = null,
     val isDefault: Boolean = false,
+    val departureDateTime: LocalDateTime? = null,
+    val arrivalDateTime: LocalDateTime? = null,
 )

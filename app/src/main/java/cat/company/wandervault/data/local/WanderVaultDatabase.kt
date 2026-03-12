@@ -16,7 +16,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         TripDocumentFolderEntity::class,
         TripDocumentEntity::class,
     ],
-    version = 17,
+    version = 18,
 )
 @TypeConverters(DateConverters::class)
 abstract class WanderVaultDatabase : RoomDatabase() {
@@ -368,6 +368,12 @@ abstract class WanderVaultDatabase : RoomDatabase() {
                 db.execSQL(
                     "ALTER TABLE `transport_legs` ADD COLUMN `isDefault` INTEGER NOT NULL DEFAULT 0",
                 )
+            }
+        }
+        val MIGRATION_17_18 = object : Migration(17, 18) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `transport_legs` ADD COLUMN `departureDateTime` TEXT")
+                db.execSQL("ALTER TABLE `transport_legs` ADD COLUMN `arrivalDateTime` TEXT")
             }
         }
     }

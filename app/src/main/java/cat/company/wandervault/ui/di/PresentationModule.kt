@@ -47,6 +47,7 @@ val presentationModule = module {
             updateTransportLeg = get(),
             deleteTransportLeg = get(),
             deleteTransport = get(),
+            updateDestination = get(),
         )
     }
     viewModel { DataAdminViewModel(androidApplication(), get(), get()) }

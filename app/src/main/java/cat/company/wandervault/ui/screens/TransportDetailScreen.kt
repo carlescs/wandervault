@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.text.KeyboardActions
@@ -41,9 +42,12 @@ import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.Train
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -51,11 +55,16 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TimePicker
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -72,6 +81,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -79,6 +89,17 @@ import cat.company.wandervault.R
 import cat.company.wandervault.domain.model.TransportType
 import cat.company.wandervault.ui.theme.WanderVaultTheme
 import org.koin.androidx.compose.koinViewModel
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
+
+private const val MILLIS_PER_DAY = 86_400_000L
+
+/** Converts a [LocalDateTime] to epoch-day milliseconds used by the [DatePicker] API. */
+private fun LocalDateTime?.toDateEpochMillis(): Long? =
+    this?.toLocalDate()?.toEpochDay()?.times(MILLIS_PER_DAY)
 
 /** Tabs shown in the Transport Detail bottom navigation bar. */
 private enum class TransportDetailTab(@StringRes val labelRes: Int, val icon: ImageVector) {
@@ -130,6 +151,8 @@ fun TransportDetailScreen(
         onFlightNumberChange = viewModel::onFlightNumberChange,
         onConfirmationNumberChange = viewModel::onConfirmationNumberChange,
         onSetDefaultLeg = viewModel::onSetDefaultLeg,
+        onDepartureDateTimeChange = viewModel::onDepartureDateTimeChange,
+        onArrivalDateTimeChange = viewModel::onArrivalDateTimeChange,
         modifier = modifier,
     )
 }
@@ -155,6 +178,8 @@ internal fun TransportDetailContent(
     onFlightNumberChange: (Int, String) -> Unit,
     onConfirmationNumberChange: (Int, String) -> Unit,
     onSetDefaultLeg: (Int) -> Unit = {},
+    onDepartureDateTimeChange: (Int, LocalDateTime?) -> Unit = { _, _ -> },
+    onArrivalDateTimeChange: (Int, LocalDateTime?) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier,
 ) {
     var selectedTab by rememberSaveable { mutableStateOf(TransportDetailTab.DETAILS) }
@@ -226,6 +251,8 @@ internal fun TransportDetailContent(
                         onFlightNumberChange = onFlightNumberChange,
                         onConfirmationNumberChange = onConfirmationNumberChange,
                         onSetDefaultLeg = onSetDefaultLeg,
+                        onDepartureDateTimeChange = onDepartureDateTimeChange,
+                        onArrivalDateTimeChange = onArrivalDateTimeChange,
                         innerPadding = innerPadding,
                     )
                 }
@@ -420,6 +447,8 @@ private fun TransportLegsTabContent(
     onFlightNumberChange: (Int, String) -> Unit,
     onConfirmationNumberChange: (Int, String) -> Unit,
     onSetDefaultLeg: (Int) -> Unit,
+    onDepartureDateTimeChange: (Int, LocalDateTime?) -> Unit,
+    onArrivalDateTimeChange: (Int, LocalDateTime?) -> Unit,
     innerPadding: PaddingValues,
     modifier: Modifier = Modifier,
 ) {
@@ -460,6 +489,8 @@ private fun TransportLegsTabContent(
                     onFlightNumberChange = { value -> onFlightNumberChange(index, value) },
                     onConfirmationNumberChange = { value -> onConfirmationNumberChange(index, value) },
                     onSetDefault = { onSetDefaultLeg(index) },
+                    onDepartureDateTimeChange = { dt -> onDepartureDateTimeChange(index, dt) },
+                    onArrivalDateTimeChange = { dt -> onArrivalDateTimeChange(index, dt) },
                 )
 
                 // Editable intermediate stop shown only between legs.
@@ -590,6 +621,8 @@ private fun TransportLegSection(
     onFlightNumberChange: (String) -> Unit,
     onConfirmationNumberChange: (String) -> Unit,
     onSetDefault: () -> Unit,
+    onDepartureDateTimeChange: (LocalDateTime?) -> Unit,
+    onArrivalDateTimeChange: (LocalDateTime?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val selectedType = leg.typeName?.let { name ->
@@ -697,6 +730,26 @@ private fun TransportLegSection(
             if (selectedType != null) {
                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
+                // Departure date/time – shown on all legs; for the first leg this is also the
+                // transport departure and is kept in sync with the destination's departure.
+                LegDateTimeRow(
+                    label = stringResource(R.string.transport_detail_departure_label),
+                    dateTime = leg.departureDateTime,
+                    onDateTimeChange = onDepartureDateTimeChange,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
+                // Arrival date/time – shown on all legs; for the last leg this is also the
+                // transport arrival and is kept in sync with the next destination's arrival.
+                LegDateTimeRow(
+                    label = stringResource(R.string.transport_detail_arrival_label),
+                    dateTime = leg.arrivalDateTime,
+                    onDateTimeChange = onArrivalDateTimeChange,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
                 EditableLabel(
                     value = leg.company,
                     onValueChange = onCompanyChange,
@@ -716,6 +769,125 @@ private fun TransportLegSection(
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
+        }
+    }
+}
+
+/**
+ * A labelled row showing date and time buttons for a single [LocalDateTime] value on a leg.
+ *
+ * - Tapping the date button opens a [DatePickerDialog].
+ * - Tapping the time button opens a [TimePicker] dialog (requires a date to be set first).
+ * - Selecting a new date preserves the existing time (or defaults to midnight).
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LegDateTimeRow(
+    label: String,
+    dateTime: LocalDateTime?,
+    onDateTimeChange: (LocalDateTime?) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var showDatePicker by rememberSaveable { mutableStateOf(false) }
+    var showTimePicker by rememberSaveable { mutableStateOf(false) }
+
+    val dateFormatter = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
+    val timeFormatter = remember { DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT) }
+
+    if (showDatePicker) {
+        val initialDisplayedMonthMillis = dateTime.toDateEpochMillis()
+        val state = rememberDatePickerState(
+            initialSelectedDateMillis = dateTime.toDateEpochMillis(),
+            initialDisplayedMonthMillis = initialDisplayedMonthMillis,
+        )
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        state.selectedDateMillis?.let { millis ->
+                            val pickedDate = LocalDate.ofEpochDay(millis / MILLIS_PER_DAY)
+                            val existingTime = dateTime?.toLocalTime() ?: LocalTime.MIDNIGHT
+                            onDateTimeChange(LocalDateTime.of(pickedDate, existingTime))
+                        }
+                        showDatePicker = false
+                    },
+                ) { Text(stringResource(R.string.dialog_ok)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) {
+                    Text(stringResource(R.string.dialog_cancel))
+                }
+            },
+        ) { DatePicker(state = state) }
+    }
+
+    if (showTimePicker) {
+        val timeState = rememberTimePickerState(
+            initialHour = dateTime?.hour ?: 0,
+            initialMinute = dateTime?.minute ?: 0,
+        )
+        AlertDialog(
+            onDismissRequest = { showTimePicker = false },
+            title = { Text(stringResource(R.string.itinerary_pick_time)) },
+            text = { TimePicker(state = timeState) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        // dateTime is always non-null here: the time button is disabled when
+                        // dateTime == null, so this branch is purely defensive.
+                        val date = dateTime?.toLocalDate() ?: LocalDate.now()
+                        onDateTimeChange(LocalDateTime.of(date, LocalTime.of(timeState.hour, timeState.minute)))
+                        showTimePicker = false
+                    },
+                ) { Text(stringResource(R.string.dialog_ok)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showTimePicker = false }) {
+                    Text(stringResource(R.string.dialog_cancel))
+                }
+            },
+        )
+    }
+
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        OutlinedButton(
+            onClick = { showDatePicker = true },
+            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+            modifier = Modifier.height(32.dp),
+        ) {
+            Text(
+                text = dateTime?.toLocalDate()?.format(dateFormatter)
+                    ?: stringResource(R.string.itinerary_pick_date),
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Spacer(modifier = Modifier.width(4.dp))
+        OutlinedButton(
+            onClick = { showTimePicker = true },
+            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+            modifier = Modifier.height(32.dp),
+            enabled = dateTime != null,
+        ) {
+            Text(
+                text = dateTime?.format(timeFormatter) ?: "--:--",
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }
