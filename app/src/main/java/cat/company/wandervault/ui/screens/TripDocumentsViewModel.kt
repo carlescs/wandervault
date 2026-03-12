@@ -173,7 +173,12 @@ class TripDocumentsViewModel(
                     },
                 )
                 _suggestNameState.value = if (suggested != null) {
-                    SuggestNameUiState.Success(suggested)
+                    val existingNames = (_uiState.value as? TripDocumentsUiState.Success)
+                        ?.documents
+                        ?.map { it.name }
+                        ?.toSet()
+                        ?: emptySet()
+                    SuggestNameUiState.Success(makeUniqueDocumentName(suggested, existingNames))
                 } else {
                     SuggestNameUiState.Unavailable
                 }
@@ -369,4 +374,18 @@ class TripDocumentsViewModel(
     companion object {
         private const val TAG = "TripDocumentsViewModel"
     }
+}
+
+/**
+ * Returns [candidate] if it is not present in [existingNames], or appends an incrementing
+ * counter suffix (" 2", " 3", …) until a unique name is found.
+ *
+ * For example, if "Paris Flight" is taken, it returns "Paris Flight 2"; if that is also taken,
+ * it returns "Paris Flight 3", and so on.
+ */
+internal fun makeUniqueDocumentName(candidate: String, existingNames: Set<String>): String {
+    if (candidate !in existingNames) return candidate
+    var counter = 2
+    while ("$candidate $counter" in existingNames) counter++
+    return "$candidate $counter"
 }
