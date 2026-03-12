@@ -475,6 +475,10 @@ private fun TransportLegsTabContent(
         uiState.legs.forEachIndexed { index, leg ->
             key(leg.clientKey) {
                 val isLastLeg = index == uiState.legs.lastIndex
+                // Compute date bounds from the parent destination and next destination so the
+                // picker constrains leg dates within the overall transport window.
+                val minDateMillis = uiState.destinationDepartureDateTime.toDateEpochMillis()
+                val maxDateMillis = uiState.nextDestinationArrivalDateTime.toDateEpochMillis()
                 // Leg card: type selector + booking details + move controls.
                 // Intermediate legs are deleted via their corresponding IntermediateLegStop
                 // delete button below.
@@ -491,6 +495,8 @@ private fun TransportLegsTabContent(
                     onSetDefault = { onSetDefaultLeg(index) },
                     onDepartureDateTimeChange = { dt -> onDepartureDateTimeChange(index, dt) },
                     onArrivalDateTimeChange = { dt -> onArrivalDateTimeChange(index, dt) },
+                    minDateMillis = minDateMillis,
+                    maxDateMillis = maxDateMillis,
                 )
 
                 // Editable intermediate stop shown only between legs.
@@ -623,6 +629,8 @@ private fun TransportLegSection(
     onSetDefault: () -> Unit,
     onDepartureDateTimeChange: (LocalDateTime?) -> Unit,
     onArrivalDateTimeChange: (LocalDateTime?) -> Unit,
+    minDateMillis: Long? = null,
+    maxDateMillis: Long? = null,
     modifier: Modifier = Modifier,
 ) {
     val selectedType = leg.typeName?.let { name ->
@@ -736,6 +744,8 @@ private fun TransportLegSection(
                     label = stringResource(R.string.transport_detail_departure_label),
                     dateTime = leg.departureDateTime,
                     onDateTimeChange = onDepartureDateTimeChange,
+                    minDateMillis = minDateMillis,
+                    maxDateMillis = maxDateMillis,
                     modifier = Modifier.fillMaxWidth(),
                 )
 
@@ -745,6 +755,8 @@ private fun TransportLegSection(
                     label = stringResource(R.string.transport_detail_arrival_label),
                     dateTime = leg.arrivalDateTime,
                     onDateTimeChange = onArrivalDateTimeChange,
+                    minDateMillis = minDateMillis,
+                    maxDateMillis = maxDateMillis,
                     modifier = Modifier.fillMaxWidth(),
                 )
 
@@ -779,6 +791,11 @@ private fun TransportLegSection(
  * - Tapping the date button opens a [DatePickerDialog].
  * - Tapping the time button opens a [TimePicker] dialog (requires a date to be set first).
  * - Selecting a new date preserves the existing time (or defaults to midnight).
+ *
+ * @param minDateMillis Optional lower bound (inclusive) for selectable dates, in epoch-day
+ *   milliseconds.  Dates before this value are disabled in the picker.
+ * @param maxDateMillis Optional upper bound (inclusive) for selectable dates, in epoch-day
+ *   milliseconds.  Dates after this value are disabled in the picker.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -786,6 +803,8 @@ private fun LegDateTimeRow(
     label: String,
     dateTime: LocalDateTime?,
     onDateTimeChange: (LocalDateTime?) -> Unit,
+    minDateMillis: Long? = null,
+    maxDateMillis: Long? = null,
     modifier: Modifier = Modifier,
 ) {
     var showDatePicker by rememberSaveable { mutableStateOf(false) }
@@ -795,10 +814,38 @@ private fun LegDateTimeRow(
     val timeFormatter = remember { DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT) }
 
     if (showDatePicker) {
-        val initialDisplayedMonthMillis = dateTime.toDateEpochMillis()
+        // Normalize bounds so an inverted range (e.g. from out-of-order existing data) doesn't
+        // disable all dates and lock the user out of correcting them.
+        val (normalizedMin, normalizedMax) = remember(minDateMillis, maxDateMillis) {
+            if (minDateMillis != null && maxDateMillis != null && minDateMillis > maxDateMillis) {
+                maxDateMillis to minDateMillis
+            } else {
+                minDateMillis to maxDateMillis
+            }
+        }
+        val selectableDates = remember(normalizedMin, normalizedMax) {
+            val minYear = normalizedMin?.let { LocalDate.ofEpochDay(it / MILLIS_PER_DAY).year }
+            val maxYear = normalizedMax?.let { LocalDate.ofEpochDay(it / MILLIS_PER_DAY).year }
+            object : SelectableDates {
+                override fun isSelectableDate(utcTimeMillis: Long): Boolean {
+                    val afterMin = normalizedMin == null || utcTimeMillis >= normalizedMin
+                    val beforeMax = normalizedMax == null || utcTimeMillis <= normalizedMax
+                    return afterMin && beforeMax
+                }
+                override fun isSelectableYear(year: Int): Boolean {
+                    val afterMin = minYear == null || year >= minYear
+                    val beforeMax = maxYear == null || year <= maxYear
+                    return afterMin && beforeMax
+                }
+            }
+        }
+        // Open the picker at the current selection, falling back to the min bound so the user
+        // sees a relevant month rather than today when the trip dates are far away.
+        val initialDisplayedMonthMillis = dateTime.toDateEpochMillis() ?: normalizedMin ?: normalizedMax
         val state = rememberDatePickerState(
             initialSelectedDateMillis = dateTime.toDateEpochMillis(),
             initialDisplayedMonthMillis = initialDisplayedMonthMillis,
+            selectableDates = selectableDates,
         )
         DatePickerDialog(
             onDismissRequest = { showDatePicker = false },

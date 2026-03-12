@@ -418,11 +418,20 @@ private fun TransportLeg.toEditState(
     flightNumber = flightNumber ?: "",
     confirmationNumber = reservationConfirmationNumber ?: "",
     isDefault = isDefault,
-    // The first leg's departure is always kept in sync with the destination's departure;
-    // use the destination value as the authoritative source when loading.
-    departureDateTime = if (isFirst) destinationDepartureDateTime else departureDateTime,
+    // use the destination value as the authoritative source when loading, but only when
+    // a non-null value is available to avoid clobbering an existing leg date-time.
+    departureDateTime = if (isFirst && destinationDepartureDateTime != null) {
+        destinationDepartureDateTime
+    } else {
+        departureDateTime
+    },
     // The last leg's arrival is always kept in sync with the next destination's arrival;
-    // use the next destination value as the authoritative source when loading.
-    arrivalDateTime = if (isLast) nextArrivalDateTime else arrivalDateTime,
+    // use the next destination value as the authoritative source when loading, but only when
+    // a non-null value is available to avoid clobbering an existing leg date-time.
+    arrivalDateTime = if (isLast && nextArrivalDateTime != null) {
+        nextArrivalDateTime
+    } else {
+        arrivalDateTime
+    },
 )
 

@@ -372,6 +372,10 @@ abstract class WanderVaultDatabase : RoomDatabase() {
         }
         val MIGRATION_17_18 = object : Migration(17, 18) {
             override fun migrate(db: SupportSQLiteDatabase) {
+                // Adds per-leg departure/arrival date-times. Existing rows are left as NULL,
+                // which means "inherit from the parent destination" at runtime (the ViewModel
+                // reads destination.departureDateTime for the first leg and
+                // nextDestination.arrivalDateTime for the last leg when the stored value is null).
                 db.execSQL("ALTER TABLE `transport_legs` ADD COLUMN `departureDateTime` TEXT")
                 db.execSQL("ALTER TABLE `transport_legs` ADD COLUMN `arrivalDateTime` TEXT")
             }
