@@ -159,8 +159,12 @@ class TripDocumentsViewModel(
      * - [SuggestNameUiState.Error] for transient failures.
      *
      * Any previous in-flight suggestion is cancelled before a new one starts.
+     *
+     * @param excludeName When renaming an existing document, pass its current name here so it is
+     *   not counted as a conflict during uniqueness deduplication. Pass `null` when adding a new
+     *   document (no name to exclude).
      */
-    fun requestSuggestName(fileUri: String, mimeType: String) {
+    fun requestSuggestName(fileUri: String, mimeType: String, excludeName: String? = null) {
         suggestNameJob?.cancel()
         suggestNameJob = viewModelScope.launch {
             _suggestNameState.value = SuggestNameUiState.Loading
@@ -173,7 +177,13 @@ class TripDocumentsViewModel(
                     },
                 )
                 _suggestNameState.value = if (suggested != null) {
-                    SuggestNameUiState.Success(suggested)
+                    val existingNames = (_uiState.value as? TripDocumentsUiState.Success)
+                        ?.documents
+                        ?.map { it.name }
+                        ?.toSet()
+                        ?.let { names -> if (excludeName != null) names - excludeName else names }
+                        ?: emptySet()
+                    SuggestNameUiState.Success(makeUniqueDocumentName(suggested, existingNames))
                 } else {
                     SuggestNameUiState.Unavailable
                 }
@@ -369,4 +379,18 @@ class TripDocumentsViewModel(
     companion object {
         private const val TAG = "TripDocumentsViewModel"
     }
+}
+
+/**
+ * Returns [candidate] if it is not present in [existingNames], or appends an incrementing
+ * counter suffix (" 2", " 3", …) until a unique name is found.
+ *
+ * For example, if "Paris Flight" is taken, it returns "Paris Flight 2"; if that is also taken,
+ * it returns "Paris Flight 3", and so on.
+ */
+internal fun makeUniqueDocumentName(candidate: String, existingNames: Set<String>): String {
+    if (candidate !in existingNames) return candidate
+    var counter = 2
+    while ("$candidate $counter" in existingNames) counter++
+    return "$candidate $counter"
 }
