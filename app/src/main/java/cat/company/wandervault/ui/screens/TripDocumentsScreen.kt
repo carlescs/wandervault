@@ -42,9 +42,14 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.SelectAll
+import androidx.compose.material.icons.filled.TextSnippet
 import androidx.compose.material.icons.filled.UploadFile
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -73,6 +78,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -812,7 +818,7 @@ private fun DocumentRow(
         } else {
             IconButton(onClick = onViewInfo) {
                 Icon(
-                    imageVector = Icons.Default.Description,
+                    imageVector = documentTypeIcon(document.mimeType),
                     contentDescription = stringResource(R.string.documents_view_info_content_desc, document.name),
                     tint = MaterialTheme.colorScheme.secondary,
                 )
@@ -1141,6 +1147,24 @@ private fun buildFolderPath(
     return parts.joinToString(" / ")
 }
 
+/**
+ * Returns the icon that best represents the given [mimeType].
+ *
+ * @param mimeType The MIME type string of the document (e.g. "application/pdf", "image/jpeg").
+ * @return An [ImageVector] icon: [Icons.Default.PictureAsPdf] for PDF,
+ *   [Icons.Default.Image] for images, [Icons.Default.TextSnippet] for text files,
+ *   [Icons.Default.Videocam] for video, [Icons.Default.MusicNote] for audio,
+ *   or [Icons.Default.Description] as a fallback for all other types.
+ */
+private fun documentTypeIcon(mimeType: String): ImageVector = when {
+    mimeType == "application/pdf" -> Icons.Default.PictureAsPdf
+    mimeType.startsWith("image/") -> Icons.Default.Image
+    mimeType.startsWith("text/") -> Icons.Default.TextSnippet
+    mimeType.startsWith("video/") -> Icons.Default.Videocam
+    mimeType.startsWith("audio/") -> Icons.Default.MusicNote
+    else -> Icons.Default.Description
+}
+
 // ── Previews ──────────────────────────────────────────────────────────────────
 
 @Preview(showBackground = true)
@@ -1211,8 +1235,12 @@ private fun TripDocumentsNestedFolderPathPreview() {
 @Composable
 private fun TripDocumentsRootWithDocumentsPreview() {
     val documents = listOf(
-        TripDocument(id = 1, tripId = 1, name = "passport_scan.pdf", uri = "", mimeType = "application/pdf"),
+        TripDocument(id = 1, tripId = 1, name = "photo.jpg", uri = "", mimeType = "image/jpeg"),
         TripDocument(id = 2, tripId = 1, name = "travel_insurance.pdf", uri = "", mimeType = "application/pdf"),
+        TripDocument(id = 3, tripId = 1, name = "itinerary.txt", uri = "", mimeType = "text/plain"),
+        TripDocument(id = 4, tripId = 1, name = "promo_video.mp4", uri = "", mimeType = "video/mp4"),
+        TripDocument(id = 5, tripId = 1, name = "audio_guide.mp3", uri = "", mimeType = "audio/mpeg"),
+        TripDocument(id = 6, tripId = 1, name = "other_doc.docx", uri = "", mimeType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
     )
     val folders = listOf(
         TripDocumentFolder(id = 1, tripId = 1, name = "Flight Tickets"),
