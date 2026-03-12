@@ -85,6 +85,29 @@ class DocumentInfoViewModel(
     /** Pending hotel info kept alive across the [AnalyzeDocumentUiState.HotelDestinationSelection] dialog. */
     private var pendingHotelInfo: HotelInfo? = null
 
+    /**
+     * Queue of flight infos extracted from the current document that have not yet been processed.
+     * Populated by [applyAnalysisChanges] and consumed one item at a time by
+     * [processNextExtractedInfo].
+     */
+    private val remainingFlightInfos = ArrayDeque<FlightInfo>()
+
+    /**
+     * Queue of hotel infos extracted from the current document that have not yet been processed.
+     * Populated by [applyAnalysisChanges] and consumed one item at a time by
+     * [processNextExtractedInfo].
+     */
+    private val remainingHotelInfos = ArrayDeque<HotelInfo>()
+
+    /** Trip ID for the document currently being analysed; stored for use in [processNextExtractedInfo]. */
+    private var pendingAnalysisTripId: Int = NO_TRIP_PENDING
+
+    /** Document name for the document currently being analysed; stored for logging in [processNextExtractedInfo]. */
+    private var pendingAnalysisDocumentName: String = ""
+
+    /** General trip info to show after all flight/hotel items are processed, if any. */
+    private var pendingRelevantTripInfo: String? = null
+
     val uiState: StateFlow<DocumentInfoUiState> = combine(
         getDocumentById(documentId)
             .flatMapLatest { document ->
@@ -188,42 +211,64 @@ class DocumentInfoViewModel(
     /**
      * Processes the trip changes proposed in the current [AnalyzeDocumentUiState.Result].
      *
-     * For flight info, checks for a confident match first. If found, transitions to
-     * [AnalyzeDocumentUiState.FlightConfirm] so the user can review the matched leg before
-     * confirming. If no confident match, transitions to [AnalyzeDocumentUiState.FlightLegSelection]
-     * (candidates sorted by relevance) so the user can pick the right leg.
+     * Populates per-type queues from the extraction result and begins processing the first item
+     * via [processNextExtractedInfo]. Each confirmed or skipped item advances to the next until
+     * all items are handled, after which the dialog is dismissed.
      *
-     * For hotel info, a confident match (by booking reference or hotel name) is checked first.
-     * If found, transitions to [AnalyzeDocumentUiState.HotelConfirm] so the user can review the
-     * matched destination before confirming. If no confident match, transitions to
-     * [AnalyzeDocumentUiState.HotelDestinationSelection] so the user can pick the right destination.
+     * For each flight item: checks for a confident match first. If found, transitions to
+     * [AnalyzeDocumentUiState.FlightConfirm]. If no confident match, transitions to
+     * [AnalyzeDocumentUiState.FlightLegSelection] (candidates sorted by relevance).
      *
-     * For general trip info, transitions to [AnalyzeDocumentUiState.TripInfoConfirm] so the user
-     * can review the extracted text before it is saved as the trip description. Dismisses
-     * immediately when no relevant info was extracted.
+     * For each hotel item: a confident match (by booking reference or hotel name) is checked first.
+     * If found, transitions to [AnalyzeDocumentUiState.HotelConfirm]. If no confident match,
+     * transitions to [AnalyzeDocumentUiState.HotelDestinationSelection].
+     *
+     * For general trip info (only present when no flight/hotel lines were found), transitions to
+     * [AnalyzeDocumentUiState.TripInfoConfirm]. Dismisses immediately when no relevant info exists.
      *
      * No-op when the analyze state is not [AnalyzeDocumentUiState.Result].
      */
     fun applyAnalysisChanges() {
         val analyzeResult = _analyzeState.value as? AnalyzeDocumentUiState.Result ?: return
         val result = analyzeResult.extractionResult
-        val documentName = analyzeResult.document.name
-        val tripId = analyzeResult.document.tripId
+        pendingAnalysisTripId = analyzeResult.document.tripId
+        pendingAnalysisDocumentName = analyzeResult.document.name
+        pendingRelevantTripInfo = result.relevantTripInfo
+        remainingFlightInfos.clear()
+        remainingFlightInfos.addAll(result.flightInfoList)
+        remainingHotelInfos.clear()
+        remainingHotelInfos.addAll(result.hotelInfoList)
+        processNextExtractedInfo()
+    }
+
+    /**
+     * Processes the next pending extracted item (flight or hotel) from the queues.
+     *
+     * Dequeues the first available [FlightInfo] and runs flight matching/disambiguation,
+     * or the first available [HotelInfo] and runs hotel matching/disambiguation.
+     * When both queues are empty, shows the general trip-info confirmation (if any) or
+     * dismisses the dialog.
+     */
+    private fun processNextExtractedInfo() {
+        val tripId = pendingAnalysisTripId
+        val documentName = pendingAnalysisDocumentName
         when {
-            result.flightInfo != null -> {
+            remainingFlightInfos.isNotEmpty() -> {
+                val flightInfo = remainingFlightInfos.removeFirst()
                 viewModelScope.launch {
                     try {
-                        applyOrDisambiguateFlightInfo(result.flightInfo, documentName, tripId)
+                        applyOrDisambiguateFlightInfo(flightInfo, documentName, tripId)
                     } catch (e: Exception) {
                         Log.e(TAG, "Failed to apply flight info for trip $tripId", e)
                         _analyzeState.value = AnalyzeDocumentUiState.Error(e.message ?: e.toString())
                     }
                 }
             }
-            result.hotelInfo != null -> {
+            remainingHotelInfos.isNotEmpty() -> {
+                val hotelInfo = remainingHotelInfos.removeFirst()
                 viewModelScope.launch {
                     try {
-                        applyOrDisambiguateHotelInfo(result.hotelInfo, documentName, tripId)
+                        applyOrDisambiguateHotelInfo(hotelInfo, documentName, tripId)
                     } catch (e: Exception) {
                         Log.e(TAG, "Failed to apply hotel info for trip $tripId", e)
                         _analyzeState.value = AnalyzeDocumentUiState.Error(e.message ?: e.toString())
@@ -231,7 +276,8 @@ class DocumentInfoViewModel(
                 }
             }
             else -> {
-                val relevantInfo = result.relevantTripInfo
+                val relevantInfo = pendingRelevantTripInfo
+                pendingRelevantTripInfo = null
                 if (relevantInfo == null) {
                     dismissAnalyze()
                 } else {
@@ -261,7 +307,8 @@ class DocumentInfoViewModel(
 
     /**
      * Called when the user confirms the flight info change from the [AnalyzeDocumentUiState.FlightConfirm]
-     * dialog. Applies the flight info and leg stored in the confirm state and dismisses.
+     * dialog. Applies the flight info and leg stored in the confirm state, then advances to the
+     * next pending item via [processNextExtractedInfo].
      */
     fun onFlightConfirmed() {
         val state = _analyzeState.value as? AnalyzeDocumentUiState.FlightConfirm ?: run {
@@ -272,11 +319,12 @@ class DocumentInfoViewModel(
         viewModelScope.launch {
             try {
                 applyFlightInfoToLeg(state.flightInfo, state.matchedLeg)
-                dismissAnalyze()
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to apply flight info to confirmed leg", e)
                 _analyzeState.value = AnalyzeDocumentUiState.Error(e.message ?: e.toString())
+                return@launch
             }
+            processNextExtractedInfo()
         }
     }
 
@@ -316,7 +364,8 @@ class DocumentInfoViewModel(
 
     /**
      * Called when the user confirms the hotel info change from the [AnalyzeDocumentUiState.HotelConfirm]
-     * dialog. Applies the hotel info and destination stored in the confirm state and dismisses.
+     * dialog. Applies the hotel info and destination stored in the confirm state, then advances to
+     * the next pending item via [processNextExtractedInfo].
      */
     fun onHotelConfirmed() {
         val state = _analyzeState.value as? AnalyzeDocumentUiState.HotelConfirm ?: run {
@@ -327,11 +376,12 @@ class DocumentInfoViewModel(
         viewModelScope.launch {
             try {
                 applyHotelInfoToDestination(state.hotelInfo, state.destination)
-                dismissAnalyze()
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to apply hotel info to confirmed destination", e)
                 _analyzeState.value = AnalyzeDocumentUiState.Error(e.message ?: e.toString())
+                return@launch
             }
+            processNextExtractedInfo()
         }
     }
 
@@ -367,14 +417,31 @@ class DocumentInfoViewModel(
     }
 
     /**
-     * Cancels any in-flight analysis and dismisses the document analysis dialog.
+     * Cancels any in-flight analysis and dismisses the document analysis dialog entirely,
+     * clearing all pending items.
      */
     fun dismissAnalyze() {
         analyzeJob?.cancel()
         analyzeJob = null
         pendingFlightInfo = null
         pendingHotelInfo = null
+        remainingFlightInfos.clear()
+        remainingHotelInfos.clear()
+        pendingRelevantTripInfo = null
         _analyzeState.value = null
+    }
+
+    /**
+     * Skips the current per-item step (flight or hotel disambiguation/confirm) and advances to
+     * the next pending item without closing the dialog. Called when the user taps "Skip" or
+     * "Cancel" during a per-item state.
+     *
+     * If there are no more pending items, dismisses the dialog entirely via [dismissAnalyze].
+     */
+    fun skipCurrentAnalysisItem() {
+        pendingFlightInfo = null
+        pendingHotelInfo = null
+        processNextExtractedInfo()
     }
 
     /**
@@ -398,7 +465,7 @@ class DocumentInfoViewModel(
 
         if (allFlightLegs.isEmpty()) {
             Log.d(TAG, "No flight legs in trip $tripId; skipping flight info from $documentName")
-            dismissAnalyze()
+            processNextExtractedInfo()
             return
         }
 
@@ -490,7 +557,7 @@ class DocumentInfoViewModel(
         val destinations = getDestinationsForTrip(tripId).first()
         if (destinations.isEmpty()) {
             Log.d(TAG, "No destinations in trip $tripId; skipping hotel info from $documentName")
-            dismissAnalyze()
+            processNextExtractedInfo()
             return
         }
 
@@ -565,5 +632,8 @@ class DocumentInfoViewModel(
 
     companion object {
         private const val TAG = "DocumentInfoViewModel"
+
+        /** Sentinel value for [pendingAnalysisTripId] when no analysis is in progress. */
+        private const val NO_TRIP_PENDING = -1
     }
 }

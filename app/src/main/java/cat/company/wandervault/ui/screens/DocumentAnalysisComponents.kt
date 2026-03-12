@@ -63,6 +63,13 @@ import java.time.format.FormatStyle
  *   saves it as the trip description.
  * - [AnalyzeDocumentUiState.FlightLegSelection] / [AnalyzeDocumentUiState.HotelDestinationSelection]:
  *   scrollable candidate list; tapping an item applies the changes and dismisses.
+ *
+ * @param onDismiss Called to cancel and close the entire dialog (back button, outside tap, or
+ *   "Cancel" from the initial [AnalyzeDocumentUiState.Result] state).
+ * @param onSkipItem Called when the user taps "Skip" or "Cancel" during a per-item step
+ *   ([AnalyzeDocumentUiState.FlightLegSelection], [AnalyzeDocumentUiState.HotelDestinationSelection],
+ *   [AnalyzeDocumentUiState.FlightConfirm], or [AnalyzeDocumentUiState.HotelConfirm]).
+ *   Advances to the next pending item rather than closing the dialog entirely.
  */
 @Composable
 internal fun AnalyzeDocumentDialog(
@@ -74,6 +81,7 @@ internal fun AnalyzeDocumentDialog(
     onHotelConfirmed: () -> Unit,
     onTripInfoConfirmed: () -> Unit,
     onDismiss: () -> Unit,
+    onSkipItem: () -> Unit = onDismiss,
 ) {
     val dateFormatter = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
 
@@ -181,7 +189,7 @@ internal fun AnalyzeDocumentDialog(
                                 text = stringResource(R.string.documents_analyze_proposed_changes_label),
                                 style = MaterialTheme.typography.labelLarge,
                             )
-                            extraction.flightInfo?.let { flight ->
+                            extraction.flightInfoList.forEach { flight ->
                                 AnalyzeInfoSection(
                                     label = stringResource(R.string.documents_analyze_flight_info_label),
                                     info = buildFlightInfoText(
@@ -198,7 +206,7 @@ internal fun AnalyzeDocumentDialog(
                                     ),
                                 )
                             }
-                            extraction.hotelInfo?.let { hotel ->
+                            extraction.hotelInfoList.forEach { hotel ->
                                 AnalyzeInfoSection(
                                     label = stringResource(R.string.documents_analyze_hotel_info_label),
                                     info = buildHotelInfoText(
@@ -476,7 +484,13 @@ internal fun AnalyzeDocumentDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            // "Skip" / "Cancel" in per-item states advances to the next pending item rather
+            // than closing the entire dialog. All other states use a full cancel/dismiss.
+            val isPerItemState = analyzeState is AnalyzeDocumentUiState.FlightLegSelection ||
+                analyzeState is AnalyzeDocumentUiState.HotelDestinationSelection ||
+                analyzeState is AnalyzeDocumentUiState.FlightConfirm ||
+                analyzeState is AnalyzeDocumentUiState.HotelConfirm
+            TextButton(onClick = if (isPerItemState) onSkipItem else onDismiss) {
                 val labelRes = when (analyzeState) {
                     is AnalyzeDocumentUiState.FlightLegSelection,
                     is AnalyzeDocumentUiState.HotelDestinationSelection,
@@ -588,7 +602,7 @@ internal fun buildHotelInfoText(hotel: HotelInfo, formattedRef: String?): String
     ).joinToString(" · ")
 
 internal fun DocumentExtractionResult.hasProposedChanges(): Boolean =
-    flightInfo != null || hotelInfo != null || relevantTripInfo != null
+    flightInfoList.isNotEmpty() || hotelInfoList.isNotEmpty() || relevantTripInfo != null
 
 /**
  * Formats [bytes] as a human-readable file size string (B / KB / MB).

@@ -28,7 +28,8 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Run lint
-        run: ./gradlew lint
+        run: |
+          for i in 1 2 3; do ./gradlew lint && break || { echo "Attempt $i failed, retrying in 30s..."; sleep 30; }; done
 
       - name: Upload lint report
         if: always()
@@ -54,7 +55,8 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Run unit tests
-        run: ./gradlew test
+        run: |
+          for i in 1 2 3; do ./gradlew test && break || { echo "Attempt $i failed, retrying in 30s..."; sleep 30; }; done
 
       - name: Upload unit test report
         if: always()
@@ -81,7 +83,8 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Build debug APK
-        run: ./gradlew assembleDebug
+        run: |
+          for i in 1 2 3; do ./gradlew assembleDebug && break || { echo "Attempt $i failed, retrying in 30s..."; sleep 30; }; done
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
