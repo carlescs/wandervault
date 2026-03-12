@@ -2,6 +2,8 @@ package cat.company.wandervault.ui.screens
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.pdf.PdfRenderer
 import android.net.Uri
 import android.os.ParcelFileDescriptor
@@ -594,6 +596,7 @@ private fun renderPdfPage(
                     val bitmapWidth = (page.width * scale).toInt().coerceAtLeast(1)
                     val bitmapHeight = (page.height * scale).toInt().coerceAtLeast(1)
                     val bmp = Bitmap.createBitmap(bitmapWidth, bitmapHeight, Bitmap.Config.ARGB_8888)
+                    Canvas(bmp).drawColor(Color.WHITE)
                     page.render(bmp, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
                     bmp
                 }
