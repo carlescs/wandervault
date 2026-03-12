@@ -33,4 +33,13 @@ class MakeUniqueDocumentNameTest {
         val result = makeUniqueDocumentName("Paris Flight", setOf("Paris Flight 2"))
         assertEquals("Paris Flight", result)
     }
+
+    @Test
+    fun `returns suggested name unchanged when not in conflict set`() {
+        // Simulates the rename scenario: caller already excluded the document's own name from the
+        // set, so the AI suggestion matching the old name is no longer a conflict.
+        val existingMinusOwn = setOf("Rome Hotel") // "Paris Flight" already excluded by caller
+        val result = makeUniqueDocumentName("Paris Flight", existingMinusOwn)
+        assertEquals("Paris Flight", result)
+    }
 }

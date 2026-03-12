@@ -159,8 +159,12 @@ class TripDocumentsViewModel(
      * - [SuggestNameUiState.Error] for transient failures.
      *
      * Any previous in-flight suggestion is cancelled before a new one starts.
+     *
+     * @param excludeName When renaming an existing document, pass its current name here so it is
+     *   not counted as a conflict during uniqueness deduplication. Pass `null` when adding a new
+     *   document (no name to exclude).
      */
-    fun requestSuggestName(fileUri: String, mimeType: String) {
+    fun requestSuggestName(fileUri: String, mimeType: String, excludeName: String? = null) {
         suggestNameJob?.cancel()
         suggestNameJob = viewModelScope.launch {
             _suggestNameState.value = SuggestNameUiState.Loading
@@ -177,6 +181,7 @@ class TripDocumentsViewModel(
                         ?.documents
                         ?.map { it.name }
                         ?.toSet()
+                        ?.let { names -> if (excludeName != null) names - excludeName else names }
                         ?: emptySet()
                     SuggestNameUiState.Success(makeUniqueDocumentName(suggested, existingNames))
                 } else {

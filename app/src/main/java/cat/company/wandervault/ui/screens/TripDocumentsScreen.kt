@@ -157,7 +157,7 @@ internal fun TripDocumentsTabContent(
             label = stringResource(R.string.documents_name_label),
             initialName = pendingName,
             suggestNameState = suggestNameState,
-            onSuggest = { viewModel.requestSuggestName(pendingUri, pendingMime) },
+            onSuggest = { viewModel.requestSuggestName(pendingUri, pendingMime, null) },
             onConfirm = { name ->
                 pendingSourceUri = null
                 pendingMimeType = null
@@ -233,7 +233,7 @@ internal fun TripDocumentsContent(
     onDeleteSelectedDocuments: () -> Unit = {},
     onMoveSelectedDocuments: (targetFolderId: Int?) -> Unit = {},
     suggestNameState: SuggestNameUiState? = null,
-    onRequestSuggestName: (fileUri: String, mimeType: String) -> Unit = { _, _ -> },
+    onRequestSuggestName: (fileUri: String, mimeType: String, excludeName: String?) -> Unit = { _, _, _ -> },
     onClearSuggestName: () -> Unit = {},
 ) {
     var isFabExpanded by rememberSaveable { mutableStateOf(false) }
@@ -482,7 +482,7 @@ internal fun TripDocumentsContent(
             label = stringResource(R.string.documents_name_label),
             initialName = document.name,
             suggestNameState = suggestNameState,
-            onSuggest = { onRequestSuggestName(document.uri, document.mimeType) },
+            onSuggest = { onRequestSuggestName(document.uri, document.mimeType, document.name) },
             onConfirm = { newName ->
                 documentToRename = null
                 onClearSuggestName()
