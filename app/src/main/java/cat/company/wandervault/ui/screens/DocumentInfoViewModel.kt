@@ -15,8 +15,10 @@ import cat.company.wandervault.domain.usecase.GetDestinationsForTripUseCase
 import cat.company.wandervault.domain.usecase.GetDocumentByIdUseCase
 import cat.company.wandervault.domain.usecase.GetHotelForDestinationUseCase
 import cat.company.wandervault.domain.usecase.GetHotelsForDestinationsUseCase
+import cat.company.wandervault.domain.usecase.GetOrCreateTransportForDestinationUseCase
 import cat.company.wandervault.domain.usecase.GetTripUseCase
 import cat.company.wandervault.domain.usecase.SaveHotelUseCase
+import cat.company.wandervault.domain.usecase.SaveTransportLegUseCase
 import cat.company.wandervault.domain.usecase.SaveTripDescriptionUseCase
 import cat.company.wandervault.domain.usecase.SummarizeDocumentUseCase
 import cat.company.wandervault.domain.usecase.UpdateDocumentUseCase
@@ -56,6 +58,8 @@ import java.io.File
  * @param getHotelsForDestinations Use-case that fetches hotels for multiple destinations in one query.
  * @param saveHotel Use-case that saves a hotel record.
  * @param updateTransportLeg Use-case that persists an updated transport leg.
+ * @param getOrCreateTransport Use-case that returns the transport ID for a destination, creating one if needed.
+ * @param saveTransportLeg Use-case that persists a new transport leg.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class DocumentInfoViewModel(
@@ -71,6 +75,8 @@ class DocumentInfoViewModel(
     private val getHotelsForDestinations: GetHotelsForDestinationsUseCase,
     private val saveHotel: SaveHotelUseCase,
     private val updateTransportLeg: UpdateTransportLegUseCase,
+    private val getOrCreateTransport: GetOrCreateTransportForDestinationUseCase,
+    private val saveTransportLeg: SaveTransportLegUseCase,
 ) : ViewModel() {
 
     /** Current document analysis state; updated independently from the DB-driven document flow. */
@@ -216,8 +222,10 @@ class DocumentInfoViewModel(
      * all items are handled, after which the dialog is dismissed.
      *
      * For each flight item: checks for a confident match first. If found, transitions to
-     * [AnalyzeDocumentUiState.FlightConfirm]. If no confident match, transitions to
-     * [AnalyzeDocumentUiState.FlightLegSelection] (candidates sorted by relevance).
+     * [AnalyzeDocumentUiState.FlightConfirm]. If no confident match but flight legs exist,
+     * transitions to [AnalyzeDocumentUiState.FlightLegSelection] (candidates sorted by relevance).
+     * If no flight legs at all but destinations with transports exist, transitions to
+     * [AnalyzeDocumentUiState.FlightTransportSelection] so the user can add a new leg.
      *
      * For each hotel item: a confident match (by booking reference or hotel name) is checked first.
      * If found, transitions to [AnalyzeDocumentUiState.HotelConfirm]. If no confident match,
@@ -452,20 +460,33 @@ class DocumentInfoViewModel(
      * [AnalyzeDocumentUiState.FlightConfirm] so the user can review and confirm the change.
      * When there is no confident match but there are flight legs, the state transitions to
      * [AnalyzeDocumentUiState.FlightLegSelection] (sorted by relevance) so the user can pick.
-     * When there are no flight legs at all the info is silently skipped.
+     * When there are no flight legs but there are destinations with transports, the state
+     * transitions to [AnalyzeDocumentUiState.FlightTransportSelection] so the user can pick a
+     * transport to add a new leg to. When there are no transports at all the info is silently
+     * skipped.
      */
     private suspend fun applyOrDisambiguateFlightInfo(
         flightInfo: FlightInfo,
         documentName: String,
         tripId: Int,
     ) {
-        val allFlightLegs = getDestinationsForTrip(tripId).first()
+        val allDestinations = getDestinationsForTrip(tripId).first()
+        val allFlightLegs = allDestinations
             .flatMap { dest -> dest.transport?.legs.orEmpty() }
             .filter { it.type == TransportType.FLIGHT }
 
         if (allFlightLegs.isEmpty()) {
-            Log.d(TAG, "No flight legs in trip $tripId; skipping flight info from $documentName")
-            processNextExtractedInfo()
+            val destinationsWithTransport = allDestinations.filter { it.transport != null }
+            if (destinationsWithTransport.isEmpty()) {
+                Log.d(TAG, "No transport in trip $tripId; skipping flight info from $documentName")
+                processNextExtractedInfo()
+                return
+            }
+            pendingFlightInfo = flightInfo
+            _analyzeState.value = AnalyzeDocumentUiState.FlightTransportSelection(
+                flightInfo = flightInfo,
+                candidates = destinationsWithTransport,
+            )
             return
         }
 
@@ -518,6 +539,72 @@ class DocumentInfoViewModel(
                 candidates = sortedCandidates,
             )
         }
+    }
+
+    /**
+     * Called when the user picks a [Destination] from the transport selection dialog.
+     * Transitions to [AnalyzeDocumentUiState.FlightAddLegConfirm] so the user can review
+     * the proposed new leg before it is saved.
+     */
+    fun onFlightTransportSelected(destination: Destination) {
+        val flightInfo = pendingFlightInfo ?: run {
+            Log.w(TAG, "onFlightTransportSelected called with no pending flight info; dismissing")
+            dismissAnalyze()
+            return
+        }
+        pendingFlightInfo = null
+        _analyzeState.value = AnalyzeDocumentUiState.FlightAddLegConfirm(
+            flightInfo = flightInfo,
+            destination = destination,
+        )
+    }
+
+    /**
+     * Called when the user confirms adding a new flight leg from the
+     * [AnalyzeDocumentUiState.FlightAddLegConfirm] dialog. Creates and persists the new leg,
+     * then advances to the next pending item via [processNextExtractedInfo].
+     */
+    fun onFlightAddLegConfirmed() {
+        val state = _analyzeState.value as? AnalyzeDocumentUiState.FlightAddLegConfirm ?: run {
+            Log.w(TAG, "onFlightAddLegConfirmed called when not in FlightAddLegConfirm state; dismissing")
+            dismissAnalyze()
+            return
+        }
+        viewModelScope.launch {
+            try {
+                addFlightLegToTransport(state.flightInfo, state.destination)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to add flight leg to transport", e)
+                _analyzeState.value = AnalyzeDocumentUiState.Error(e.message ?: e.toString())
+                return@launch
+            }
+            processNextExtractedInfo()
+        }
+    }
+
+    /**
+     * Creates a new FLIGHT-type [TransportLeg] populated from [flightInfo] and appends it to
+     * the transport belonging to [destination], creating the transport record if needed.
+     */
+    private suspend fun addFlightLegToTransport(flightInfo: FlightInfo, destination: Destination) {
+        val transportId = getOrCreateTransport(destination.id)
+        // Re-fetch the destination to get the current leg count so that the new leg's position
+        // is accurate even if the destination snapshot stored in the UI state is stale.
+        val currentDestination = getDestinationsForTrip(destination.tripId).first()
+            .firstOrNull { it.id == destination.id }
+        val position = currentDestination?.transport?.legs?.size ?: 0
+        saveTransportLeg(
+            TransportLeg(
+                id = 0,
+                transportId = transportId,
+                type = TransportType.FLIGHT,
+                position = position,
+                company = flightInfo.airline,
+                flightNumber = flightInfo.flightNumber,
+                reservationConfirmationNumber = flightInfo.bookingReference,
+                stopName = flightInfo.arrivalPlace,
+            ),
+        )
     }
 
     /**
