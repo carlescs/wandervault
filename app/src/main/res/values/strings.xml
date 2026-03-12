@@ -267,6 +267,10 @@
     <string name="documents_analyze_ref">Ref: %s</string>
     <string name="documents_analyze_confirm_flight_title">Update flight leg?</string>
     <string name="documents_analyze_confirm_flight_message">The following flight leg will be updated with the extracted information:</string>
+    <string name="documents_analyze_transport_selection_title">Add flight leg</string>
+    <string name="documents_analyze_transport_selection_message">No matching flight leg found. Select which transport to add a new leg to:</string>
+    <string name="documents_analyze_confirm_add_leg_title">Add flight leg?</string>
+    <string name="documents_analyze_confirm_add_leg_message">A new flight leg will be added to the transport departing from "%s".</string>
     <string name="documents_analyze_confirm_hotel_title">Update hotel?</string>
     <string name="documents_analyze_confirm_hotel_message">The following hotel at destination "%s" will be updated with the extracted information:</string>
     <string name="documents_analyze_confirm_hotel_new_message">A new hotel will be created for destination "%s" with the extracted information.</string>

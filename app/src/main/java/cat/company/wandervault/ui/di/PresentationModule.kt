@@ -65,6 +65,8 @@ val presentationModule = module {
             getHotelsForDestinations = get(),
             saveHotel = get(),
             updateTransportLeg = get(),
+            getOrCreateTransport = get(),
+            saveTransportLeg = get(),
         )
     }
     viewModel { params ->
