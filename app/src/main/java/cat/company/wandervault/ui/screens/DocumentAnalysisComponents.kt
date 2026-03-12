@@ -63,9 +63,10 @@ import java.time.format.FormatStyle
  *   destination; "Apply" button adds a new leg to that transport.
  * - [AnalyzeDocumentUiState.TripInfoConfirm]: extracted general trip info text; "Apply" button
  *   saves it as the trip description.
- * - [AnalyzeDocumentUiState.FlightLegSelection] / [AnalyzeDocumentUiState.FlightTransportSelection] /
- *   [AnalyzeDocumentUiState.HotelDestinationSelection]:
- *   scrollable candidate list; tapping an item applies the changes and dismisses.
+ * - [AnalyzeDocumentUiState.FlightLegSelection] / [AnalyzeDocumentUiState.HotelDestinationSelection]:
+ *   scrollable candidate list; tapping an item applies the changes and dismisses. Tapping an item
+ *   in [AnalyzeDocumentUiState.FlightTransportSelection] advances to
+ *   [AnalyzeDocumentUiState.FlightAddLegConfirm].
  *
  * @param onDismiss Called to cancel and close the entire dialog (back button, outside tap, or
  *   "Cancel" from the initial [AnalyzeDocumentUiState.Result] state).
@@ -620,8 +621,8 @@ internal fun DestinationListItem(
             .fillMaxWidth()
             .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
             .padding(
-                vertical = if (isListItem) 10.dp else 4.dp,
-                horizontal = if (isListItem) 4.dp else 0.dp,
+                vertical = if (isListItem) 4.dp else 10.dp,
+                horizontal = if (isListItem) 0.dp else 4.dp,
             ),
         verticalAlignment = Alignment.CenterVertically,
     ) {
