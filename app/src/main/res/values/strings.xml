@@ -127,6 +127,15 @@
     <string name="itinerary_add_destination_here">Add destination here</string>
     <string name="itinerary_destination_open_details">Open details</string>
 
+    <!-- Timezone range picker (applied to a group of itinerary destinations) -->
+    <string name="itinerary_change_timezone_range">Change timezone for group</string>
+    <string name="itinerary_change_timezone_range_dialog_title">Change timezone for group</string>
+    <string name="itinerary_timezone_range_from">From</string>
+    <string name="itinerary_timezone_range_to">To</string>
+    <string name="itinerary_timezone_range_timezone">Timezone</string>
+    <string name="itinerary_timezone_range_select_timezone">Select timezone…</string>
+    <string name="itinerary_timezone_range_apply">Apply</string>
+
     <!-- Transport type picker -->
     <string name="itinerary_transport_picker_title">Select transport</string>
     <string name="itinerary_add_transport">Set transport</string>

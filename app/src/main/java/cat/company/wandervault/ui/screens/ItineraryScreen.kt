@@ -24,6 +24,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DirectionsBike
 import androidx.compose.material.icons.filled.DirectionsBoat
@@ -34,19 +35,24 @@ import androidx.compose.material.icons.filled.Flight
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Train
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SelectableDates
+import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
@@ -54,6 +60,7 @@ import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -123,6 +130,9 @@ internal fun ItineraryTabContent(
         onMoveDestinationUp = viewModel::onMoveDestinationUp,
         onMoveDestinationDown = viewModel::onMoveDestinationDown,
         onAddDestinationAfter = { pos -> viewModel.onAddDestinationClick(pos) },
+        onShowTimezoneRangeDialog = viewModel::onShowTimezoneRangeDialog,
+        onDismissTimezoneRangeDialog = viewModel::onDismissTimezoneRangeDialog,
+        onApplyTimezoneToRange = viewModel::onApplyTimezoneToRange,
         onTransportClick = onTransportClick,
         onDestinationClick = onDestinationClick,
     )
@@ -150,6 +160,9 @@ internal fun ItineraryContent(
     onMoveDestinationUp: (Destination) -> Unit,
     onMoveDestinationDown: (Destination) -> Unit,
     onAddDestinationAfter: (Int) -> Unit,
+    onShowTimezoneRangeDialog: () -> Unit = {},
+    onDismissTimezoneRangeDialog: () -> Unit = {},
+    onApplyTimezoneToRange: (Int, Int, String?) -> Unit = { _, _, _ -> },
     onTransportClick: (Int) -> Unit = {},
     onDestinationClick: (Int) -> Unit = {},
     modifier: Modifier = Modifier,
@@ -193,16 +206,27 @@ internal fun ItineraryContent(
             }
         }
 
-        FloatingActionButton(
-            onClick = onAddDestinationClick,
+        Column(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(
                     end = 16.dp,
                     bottom = innerPadding.calculateBottomPadding() + 16.dp,
                 ),
+            horizontalAlignment = Alignment.End,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Icon(Icons.Default.Add, contentDescription = stringResource(R.string.itinerary_add_destination))
+            if (uiState.destinations.size >= 2) {
+                SmallFloatingActionButton(onClick = onShowTimezoneRangeDialog) {
+                    Icon(
+                        imageVector = Icons.Default.Schedule,
+                        contentDescription = stringResource(R.string.itinerary_change_timezone_range),
+                    )
+                }
+            }
+            FloatingActionButton(onClick = onAddDestinationClick) {
+                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.itinerary_add_destination))
+            }
         }
     }
 
@@ -221,6 +245,17 @@ internal fun ItineraryContent(
             destinationName = uiState.destinationPendingDelete.name,
             onConfirm = onConfirmDeleteDestination,
             onDismiss = onDismissDeleteDestinationDialog,
+        )
+    }
+
+    if (uiState.showTimezoneRangeDialog) {
+        TimezoneRangeDialog(
+            destinations = uiState.destinations,
+            onApply = { fromIndex, toIndex, zoneId ->
+                onApplyTimezoneToRange(fromIndex, toIndex, zoneId)
+                onDismissTimezoneRangeDialog()
+            },
+            onDismiss = onDismissTimezoneRangeDialog,
         )
     }
 }
@@ -759,7 +794,159 @@ private fun DeleteDestinationConfirmationDialog(
     )
 }
 
-// ── Previews ─────────────────────────────────────────────────────────────────
+/**
+ * Dialog that lets the user pick a consecutive range of destinations and a timezone, then
+ * applies [withZoneSameLocal] to all arrival/departure date-times in that range.
+ *
+ * @param destinations Ordered list of destinations shown in the from/to dropdowns.
+ * @param onApply Called with (fromIndex, toIndex, zoneId) when the user confirms.
+ *                [zoneId] is `null` for "device default".
+ * @param onDismiss Called when the dialog is dismissed without applying.
+ */
+@Composable
+private fun TimezoneRangeDialog(
+    destinations: List<Destination>,
+    onApply: (fromIndex: Int, toIndex: Int, zoneId: String?) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var fromIndex by rememberSaveable { mutableIntStateOf(0) }
+    var toIndex by rememberSaveable { mutableIntStateOf(destinations.lastIndex.coerceAtLeast(0)) }
+    var selectedZoneId by rememberSaveable { mutableStateOf<String?>(null) }
+    var hasSelectedTimezone by rememberSaveable { mutableStateOf(false) }
+    var showTimezonePicker by rememberSaveable { mutableStateOf(false) }
+
+    if (showTimezonePicker) {
+        TimezonePickerDialog(
+            onTimezoneSelected = { zoneId ->
+                selectedZoneId = zoneId
+                hasSelectedTimezone = true
+                showTimezonePicker = false
+            },
+            onDismiss = { showTimezonePicker = false },
+        )
+    }
+
+    val deviceDefault = remember { ZoneId.systemDefault().id }
+    val zoneIdSnapshot = selectedZoneId
+    val timezoneButtonLabel = when {
+        !hasSelectedTimezone -> stringResource(R.string.itinerary_timezone_range_select_timezone)
+        zoneIdSnapshot == null -> stringResource(R.string.trip_timezone_device_default, deviceDefault)
+        else -> zoneIdSnapshot
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.itinerary_change_timezone_range_dialog_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                DestinationRangeDropdown(
+                    label = stringResource(R.string.itinerary_timezone_range_from),
+                    destinations = destinations,
+                    selectedIndex = fromIndex,
+                    onIndexSelected = { fromIndex = it },
+                )
+                DestinationRangeDropdown(
+                    label = stringResource(R.string.itinerary_timezone_range_to),
+                    destinations = destinations,
+                    selectedIndex = toIndex,
+                    onIndexSelected = { toIndex = it },
+                )
+                HorizontalDivider()
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = stringResource(R.string.itinerary_timezone_range_timezone),
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.weight(1f),
+                    )
+                    OutlinedButton(
+                        onClick = { showTimezonePicker = true },
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                        modifier = Modifier.height(32.dp),
+                    ) {
+                        Text(
+                            text = timezoneButtonLabel,
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onApply(fromIndex, toIndex, selectedZoneId) },
+                enabled = hasSelectedTimezone && fromIndex <= toIndex,
+            ) {
+                Text(stringResource(R.string.itinerary_timezone_range_apply))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.dialog_cancel)) }
+        },
+    )
+}
+
+/**
+ * A labelled row with an [OutlinedButton] that opens a [DropdownMenu] listing all destinations.
+ * Used inside [TimezoneRangeDialog] to pick the "from" and "to" endpoints.
+ */
+@Composable
+private fun DestinationRangeDropdown(
+    label: String,
+    destinations: List<Destination>,
+    selectedIndex: Int,
+    onIndexSelected: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.weight(1f),
+        )
+        Box {
+            OutlinedButton(
+                onClick = { expanded = true },
+                contentPadding = PaddingValues(start = 8.dp, end = 4.dp, top = 0.dp, bottom = 0.dp),
+                modifier = Modifier.height(32.dp),
+            ) {
+                Text(
+                    text = destinations.getOrNull(selectedIndex)?.name.orEmpty(),
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Icon(
+                    imageVector = Icons.Default.ArrowDropDown,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+            DropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false },
+            ) {
+                destinations.forEachIndexed { index, destination ->
+                    DropdownMenuItem(
+                        text = { Text(destination.name) },
+                        onClick = {
+                            onIndexSelected(index)
+                            expanded = false
+                        },
+                    )
+                }
+            }
+        }
+    }
+}
 
 @Preview(showBackground = true)
 @Composable

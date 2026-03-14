@@ -14,6 +14,8 @@ data class ItineraryUiState(
     val insertAfterPosition: Int? = null,
     /** Destination awaiting delete confirmation; `null` when no confirmation dialog is shown. */
     val destinationPendingDelete: Destination? = null,
+    /** Whether the "Change timezone for group" dialog is shown. */
+    val showTimezoneRangeDialog: Boolean = false,
 ) {
     val isAddDestinationFormValid: Boolean
         get() = newDestinationName.isNotBlank()
