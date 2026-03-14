@@ -68,7 +68,7 @@ internal fun TimezonePickerDialog(
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
-                    label = { Text(stringResource(R.string.timezone_search_hint)) },
+                    placeholder = { Text(stringResource(R.string.timezone_search_hint)) },
                     leadingIcon = {
                         Icon(Icons.Default.Search, contentDescription = null)
                     },
