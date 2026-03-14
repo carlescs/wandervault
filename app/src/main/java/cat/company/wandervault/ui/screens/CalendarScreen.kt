@@ -54,7 +54,8 @@ import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
 import java.time.DayOfWeek
 import java.time.LocalDate
-import java.time.LocalDateTime
+import java.time.ZoneId
+import java.time.ZonedDateTime
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -648,16 +649,16 @@ private fun CalendarContentPreview() {
             tripId = 1,
             name = "Paris",
             position = 0,
-            arrivalDateTime = LocalDateTime.of(2024, 6, 1, 10, 0),
-            departureDateTime = LocalDateTime.of(2024, 6, 5, 14, 0),
+            arrivalDateTime = ZonedDateTime.of(2024, 6, 1, 10, 0, 0, 0, ZoneId.of("Europe/Paris")),
+            departureDateTime = ZonedDateTime.of(2024, 6, 5, 14, 0, 0, 0, ZoneId.of("Europe/Paris")),
         ),
         Destination(
             id = 2,
             tripId = 1,
             name = "Lyon",
             position = 1,
-            arrivalDateTime = LocalDateTime.of(2024, 6, 5, 18, 0),
-            departureDateTime = LocalDateTime.of(2024, 6, 10, 9, 0),
+            arrivalDateTime = ZonedDateTime.of(2024, 6, 5, 18, 0, 0, 0, ZoneId.of("Europe/Paris")),
+            departureDateTime = ZonedDateTime.of(2024, 6, 10, 9, 0, 0, 0, ZoneId.of("Europe/Paris")),
         ),
     )
     WanderVaultTheme {

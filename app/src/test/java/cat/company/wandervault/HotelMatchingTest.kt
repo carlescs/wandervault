@@ -9,6 +9,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
+import java.time.ZoneOffset
 
 /**
  * Unit tests for the hotel-matching predicates used in
@@ -152,8 +153,8 @@ class HotelMatchingTest {
         tripId = 1,
         name = "Test Dest",
         position = 0,
-        arrivalDateTime = arrival?.atStartOfDay(),
-        departureDateTime = departure?.atStartOfDay(),
+        arrivalDateTime = arrival?.atStartOfDay(ZoneOffset.UTC),
+        departureDateTime = departure?.atStartOfDay(ZoneOffset.UTC),
     )
 
     @Test

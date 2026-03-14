@@ -76,15 +76,18 @@ import cat.company.wandervault.ui.theme.WanderVaultTheme
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
 import java.time.LocalDate
-import java.time.LocalDateTime
 import java.time.LocalTime
+import java.time.ZoneId
+import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
+import java.time.format.TextStyle
+import java.util.Locale
 
 private const val MILLIS_PER_DAY = 86_400_000L
 
-/** Converts a [LocalDateTime] to epoch-day milliseconds used by the [DatePicker] API. */
-private fun LocalDateTime?.toDateEpochMillis(): Long? =
+/** Converts a [ZonedDateTime] to epoch-day milliseconds used by the [DatePicker] API. */
+private fun ZonedDateTime?.toDateEpochMillis(): Long? =
     this?.toLocalDate()?.toEpochDay()?.times(MILLIS_PER_DAY)
 
 /**
@@ -137,8 +140,8 @@ internal fun ItineraryContent(
     onDismissAddDestinationDialog: () -> Unit,
     onNewDestinationNameChange: (String) -> Unit,
     onSaveDestination: () -> Unit,
-    onUpdateArrivalDateTime: (Destination, LocalDateTime?) -> Unit,
-    onUpdateDepartureDateTime: (Destination, LocalDateTime?) -> Unit,
+    onUpdateArrivalDateTime: (Destination, ZonedDateTime?) -> Unit,
+    onUpdateDepartureDateTime: (Destination, ZonedDateTime?) -> Unit,
     onDeleteDestination: (Destination) -> Unit,
     onDismissDeleteDestinationDialog: () -> Unit,
     onConfirmDeleteDestination: () -> Unit,
@@ -227,8 +230,8 @@ private fun DestinationTimelineItem(
     isLast: Boolean,
     previousDestination: Destination?,
     nextDestination: Destination?,
-    onUpdateArrivalDateTime: (LocalDateTime?) -> Unit,
-    onUpdateDepartureDateTime: (LocalDateTime?) -> Unit,
+    onUpdateArrivalDateTime: (ZonedDateTime?) -> Unit,
+    onUpdateDepartureDateTime: (ZonedDateTime?) -> Unit,
     onDeleteDestination: () -> Unit,
     onMoveUp: () -> Unit,
     onMoveDown: () -> Unit,
@@ -493,20 +496,22 @@ private val TransportType.labelRes: Int
     }
 
 /**
- * A labelled row showing date and time buttons for a single [LocalDateTime] value.
+ * A labelled row showing date and time buttons for a single [ZonedDateTime] value.
  *
  * - Tapping the date button opens a [DatePickerDialog].
  * - Tapping the time button opens a [TimePicker] dialog (requires a date to be set first).
- * - Selecting a new date preserves the existing time (or defaults to midnight).
+ * - Selecting a new date preserves the existing time (or defaults to midnight) and zone.
+ * - The timezone abbreviation is shown alongside the time (e.g. "14:30 CET") for awareness.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DateTimeRow(
     label: String,
-    dateTime: LocalDateTime?,
-    onDateTimeChange: (LocalDateTime?) -> Unit,
+    dateTime: ZonedDateTime?,
+    onDateTimeChange: (ZonedDateTime?) -> Unit,
     minDateMillis: Long? = null,
     maxDateMillis: Long? = null,
+    defaultZoneId: ZoneId = ZoneId.systemDefault(),
     modifier: Modifier = Modifier,
 ) {
     var showDatePicker by rememberSaveable { mutableStateOf(false) }
@@ -561,7 +566,8 @@ private fun DateTimeRow(
                         state.selectedDateMillis?.let { millis ->
                             val pickedDate = LocalDate.ofEpochDay(millis / MILLIS_PER_DAY)
                             val existingTime = dateTime?.toLocalTime() ?: LocalTime.MIDNIGHT
-                            onDateTimeChange(LocalDateTime.of(pickedDate, existingTime))
+                            val zone = dateTime?.zone ?: defaultZoneId
+                            onDateTimeChange(ZonedDateTime.of(pickedDate, existingTime, zone))
                         }
                         showDatePicker = false
                     },
@@ -589,8 +595,9 @@ private fun DateTimeRow(
                     onClick = {
                         // dateTime is always non-null here: the time button is disabled when
                         // dateTime == null, so this branch is purely defensive.
-                        val date = dateTime?.toLocalDate() ?: LocalDate.now()
-                        onDateTimeChange(LocalDateTime.of(date, LocalTime.of(timeState.hour, timeState.minute)))
+                        val date = dateTime?.toLocalDate() ?: LocalDate.now(defaultZoneId)
+                        val zone = dateTime?.zone ?: defaultZoneId
+                        onDateTimeChange(ZonedDateTime.of(date, LocalTime.of(timeState.hour, timeState.minute), zone))
                         showTimePicker = false
                     },
                 ) { Text(stringResource(R.string.dialog_ok)) }
@@ -635,8 +642,15 @@ private fun DateTimeRow(
             modifier = Modifier.height(32.dp),
             enabled = dateTime != null,
         ) {
+            val timeText = if (dateTime != null) {
+                val time = dateTime.format(timeFormatter)
+                val zoneAbbr = dateTime.zone.getDisplayName(TextStyle.SHORT, Locale.getDefault())
+                "$time $zoneAbbr"
+            } else {
+                "--:--"
+            }
             Text(
-                text = dateTime?.format(timeFormatter) ?: "--:--",
+                text = timeText,
                 style = MaterialTheme.typography.bodySmall,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -753,17 +767,17 @@ private fun ItineraryEmptyPreview() {
 @Composable
 private fun ItineraryWithDestinationsPreview() {
     val destinations = listOf(
-        Destination(1, 1, "London", 0, departureDateTime = LocalDateTime.of(2024, 6, 1, 9, 0), transport = Transport(id = 1, destinationId = 1, legs = listOf(TransportLeg(transportId = 1, type = TransportType.FLIGHT)))),
+        Destination(1, 1, "London", 0, departureDateTime = ZonedDateTime.of(2024, 6, 1, 9, 0, 0, 0, ZoneId.of("Europe/London")), transport = Transport(id = 1, destinationId = 1, legs = listOf(TransportLeg(transportId = 1, type = TransportType.FLIGHT)))),
         Destination(
             2,
             1,
             "Paris",
             1,
-            arrivalDateTime = LocalDateTime.of(2024, 6, 1, 12, 30),
-            departureDateTime = LocalDateTime.of(2024, 6, 3, 10, 0),
+            arrivalDateTime = ZonedDateTime.of(2024, 6, 1, 12, 30, 0, 0, ZoneId.of("Europe/Paris")),
+            departureDateTime = ZonedDateTime.of(2024, 6, 3, 10, 0, 0, 0, ZoneId.of("Europe/Paris")),
             transport = Transport(id = 2, destinationId = 2, legs = listOf(TransportLeg(transportId = 2, type = TransportType.TRAIN))),
         ),
-        Destination(3, 1, "Rome", 2, arrivalDateTime = LocalDateTime.of(2024, 6, 3, 14, 0)),
+        Destination(3, 1, "Rome", 2, arrivalDateTime = ZonedDateTime.of(2024, 6, 3, 14, 0, 0, 0, ZoneId.of("Europe/Rome"))),
     )
     WanderVaultTheme {
         ItineraryContent(

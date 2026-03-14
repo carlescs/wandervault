@@ -8,6 +8,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
+import java.time.ZoneOffset
 
 /**
  * Unit tests for the null-safe flight-leg matching predicates used in
@@ -156,7 +157,7 @@ class FlightLegMatchingTest {
         tripId = 1,
         name = "Test Dest",
         position = 0,
-        departureDateTime = departure?.atStartOfDay(),
+        departureDateTime = departure?.atStartOfDay(ZoneOffset.UTC),
     )
 
     @Test

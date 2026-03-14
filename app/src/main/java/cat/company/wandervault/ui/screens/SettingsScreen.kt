@@ -12,30 +12,45 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuAnchorType
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cat.company.wandervault.R
 import cat.company.wandervault.ui.theme.WanderVaultTheme
+import org.koin.androidx.compose.koinViewModel
+import java.time.ZoneId
 
 /**
  * Settings screen.
  *
- * Displays app-wide settings grouped into sections. Currently exposes a
- * "Data Administration" entry that opens the backup/restore flow.
+ * Displays app-wide settings grouped into sections. Exposes:
+ * - An app-wide default timezone selector under the "General" section.
+ * - A "Data Administration" entry that opens the backup/restore flow.
  *
  * @param onNavigateUp Called when the user taps the back button.
  * @param onNavigateToDataAdmin Called when the user taps the Data Administration row.
@@ -46,6 +61,26 @@ import cat.company.wandervault.ui.theme.WanderVaultTheme
 fun SettingsScreen(
     onNavigateUp: () -> Unit,
     onNavigateToDataAdmin: () -> Unit,
+    modifier: Modifier = Modifier,
+    viewModel: SettingsViewModel = koinViewModel(),
+) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    SettingsContent(
+        uiState = uiState,
+        onNavigateUp = onNavigateUp,
+        onNavigateToDataAdmin = onNavigateToDataAdmin,
+        onDefaultTimezoneChange = viewModel::onDefaultTimezoneChange,
+        modifier = modifier,
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun SettingsContent(
+    uiState: SettingsUiState,
+    onNavigateUp: () -> Unit,
+    onNavigateToDataAdmin: () -> Unit,
+    onDefaultTimezoneChange: (String?) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Scaffold(
@@ -69,7 +104,21 @@ fun SettingsScreen(
                 .fillMaxSize()
                 .padding(innerPadding),
         ) {
-            // Section header
+            // ── General section ────────────────────────────────────────────
+            Text(
+                text = stringResource(R.string.settings_section_general),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            )
+            HorizontalDivider()
+            AppTimezoneRow(
+                currentTimezone = uiState.defaultTimezone,
+                onTimezoneChange = onDefaultTimezoneChange,
+            )
+            HorizontalDivider()
+
+            // ── Data section ───────────────────────────────────────────────
             Text(
                 text = stringResource(R.string.settings_section_data),
                 style = MaterialTheme.typography.labelMedium,
@@ -114,11 +163,131 @@ fun SettingsScreen(
     }
 }
 
+/**
+ * A settings row that lets the user pick the app-wide default timezone from a dropdown.
+ *
+ * The device's current default timezone is always shown as the "no preference" option.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AppTimezoneRow(
+    currentTimezone: String?,
+    onTimezoneChange: (String?) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val deviceDefault = remember { ZoneId.systemDefault().id }
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    val displayValue = currentTimezone ?: stringResource(R.string.trip_timezone_device_default, deviceDefault)
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            Icons.Default.Schedule,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(24.dp),
+        )
+        Spacer(modifier = Modifier.width(16.dp))
+        ExposedDropdownMenuBox(
+            expanded = expanded,
+            onExpandedChange = { expanded = it },
+            modifier = Modifier.weight(1f),
+        ) {
+            OutlinedTextField(
+                value = displayValue,
+                onValueChange = {},
+                readOnly = true,
+                label = { Text(stringResource(R.string.settings_default_timezone_label)) },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                modifier = Modifier
+                    .menuAnchor(type = MenuAnchorType.PrimaryNotEditable, enabled = true)
+                    .fillMaxWidth(),
+                singleLine = true,
+            )
+            ExposedDropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false },
+            ) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.trip_timezone_device_default, deviceDefault)) },
+                    onClick = {
+                        onTimezoneChange(null)
+                        expanded = false
+                    },
+                )
+                COMMON_TIMEZONES.forEach { zoneId ->
+                    DropdownMenuItem(
+                        text = { Text(zoneId) },
+                        onClick = {
+                            onTimezoneChange(zoneId)
+                            expanded = false
+                        },
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Common IANA timezone IDs shown in timezone pickers throughout the app.
+ *
+ * Exposed as internal so both [SettingsScreen] and [HomeScreen] can reference the same list
+ * without duplication.
+ */
+internal val COMMON_TIMEZONES = listOf(
+    "Africa/Johannesburg",
+    "America/Anchorage",
+    "America/Argentina/Buenos_Aires",
+    "America/Bogota",
+    "America/Chicago",
+    "America/Denver",
+    "America/Los_Angeles",
+    "America/Mexico_City",
+    "America/New_York",
+    "America/Sao_Paulo",
+    "America/Toronto",
+    "Asia/Bangkok",
+    "Asia/Dubai",
+    "Asia/Hong_Kong",
+    "Asia/Jakarta",
+    "Asia/Kolkata",
+    "Asia/Seoul",
+    "Asia/Shanghai",
+    "Asia/Singapore",
+    "Asia/Tokyo",
+    "Australia/Melbourne",
+    "Australia/Perth",
+    "Australia/Sydney",
+    "Europe/Amsterdam",
+    "Europe/Athens",
+    "Europe/Berlin",
+    "Europe/Bucharest",
+    "Europe/Helsinki",
+    "Europe/Istanbul",
+    "Europe/Lisbon",
+    "Europe/London",
+    "Europe/Madrid",
+    "Europe/Moscow",
+    "Europe/Paris",
+    "Europe/Rome",
+    "Europe/Stockholm",
+    "Europe/Warsaw",
+    "Pacific/Auckland",
+    "Pacific/Honolulu",
+    "UTC",
+)
+
 @Preview(showBackground = true)
 @Composable
 private fun SettingsScreenPreview() {
     WanderVaultTheme {
-        SettingsScreen(
+        SettingsContent(
+            uiState = SettingsUiState(defaultTimezone = "Europe/London"),
             onNavigateUp = {},
             onNavigateToDataAdmin = {},
         )

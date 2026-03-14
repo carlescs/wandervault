@@ -56,7 +56,8 @@ import cat.company.wandervault.domain.model.TransportType
 import cat.company.wandervault.ui.theme.WanderVaultTheme
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
-import java.time.LocalDateTime
+import java.time.ZoneId
+import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.time.temporal.ChronoUnit
@@ -481,8 +482,8 @@ private fun LocationDetailIntermediatePreview() {
         tripId = 1,
         name = "Paris",
         position = 1,
-        arrivalDateTime = LocalDateTime.of(2024, 6, 1, 12, 30),
-        departureDateTime = LocalDateTime.of(2024, 6, 3, 10, 0),
+        arrivalDateTime = ZonedDateTime.of(2024, 6, 1, 12, 30, 0, 0, ZoneId.of("Europe/Paris")),
+        departureDateTime = ZonedDateTime.of(2024, 6, 3, 10, 0, 0, 0, ZoneId.of("Europe/Paris")),
         transport = Transport(
             id = 2,
             destinationId = 2,
@@ -519,7 +520,7 @@ private fun LocationDetailFirstStopPreview() {
         tripId = 1,
         name = "London",
         position = 0,
-        departureDateTime = LocalDateTime.of(2024, 6, 1, 9, 0),
+        departureDateTime = ZonedDateTime.of(2024, 6, 1, 9, 0, 0, 0, ZoneId.of("Europe/London")),
         transport = Transport(
             id = 1,
             destinationId = 1,
@@ -549,7 +550,7 @@ private fun LocationDetailLastStopPreview() {
         tripId = 1,
         name = "Rome",
         position = 2,
-        arrivalDateTime = LocalDateTime.of(2024, 6, 3, 14, 0),
+        arrivalDateTime = ZonedDateTime.of(2024, 6, 3, 14, 0, 0, 0, ZoneId.of("Europe/Rome")),
     )
     val arrivalTransport = Transport(
         id = 2,
@@ -602,8 +603,8 @@ private fun LocationDetailHotelTabPreview() {
         tripId = 1,
         name = "Paris",
         position = 1,
-        arrivalDateTime = LocalDateTime.of(2024, 6, 1, 12, 30),
-        departureDateTime = LocalDateTime.of(2024, 6, 4, 10, 0),
+        arrivalDateTime = ZonedDateTime.of(2024, 6, 1, 12, 30, 0, 0, ZoneId.of("Europe/Paris")),
+        departureDateTime = ZonedDateTime.of(2024, 6, 4, 10, 0, 0, 0, ZoneId.of("Europe/Paris")),
     )
     WanderVaultTheme {
         HotelTabContent(

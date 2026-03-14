@@ -24,9 +24,11 @@
     <!-- Settings screen -->
     <string name="settings_title">Settings</string>
     <string name="settings_navigate_up">Navigate up</string>
+    <string name="settings_section_general">General</string>
     <string name="settings_section_data">Data</string>
     <string name="settings_data_admin_title">Data Administration</string>
     <string name="settings_data_admin_subtitle">Backup and restore your data</string>
+    <string name="settings_default_timezone_label">App default timezone</string>
 
     <!-- Data Administration screen -->
     <string name="data_admin_title">Data Administration</string>
@@ -55,6 +57,10 @@
     <string name="add_trip_title">New Trip</string>
     <string name="add_trip_name_label">Trip name</string>
     <string name="add_trip_save">Save</string>
+
+    <!-- Trip timezone picker (used in Add/Edit Trip dialogs) -->
+    <string name="trip_timezone_label">Default timezone</string>
+    <string name="trip_timezone_device_default">Device default (%s)</string>
 
     <!-- Edit Trip dialog -->
     <string name="edit_trip_title">Edit Trip</string>

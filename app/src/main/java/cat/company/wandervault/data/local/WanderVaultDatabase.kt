@@ -5,6 +5,8 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import java.time.LocalDateTime
+import java.time.ZoneId
 
 @Database(
     entities = [
@@ -16,7 +18,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         TripDocumentFolderEntity::class,
         TripDocumentEntity::class,
     ],
-    version = 18,
+    version = 19,
 )
 @TypeConverters(DateConverters::class)
 abstract class WanderVaultDatabase : RoomDatabase() {
@@ -378,6 +380,55 @@ abstract class WanderVaultDatabase : RoomDatabase() {
                 // nextDestination.arrivalDateTime for the last leg when the stored value is null).
                 db.execSQL("ALTER TABLE `transport_legs` ADD COLUMN `departureDateTime` TEXT")
                 db.execSQL("ALTER TABLE `transport_legs` ADD COLUMN `arrivalDateTime` TEXT")
+            }
+        }
+        val MIGRATION_18_19 = object : Migration(18, 19) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // 1. Add per-trip default timezone column (nullable; null means device default).
+                db.execSQL("ALTER TABLE `trips` ADD COLUMN `defaultTimezone` TEXT")
+
+                // 2. Best-effort migration of existing LocalDateTime strings to ZonedDateTime
+                //    format. Existing values are ISO-8601 local strings (no zone, no offset),
+                //    e.g. "2024-06-01T12:00:00". We append the device's current default zone
+                //    so they become valid ZonedDateTime strings on first read.
+                val zoneId = ZoneId.systemDefault()
+
+                // Helper: re-encode a single TEXT column in a table.
+                fun migrateColumn(table: String, idCol: String, col: String) {
+                    db.query("SELECT `$idCol`, `$col` FROM `$table` WHERE `$col` IS NOT NULL")
+                        .use { cursor ->
+                            while (cursor.moveToNext()) {
+                                val rowId = cursor.getLong(0)
+                                val raw = cursor.getString(1) ?: continue
+                                // Skip values that already carry zone information (ZonedDateTime
+                                // format always contains an offset '+'/'-' or 'Z', and an IANA
+                                // zone ID in brackets).  Only bare LocalDateTime strings like
+                                // "2024-06-01T12:00:00" need to be upgraded.
+                                // Use a parse attempt as the authoritative check instead of
+                                // simple character-matching to avoid false positives.
+                                try {
+                                    java.time.ZonedDateTime.parse(raw)
+                                    continue  // already a ZonedDateTime – nothing to do
+                                } catch (_: Exception) {
+                                    // Not yet a ZonedDateTime; fall through to conversion below.
+                                }
+                                val converted = try {
+                                    LocalDateTime.parse(raw).atZone(zoneId).toString()
+                                } catch (_: Exception) {
+                                    continue
+                                }
+                                db.execSQL(
+                                    "UPDATE `$table` SET `$col` = ? WHERE `$idCol` = ?",
+                                    arrayOf(converted, rowId),
+                                )
+                            }
+                        }
+                }
+
+                migrateColumn("destinations", "id", "arrivalDateTime")
+                migrateColumn("destinations", "id", "departureDateTime")
+                migrateColumn("transport_legs", "id", "departureDateTime")
+                migrateColumn("transport_legs", "id", "arrivalDateTime")
             }
         }
     }

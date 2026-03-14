@@ -48,12 +48,17 @@ class HomeViewModel(
                 showAddTripDialog = false,
                 addTripTitle = "",
                 addTripImageUri = null,
+                addTripTimezone = null,
             )
         }
     }
 
     fun onAddTripTitleChange(title: String) {
         _uiState.update { it.copy(addTripTitle = title) }
+    }
+
+    fun onAddTripTimezoneChange(timezone: String?) {
+        _uiState.update { it.copy(addTripTimezone = timezone) }
     }
 
     fun onAddTripImageUriChange(uri: String?) {
@@ -70,6 +75,7 @@ class HomeViewModel(
                     id = 0,
                     title = state.addTripTitle,
                     imageUri = persistImageUri(state.addTripImageUri),
+                    defaultTimezone = state.addTripTimezone,
                 ),
             )
             onDismissAddTripDialog()
@@ -84,6 +90,7 @@ class HomeViewModel(
                 editTripTitle = trip.title,
                 editTripImageUri = trip.imageUri,
                 editTripOriginalImageUri = trip.imageUri,
+                editTripTimezone = trip.defaultTimezone,
             )
         }
     }
@@ -96,6 +103,7 @@ class HomeViewModel(
                 editTripTitle = "",
                 editTripImageUri = null,
                 editTripOriginalImageUri = null,
+                editTripTimezone = null,
             )
         }
     }
@@ -106,6 +114,10 @@ class HomeViewModel(
 
     fun onEditTripImageUriChange(uri: String?) {
         _uiState.update { it.copy(editTripImageUri = uri) }
+    }
+
+    fun onEditTripTimezoneChange(timezone: String?) {
+        _uiState.update { it.copy(editTripTimezone = timezone) }
     }
 
     fun onUpdateTrip() {
@@ -124,6 +136,7 @@ class HomeViewModel(
                 existingTrip.copy(
                     title = state.editTripTitle,
                     imageUri = newImageUri,
+                    defaultTimezone = state.editTripTimezone,
                 ),
             )
             onDismissEditTripDialog()
