@@ -419,7 +419,7 @@ abstract class WanderVaultDatabase : RoomDatabase() {
                                 }
                                 db.execSQL(
                                     "UPDATE `$table` SET `$col` = ? WHERE `$idCol` = ?",
-                                    arrayOf(converted, rowId),
+                                    arrayOf<Any>(converted, rowId),
                                 )
                             }
                         }
