@@ -5,6 +5,7 @@ import cat.company.wandervault.data.local.WanderVaultDatabase
 import cat.company.wandervault.data.mlkit.DocumentSummaryRepositoryImpl
 import cat.company.wandervault.data.mlkit.TripDescriptionRepositoryImpl
 import cat.company.wandervault.data.repository.AppPreferencesRepositoryImpl
+import cat.company.wandervault.data.repository.BackupRepositoryImpl
 import cat.company.wandervault.data.repository.DestinationRepositoryImpl
 import cat.company.wandervault.data.repository.ImageRepositoryImpl
 import cat.company.wandervault.data.repository.TransportRepositoryImpl

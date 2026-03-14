@@ -7,6 +7,7 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 import java.time.LocalDate
 import java.time.ZoneId
+import java.time.ZoneOffset
 import java.time.ZonedDateTime
 
 /**
@@ -54,14 +55,17 @@ class DateConvertersTest {
     @Test
     fun `ZonedDateTime across DST boundary preserves wall-clock time`() {
         val parisZone = ZoneId.of("Europe/Paris")
-        // Paris is UTC+1 in winter (standard time)
-        val winterTime = ZonedDateTime.of(2024, 1, 15, 12, 0, 0, 0, parisZone)
-        val serialized = converters.fromZonedDateTime(winterTime)
+        // Paris transitions from UTC+1 (CET) to UTC+2 (CEST) on the last Sunday of March.
+        // 2024-03-31 02:00 is the DST gap; use a time just before the clock springs forward.
+        val preDst = ZonedDateTime.of(2024, 3, 30, 23, 30, 0, 0, parisZone) // still UTC+1
+        val serialized = converters.fromZonedDateTime(preDst)
         val restored = converters.toZonedDateTime(serialized)
 
         assertNotNull(restored)
-        assertEquals(winterTime.toInstant(), restored!!.toInstant())
-        assertEquals(winterTime.zone, restored.zone)
+        assertEquals(preDst.toInstant(), restored!!.toInstant())
+        assertEquals(preDst.zone, restored.zone)
+        // Confirm the offset is UTC+1 (standard time), not UTC+2 (summer time).
+        assertEquals(java.time.ZoneOffset.ofHours(1), restored.offset)
     }
 
     // ── Legacy LocalDateTime backward-compatibility ────────────────────────

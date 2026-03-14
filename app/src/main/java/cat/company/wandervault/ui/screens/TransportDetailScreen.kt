@@ -789,12 +789,12 @@ private fun TransportLegSection(
 }
 
 /**
- * A labelled row showing date, time, and timezone buttons for a single [ZonedDateTime] value on a leg.
+ * A labelled row showing date and time buttons for a single [ZonedDateTime] value on a leg.
  *
  * - Tapping the date button opens a [DatePickerDialog].
  * - Tapping the time button opens a [TimePicker] dialog (requires a date to be set first).
  * - Selecting a new date preserves the existing time (or defaults to midnight) and zone.
- * - The timezone abbreviation is shown alongside the time for awareness.
+ * - The timezone abbreviation is shown alongside the time (e.g. "14:30 CET") for awareness.
  *
  * @param minDateMillis Optional lower bound (inclusive) for selectable dates, in epoch-day
  *   milliseconds.  Dates before this value are disabled in the picker.
@@ -889,7 +889,7 @@ private fun LegDateTimeRow(
                     onClick = {
                         // dateTime is always non-null here: the time button is disabled when
                         // dateTime == null, so this branch is purely defensive.
-                        val date = dateTime?.toLocalDate() ?: LocalDate.now()
+                        val date = dateTime?.toLocalDate() ?: LocalDate.now(defaultZoneId)
                         val zone = dateTime?.zone ?: defaultZoneId
                         onDateTimeChange(ZonedDateTime.of(date, LocalTime.of(timeState.hour, timeState.minute), zone))
                         showTimePicker = false

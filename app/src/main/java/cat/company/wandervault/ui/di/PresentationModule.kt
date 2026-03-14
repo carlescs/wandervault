@@ -7,6 +7,7 @@ import cat.company.wandervault.ui.screens.HomeViewModel
 import cat.company.wandervault.ui.screens.ItineraryViewModel
 import cat.company.wandervault.ui.screens.LocationDetailViewModel
 import cat.company.wandervault.ui.screens.SettingsViewModel
+import cat.company.wandervault.ui.screens.ShareViewModel
 import cat.company.wandervault.ui.screens.TransportDetailViewModel
 import cat.company.wandervault.ui.screens.TripDetailViewModel
 import cat.company.wandervault.ui.screens.TripDocumentsViewModel
