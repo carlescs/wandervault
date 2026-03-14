@@ -89,6 +89,7 @@ import cat.company.wandervault.R
 import cat.company.wandervault.domain.model.TransportType
 import cat.company.wandervault.ui.theme.WanderVaultTheme
 import org.koin.androidx.compose.koinViewModel
+import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
@@ -103,6 +104,31 @@ private const val MILLIS_PER_DAY = 86_400_000L
 /** Converts a [ZonedDateTime] to epoch-day milliseconds used by the [DatePicker] API. */
 private fun ZonedDateTime?.toDateEpochMillis(): Long? =
     this?.toLocalDate()?.toEpochDay()?.times(MILLIS_PER_DAY)
+
+/**
+ * Formats this [Duration] as a compact, human-readable string such as "2h 35m", "1h", or "45m".
+ * The result is always based on total hours + remaining minutes.
+ */
+private fun Duration.formatted(): String {
+    val h = toHours()
+    val m = (toMinutes() % 60).toInt()
+    return when {
+        h > 0L && m > 0 -> "${h}h ${m}m"
+        h > 0L -> "${h}h"
+        else -> "${m}m"
+    }
+}
+
+/**
+ * Returns the positive [Duration] from this [ZonedDateTime] until [other], accounting for
+ * different timezones by comparing UTC instants.  Returns `null` if either value is `null`,
+ * or if [other] is not strictly after this instant.
+ */
+private fun ZonedDateTime?.durationUntil(other: ZonedDateTime?): Duration? {
+    if (this == null || other == null) return null
+    val d = Duration.between(this, other)
+    return if (!d.isNegative && !d.isZero) d else null
+}
 
 /** Tabs shown in the Transport Detail bottom navigation bar. */
 private enum class TransportDetailTab(@StringRes val labelRes: Int, val icon: ImageVector) {
@@ -371,8 +397,9 @@ private fun TransportJourneySummary(
 
         legs.forEachIndexed { index, leg ->
             val type = leg.typeName?.let { runCatching { TransportType.valueOf(it) }.getOrNull() }
+            val legDuration = leg.departureDateTime.durationUntil(leg.arrivalDateTime)
 
-            // Leg arrow with type label
+            // Leg arrow with type label + optional duration
             Row(
                 modifier = Modifier.padding(start = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -390,6 +417,13 @@ private fun TransportJourneySummary(
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary,
                     )
+                    if (legDuration != null) {
+                        Text(
+                            text = "· ${legDuration.formatted()}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
                 } else {
                     Text(
                         text = stringResource(R.string.transport_detail_leg_number, index + 1),
@@ -403,6 +437,18 @@ private fun TransportJourneySummary(
             // it is not the last leg, or when it differs from nextDestinationName).
             if (leg.stopName.isNotBlank() && (index < legs.lastIndex || leg.stopName != nextDestinationName)) {
                 JourneyStop(name = leg.stopName, isOrigin = false)
+                // Show layover duration below the stop: time between this leg's arrival and the
+                // next leg's departure, accounting for timezone differences.
+                val nextLeg = legs.getOrNull(index + 1)
+                val layoverDuration = leg.arrivalDateTime.durationUntil(nextLeg?.departureDateTime)
+                if (layoverDuration != null) {
+                    Text(
+                        text = stringResource(R.string.transport_detail_layover_duration, layoverDuration.formatted()),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 28.dp),
+                    )
+                }
             }
         }
 
@@ -512,6 +558,17 @@ private fun TransportLegsTabContent(
                         onStopNameChange = { value -> onStopNameChange(index, value) },
                         onRemove = { onRemoveLeg(index) },
                     )
+                    // Show layover duration: time between this leg's arrival and the next leg's departure.
+                    val nextLeg = uiState.legs.getOrNull(index + 1)
+                    val layoverDuration = leg.arrivalDateTime.durationUntil(nextLeg?.departureDateTime)
+                    if (layoverDuration != null) {
+                        Text(
+                            text = stringResource(R.string.transport_detail_layover_duration, layoverDuration.formatted()),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 28.dp, top = 2.dp),
+                        )
+                    }
                 }
             }
         }
@@ -762,6 +819,17 @@ private fun TransportLegSection(
                     maxDateMillis = maxDateMillis,
                     modifier = Modifier.fillMaxWidth(),
                 )
+
+                // Show leg duration when both departure and arrival are known.
+                val legDuration = leg.departureDateTime.durationUntil(leg.arrivalDateTime)
+                if (legDuration != null) {
+                    Text(
+                        text = stringResource(R.string.transport_detail_leg_duration, legDuration.formatted()),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
 
                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
