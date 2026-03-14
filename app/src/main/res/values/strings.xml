@@ -22,7 +22,6 @@
     <string name="profile_settings_desc">Settings</string>
 
     <!-- Settings screen -->
-    <!-- Settings screen -->
     <string name="settings_title">Settings</string>
     <string name="settings_navigate_up">Navigate up</string>
     <string name="settings_section_general">General</string>

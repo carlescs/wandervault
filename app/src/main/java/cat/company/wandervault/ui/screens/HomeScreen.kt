@@ -517,7 +517,9 @@ private fun TimezoneDropdown(
     }
 }
 
-
+@Preview(showBackground = true)
+@Composable
+private fun HomeScreenEmptyPreview() {
     WanderVaultTheme {
         HomeScreenContent(
             uiState = HomeUiState(),

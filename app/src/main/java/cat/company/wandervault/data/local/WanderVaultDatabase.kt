@@ -400,9 +400,17 @@ abstract class WanderVaultDatabase : RoomDatabase() {
                             while (cursor.moveToNext()) {
                                 val rowId = cursor.getLong(0)
                                 val raw = cursor.getString(1) ?: continue
-                                // Only convert legacy strings that have no zone info yet.
-                                if (raw.contains('+') || raw.contains('Z') || raw.contains('[')) {
-                                    continue
+                                // Skip values that already carry zone information (ZonedDateTime
+                                // format always contains an offset '+'/'-' or 'Z', and an IANA
+                                // zone ID in brackets).  Only bare LocalDateTime strings like
+                                // "2024-06-01T12:00:00" need to be upgraded.
+                                // Use a parse attempt as the authoritative check instead of
+                                // simple character-matching to avoid false positives.
+                                try {
+                                    java.time.ZonedDateTime.parse(raw)
+                                    continue  // already a ZonedDateTime – nothing to do
+                                } catch (_: Exception) {
+                                    // Not yet a ZonedDateTime; fall through to conversion below.
                                 }
                                 val converted = try {
                                     LocalDateTime.parse(raw).atZone(zoneId).toString()
