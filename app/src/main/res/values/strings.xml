@@ -115,6 +115,7 @@
     <string name="itinerary_pick_date">Pick date</string>
     <string name="itinerary_pick_time">Pick time</string>
     <string name="itinerary_pick_timezone">Pick timezone</string>
+    <string name="timezone_search_hint">Search timezone…</string>
     <string name="itinerary_empty_title">No destinations yet</string>
     <string name="itinerary_empty_subtitle">Add destinations to plan your itinerary</string>
     <string name="itinerary_delete_destination">Delete destination</string>

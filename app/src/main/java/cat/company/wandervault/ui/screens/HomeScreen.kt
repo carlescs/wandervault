@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.matchParentSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -41,6 +42,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -52,11 +57,9 @@ import cat.company.wandervault.ui.theme.WanderVaultTheme
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import org.koin.androidx.compose.koinViewModel
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.MenuAnchorType
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.foundation.clickable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -460,12 +463,11 @@ private fun TripsEmptyState(modifier: Modifier = Modifier) {
 
 
 /**
- * An exposed dropdown menu that lets the user choose a timezone for the trip.
+ * An outlined text field that opens a timezone picker dialog when tapped.
  *
  * The device's current default timezone is shown as the placeholder when [selectedTimezone]
  * is `null`.  Selecting a timezone calls [onTimezoneChange] with the IANA zone ID string.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun TimezoneDropdown(
     selectedTimezone: String?,
@@ -473,47 +475,40 @@ private fun TimezoneDropdown(
     modifier: Modifier = Modifier,
 ) {
     val deviceDefault = remember { ZoneId.systemDefault().id }
-    var expanded by rememberSaveable { mutableStateOf(false) }
+    var showPicker by rememberSaveable { mutableStateOf(false) }
     val displayValue = selectedTimezone ?: stringResource(R.string.trip_timezone_device_default, deviceDefault)
 
-    ExposedDropdownMenuBox(
-        expanded = expanded,
-        onExpandedChange = { expanded = it },
-        modifier = modifier,
-    ) {
+    if (showPicker) {
+        TimezonePickerDialog(
+            onTimezoneSelected = { zoneId ->
+                onTimezoneChange(zoneId)
+                showPicker = false
+            },
+            onDismiss = { showPicker = false },
+        )
+    }
+
+    Box(modifier = modifier) {
         OutlinedTextField(
             value = displayValue,
             onValueChange = {},
             readOnly = true,
             label = { Text(stringResource(R.string.trip_timezone_label)) },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-            modifier = Modifier
-                .menuAnchor(type = MenuAnchorType.PrimaryNotEditable, enabled = true)
-                .fillMaxWidth(),
+            trailingIcon = {
+                Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+            },
+            modifier = Modifier.fillMaxWidth(),
             singleLine = true,
         )
-        ExposedDropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false },
-        ) {
-            // "Device default" entry at the top to allow clearing an explicit selection.
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.trip_timezone_device_default, deviceDefault)) },
-                onClick = {
-                    onTimezoneChange(null)
-                    expanded = false
-                },
-            )
-            COMMON_TIMEZONES.forEach { zoneId ->
-                DropdownMenuItem(
-                    text = { Text(zoneId) },
-                    onClick = {
-                        onTimezoneChange(zoneId)
-                        expanded = false
-                    },
-                )
-            }
-        }
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .semantics {
+                    role = Role.Button
+                    contentDescription = displayValue
+                }
+                .clickable { showPicker = true },
+        )
     }
 }
 
