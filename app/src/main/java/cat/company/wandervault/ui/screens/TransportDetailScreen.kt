@@ -907,44 +907,13 @@ private fun LegDateTimeRow(
     }
 
     if (showTimezonePicker) {
-        val deviceDefault = remember { ZoneId.systemDefault() }
-        AlertDialog(
-            onDismissRequest = { showTimezonePicker = false },
-            title = { Text(stringResource(R.string.itinerary_pick_timezone)) },
-            text = {
-                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                    Text(
-                        text = stringResource(R.string.trip_timezone_device_default, deviceDefault.id),
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                dateTime?.let { onDateTimeChange(it.withZoneSameLocal(deviceDefault)) }
-                                showTimezonePicker = false
-                            }
-                            .padding(vertical = 12.dp),
-                    )
-                    COMMON_TIMEZONES.forEach { zoneId ->
-                        Text(
-                            text = zoneId,
-                            style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    dateTime?.let { onDateTimeChange(it.withZoneSameLocal(ZoneId.of(zoneId))) }
-                                    showTimezonePicker = false
-                                }
-                                .padding(vertical = 12.dp),
-                        )
-                    }
-                }
+        TimezonePickerDialog(
+            onTimezoneSelected = { zoneId ->
+                val zone = if (zoneId != null) ZoneId.of(zoneId) else ZoneId.systemDefault()
+                dateTime?.let { onDateTimeChange(it.withZoneSameLocal(zone)) }
+                showTimezonePicker = false
             },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { showTimezonePicker = false }) {
-                    Text(stringResource(R.string.dialog_cancel))
-                }
-            },
+            onDismiss = { showTimezonePicker = false },
         )
     }
 
