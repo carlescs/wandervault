@@ -48,12 +48,14 @@ internal fun TimezonePickerDialog(
 ) {
     val deviceDefault = remember { ZoneId.systemDefault().id }
     var searchQuery by rememberSaveable { mutableStateOf("") }
-    val filteredTimezones = remember(searchQuery) {
-        if (searchQuery.isBlank()) {
+    val filteredTimezones = remember(searchQuery, deviceDefault) {
+        val base = if (searchQuery.isBlank()) {
             ALL_TIMEZONES
         } else {
             ALL_TIMEZONES.filter { it.contains(searchQuery, ignoreCase = true) }
         }
+        // Exclude the device-default entry from the regular list; it has its own row at the top.
+        base.filter { it != deviceDefault }
     }
     val showDeviceDefault = searchQuery.isBlank() ||
         deviceDefault.contains(searchQuery, ignoreCase = true)
@@ -66,7 +68,7 @@ internal fun TimezonePickerDialog(
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
-                    placeholder = { Text(stringResource(R.string.timezone_search_hint)) },
+                    label = { Text(stringResource(R.string.timezone_search_hint)) },
                     leadingIcon = {
                         Icon(Icons.Default.Search, contentDescription = null)
                     },
