@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.time.ZoneId
 import java.time.ZonedDateTime
 
 /**
@@ -102,6 +103,45 @@ class ItineraryViewModel(
     fun onUpdateTransport(destination: Destination) {
         viewModelScope.launch {
             destination.transport?.let { deleteTransport(it) }
+        }
+    }
+
+    fun onShowTimezoneRangeDialog() {
+        _uiState.update { it.copy(showTimezoneRangeDialog = true) }
+    }
+
+    fun onDismissTimezoneRangeDialog() {
+        _uiState.update { it.copy(showTimezoneRangeDialog = false) }
+    }
+
+    /**
+     * Applies [zoneId] to the arrival and departure date-times of every destination whose
+     * index (0-based, sorted by position) falls in [fromIndex]..[toIndex].
+     *
+     * The local date and time are preserved; only the zone offset changes
+     * ([ZonedDateTime.withZoneSameLocal]).
+     *
+     * @param fromIndex Inclusive start index of the destination range.
+     * @param toIndex   Inclusive end index of the destination range.
+     * @param zoneId    IANA zone ID to apply, or `null` to use the device default.
+     */
+    fun onApplyTimezoneToRange(fromIndex: Int, toIndex: Int, zoneId: String?) {
+        val zone = if (zoneId != null) ZoneId.of(zoneId) else ZoneId.systemDefault()
+        val sorted = _uiState.value.destinations.sortedBy { it.position }
+        val start = fromIndex.coerceIn(0, sorted.size)
+        val end = (toIndex + 1).coerceIn(0, sorted.size)
+        if (start >= end) return
+        val range = sorted.subList(start, end)
+        viewModelScope.launch {
+            range.map { dest ->
+                async {
+                    val newArrival = dest.arrivalDateTime?.withZoneSameLocal(zone)
+                    val newDeparture = dest.departureDateTime?.withZoneSameLocal(zone)
+                    if (newArrival != dest.arrivalDateTime || newDeparture != dest.departureDateTime) {
+                        updateDestination(dest.copy(arrivalDateTime = newArrival, departureDateTime = newDeparture))
+                    }
+                }
+            }.awaitAll()
         }
     }
 
