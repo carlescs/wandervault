@@ -647,7 +647,8 @@ private fun DateTimeRow(
                     }
                 }
             },
-            confirmButton = {
+            confirmButton = {},
+            dismissButton = {
                 TextButton(onClick = { showTimezonePicker = false }) {
                     Text(stringResource(R.string.dialog_cancel))
                 }

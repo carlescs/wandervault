@@ -939,7 +939,8 @@ private fun LegDateTimeRow(
                     }
                 }
             },
-            confirmButton = {
+            confirmButton = {},
+            dismissButton = {
                 TextButton(onClick = { showTimezonePicker = false }) {
                     Text(stringResource(R.string.dialog_cancel))
                 }
