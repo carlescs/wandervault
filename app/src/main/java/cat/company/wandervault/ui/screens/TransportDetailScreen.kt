@@ -111,7 +111,7 @@ private fun ZonedDateTime?.toDateEpochMillis(): Long? =
  */
 private fun Duration.formatted(): String {
     val h = toHours()
-    val m = toMinutesPart()
+    val m = (toMinutes() % 60).toInt()
     return when {
         h > 0L && m > 0 -> "${h}h ${m}m"
         h > 0L -> "${h}h"
