@@ -1,7 +1,7 @@
 package cat.company.wandervault.data.local
 
 import androidx.room.ColumnInfo
-import java.time.LocalDateTime
+import java.time.ZonedDateTime
 
 /**
  * Lightweight Room projection used solely to compute trip date ranges.
@@ -9,6 +9,6 @@ import java.time.LocalDateTime
  */
 data class DestinationDateProjection(
     @ColumnInfo(name = "tripId") val tripId: Int,
-    @ColumnInfo(name = "arrivalDateTime") val arrivalDateTime: LocalDateTime?,
-    @ColumnInfo(name = "departureDateTime") val departureDateTime: LocalDateTime?,
+    @ColumnInfo(name = "arrivalDateTime") val arrivalDateTime: ZonedDateTime?,
+    @ColumnInfo(name = "departureDateTime") val departureDateTime: ZonedDateTime?,
 )

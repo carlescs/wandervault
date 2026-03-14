@@ -52,7 +52,16 @@ import cat.company.wandervault.ui.theme.WanderVaultTheme
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import org.koin.androidx.compose.koinViewModel
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.MenuAnchorType
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
@@ -72,11 +81,13 @@ fun HomeScreen(modifier: Modifier = Modifier, viewModel: HomeViewModel = koinVie
         onDismissDialog = viewModel::onDismissAddTripDialog,
         onTitleChange = viewModel::onAddTripTitleChange,
         onImageUriChange = viewModel::onAddTripImageUriChange,
+        onTimezoneChange = viewModel::onAddTripTimezoneChange,
         onSaveTrip = viewModel::onSaveTrip,
         onEditTripClick = viewModel::onEditTripClick,
         onDismissEditDialog = viewModel::onDismissEditTripDialog,
         onEditTitleChange = viewModel::onEditTripTitleChange,
         onEditImageUriChange = viewModel::onEditTripImageUriChange,
+        onEditTimezoneChange = viewModel::onEditTripTimezoneChange,
         onUpdateTrip = viewModel::onUpdateTrip,
         onDeleteTripClick = viewModel::onDeleteTripClick,
         onConfirmDeleteTrip = viewModel::onConfirmDeleteTrip,
@@ -100,11 +111,13 @@ internal fun HomeScreenContent(
     onDismissDialog: () -> Unit,
     onTitleChange: (String) -> Unit,
     onImageUriChange: (String?) -> Unit,
+    onTimezoneChange: (String?) -> Unit = {},
     onSaveTrip: () -> Unit,
     onEditTripClick: (Trip) -> Unit,
     onDismissEditDialog: () -> Unit,
     onEditTitleChange: (String) -> Unit,
     onEditImageUriChange: (String?) -> Unit,
+    onEditTimezoneChange: (String?) -> Unit = {},
     onUpdateTrip: () -> Unit,
     onDeleteTripClick: (Trip) -> Unit = {},
     onConfirmDeleteTrip: () -> Unit = {},
@@ -150,6 +163,8 @@ internal fun HomeScreenContent(
             onTitleChange = onTitleChange,
             imageUri = uiState.addTripImageUri,
             onImageUriChange = onImageUriChange,
+            timezone = uiState.addTripTimezone,
+            onTimezoneChange = onTimezoneChange,
             isFormValid = uiState.isAddTripFormValid,
             onSave = onSaveTrip,
             onDismiss = onDismissDialog,
@@ -162,6 +177,8 @@ internal fun HomeScreenContent(
             onTitleChange = onEditTitleChange,
             imageUri = uiState.editTripImageUri,
             onImageUriChange = onEditImageUriChange,
+            timezone = uiState.editTripTimezone,
+            onTimezoneChange = onEditTimezoneChange,
             isFormValid = uiState.isEditTripFormValid,
             onSave = onUpdateTrip,
             onDismiss = onDismissEditDialog,
@@ -255,10 +272,13 @@ private fun TripCard(trip: Trip, onEditClick: () -> Unit, onDeleteClick: () -> U
  * @param onTitleChange Called when the user changes the trip name.
  * @param imageUri The currently selected background image URI, or null if none chosen.
  * @param onImageUriChange Called when the user picks or removes a background image.
+ * @param timezone The IANA timezone ID for this trip, or null for device default.
+ * @param onTimezoneChange Called when the user selects a timezone.
  * @param isFormValid Whether the form inputs are valid, enabling the save button.
  * @param onSave Called when the user confirms the dialog.
  * @param onDismiss Called when the user cancels or dismisses the dialog.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun TripFormDialog(
     dialogTitle: String,
@@ -266,6 +286,8 @@ private fun TripFormDialog(
     onTitleChange: (String) -> Unit,
     imageUri: String?,
     onImageUriChange: (String?) -> Unit,
+    timezone: String?,
+    onTimezoneChange: (String?) -> Unit,
     isFormValid: Boolean,
     onSave: () -> Unit,
     onDismiss: () -> Unit,
@@ -286,6 +308,12 @@ private fun TripFormDialog(
                     onValueChange = onTitleChange,
                     label = { Text(stringResource(R.string.add_trip_name_label)) },
                     singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                TimezoneDropdown(
+                    selectedTimezone = timezone,
+                    onTimezoneChange = onTimezoneChange,
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(modifier = Modifier.height(8.dp))
@@ -337,6 +365,8 @@ private fun AddTripDialog(
     onTitleChange: (String) -> Unit,
     imageUri: String?,
     onImageUriChange: (String?) -> Unit,
+    timezone: String?,
+    onTimezoneChange: (String?) -> Unit,
     isFormValid: Boolean,
     onSave: () -> Unit,
     onDismiss: () -> Unit,
@@ -347,6 +377,8 @@ private fun AddTripDialog(
         onTitleChange = onTitleChange,
         imageUri = imageUri,
         onImageUriChange = onImageUriChange,
+        timezone = timezone,
+        onTimezoneChange = onTimezoneChange,
         isFormValid = isFormValid,
         onSave = onSave,
         onDismiss = onDismiss,
@@ -359,6 +391,8 @@ private fun EditTripDialog(
     onTitleChange: (String) -> Unit,
     imageUri: String?,
     onImageUriChange: (String?) -> Unit,
+    timezone: String?,
+    onTimezoneChange: (String?) -> Unit,
     isFormValid: Boolean,
     onSave: () -> Unit,
     onDismiss: () -> Unit,
@@ -369,6 +403,8 @@ private fun EditTripDialog(
         onTitleChange = onTitleChange,
         imageUri = imageUri,
         onImageUriChange = onImageUriChange,
+        timezone = timezone,
+        onTimezoneChange = onTimezoneChange,
         isFormValid = isFormValid,
         onSave = onSave,
         onDismiss = onDismiss,
@@ -422,9 +458,66 @@ private fun TripsEmptyState(modifier: Modifier = Modifier) {
     }
 }
 
-@Preview(showBackground = true)
+
+/**
+ * An exposed dropdown menu that lets the user choose a timezone for the trip.
+ *
+ * The device's current default timezone is shown as the placeholder when [selectedTimezone]
+ * is `null`.  Selecting a timezone calls [onTimezoneChange] with the IANA zone ID string.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun HomeScreenEmptyPreview() {
+private fun TimezoneDropdown(
+    selectedTimezone: String?,
+    onTimezoneChange: (String?) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val deviceDefault = remember { ZoneId.systemDefault().id }
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    val displayValue = selectedTimezone ?: stringResource(R.string.trip_timezone_device_default, deviceDefault)
+
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = it },
+        modifier = modifier,
+    ) {
+        OutlinedTextField(
+            value = displayValue,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(stringResource(R.string.trip_timezone_label)) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            modifier = Modifier
+                .menuAnchor(type = MenuAnchorType.PrimaryNotEditable, enabled = true)
+                .fillMaxWidth(),
+            singleLine = true,
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            // "Device default" entry at the top to allow clearing an explicit selection.
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.trip_timezone_device_default, deviceDefault)) },
+                onClick = {
+                    onTimezoneChange(null)
+                    expanded = false
+                },
+            )
+            COMMON_TIMEZONES.forEach { zoneId ->
+                DropdownMenuItem(
+                    text = { Text(zoneId) },
+                    onClick = {
+                        onTimezoneChange(zoneId)
+                        expanded = false
+                    },
+                )
+            }
+        }
+    }
+}
+
+
     WanderVaultTheme {
         HomeScreenContent(
             uiState = HomeUiState(),

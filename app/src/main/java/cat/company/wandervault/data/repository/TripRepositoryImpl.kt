@@ -86,6 +86,7 @@ private fun TripEntity.toDomain(destinations: List<DestinationDateProjection>): 
         endDate = allDates.maxOrNull(),
         aiDescription = aiDescription,
         isFavorite = isFavorite,
+        defaultTimezone = defaultTimezone,
     )
 }
 
@@ -95,4 +96,5 @@ private fun Trip.toEntity() = TripEntity(
     imageUri = imageUri,
     aiDescription = aiDescription,
     isFavorite = isFavorite,
+    defaultTimezone = defaultTimezone,
 )

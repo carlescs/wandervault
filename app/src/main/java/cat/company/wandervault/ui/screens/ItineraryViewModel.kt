@@ -15,7 +15,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.time.LocalDateTime
+import java.time.ZonedDateTime
 
 /**
  * ViewModel for the Itinerary tab on the Trip Detail screen.
@@ -87,13 +87,13 @@ class ItineraryViewModel(
         }
     }
 
-    fun onUpdateArrivalDateTime(destination: Destination, arrivalDateTime: LocalDateTime?) {
+    fun onUpdateArrivalDateTime(destination: Destination, arrivalDateTime: ZonedDateTime?) {
         viewModelScope.launch {
             updateDestination(destination.copy(arrivalDateTime = arrivalDateTime))
         }
     }
 
-    fun onUpdateDepartureDateTime(destination: Destination, departureDateTime: LocalDateTime?) {
+    fun onUpdateDepartureDateTime(destination: Destination, departureDateTime: ZonedDateTime?) {
         viewModelScope.launch {
             updateDestination(destination.copy(departureDateTime = departureDateTime))
         }

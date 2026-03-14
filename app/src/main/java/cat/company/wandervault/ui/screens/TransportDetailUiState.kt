@@ -1,6 +1,6 @@
 package cat.company.wandervault.ui.screens
 
-import java.time.LocalDateTime
+import java.time.ZonedDateTime
 
 /**
  * Represents the editing state for a single transport leg.
@@ -16,8 +16,8 @@ import java.time.LocalDateTime
  * @param flightNumber The flight, train, or route number.
  * @param confirmationNumber The booking or reservation confirmation code.
  * @param isDefault When `true` this leg's icon is shown in the itinerary timeline.
- * @param departureDateTime When the traveller departs for this leg.
- * @param arrivalDateTime When the traveller arrives at the end of this leg.
+ * @param departureDateTime When the traveller departs for this leg (timezone-aware).
+ * @param arrivalDateTime When the traveller arrives at the end of this leg (timezone-aware).
  */
 data class TransportLegEditState(
     val id: Int = 0,
@@ -28,8 +28,8 @@ data class TransportLegEditState(
     val flightNumber: String = "",
     val confirmationNumber: String = "",
     val isDefault: Boolean = false,
-    val departureDateTime: LocalDateTime? = null,
-    val arrivalDateTime: LocalDateTime? = null,
+    val departureDateTime: ZonedDateTime? = null,
+    val arrivalDateTime: ZonedDateTime? = null,
 )
 
 /**
@@ -58,8 +58,8 @@ sealed class TransportDetailUiState {
         val originName: String = destinationName,
         val nextDestinationName: String? = null,
         val legs: List<TransportLegEditState>,
-        val destinationDepartureDateTime: LocalDateTime? = null,
-        val nextDestinationArrivalDateTime: LocalDateTime? = null,
+        val destinationDepartureDateTime: ZonedDateTime? = null,
+        val nextDestinationArrivalDateTime: ZonedDateTime? = null,
     ) : TransportDetailUiState()
 
     /** An error occurred (e.g. destination not found). */

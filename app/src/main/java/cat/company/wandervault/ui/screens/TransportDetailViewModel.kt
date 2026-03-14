@@ -23,7 +23,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
-import java.time.LocalDateTime
+import java.time.ZonedDateTime
 
 /**
  * ViewModel for the Transport Detail screen.
@@ -206,7 +206,7 @@ class TransportDetailViewModel(
      * When [index] is 0 (the first leg), also persists the new value to the parent destination's
      * [Destination.departureDateTime] so that the itinerary timeline stays in sync.
      */
-    fun onDepartureDateTimeChange(index: Int, dateTime: LocalDateTime?) {
+    fun onDepartureDateTimeChange(index: Int, dateTime: ZonedDateTime?) {
         _hasUnsavedEdits = true
         updateLeg(index) { copy(departureDateTime = dateTime) }
         if (index == 0) {
@@ -224,7 +224,7 @@ class TransportDetailViewModel(
      * When [index] is the last leg, also persists the new value to the next destination's
      * [Destination.arrivalDateTime] so that the itinerary timeline stays in sync.
      */
-    fun onArrivalDateTimeChange(index: Int, dateTime: LocalDateTime?) {
+    fun onArrivalDateTimeChange(index: Int, dateTime: ZonedDateTime?) {
         _hasUnsavedEdits = true
         updateLeg(index) { copy(arrivalDateTime = dateTime) }
         val current = _uiState.value as? TransportDetailUiState.Success ?: return
@@ -406,9 +406,9 @@ class TransportDetailViewModel(
 
 private fun TransportLeg.toEditState(
     isFirst: Boolean = false,
-    destinationDepartureDateTime: LocalDateTime? = null,
+    destinationDepartureDateTime: ZonedDateTime? = null,
     isLast: Boolean = false,
-    nextArrivalDateTime: LocalDateTime? = null,
+    nextArrivalDateTime: ZonedDateTime? = null,
 ) = TransportLegEditState(
     id = id,
     clientKey = id,

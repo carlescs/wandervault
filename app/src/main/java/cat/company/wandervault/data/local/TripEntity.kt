@@ -10,4 +10,6 @@ data class TripEntity(
     val imageUri: String? = null,
     val aiDescription: String? = null,
     val isFavorite: Boolean = false,
+    /** IANA timezone ID used as the default for new destinations and legs in this trip. */
+    val defaultTimezone: String? = null,
 )

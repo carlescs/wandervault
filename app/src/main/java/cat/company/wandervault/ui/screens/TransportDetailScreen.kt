@@ -90,15 +90,18 @@ import cat.company.wandervault.domain.model.TransportType
 import cat.company.wandervault.ui.theme.WanderVaultTheme
 import org.koin.androidx.compose.koinViewModel
 import java.time.LocalDate
-import java.time.LocalDateTime
 import java.time.LocalTime
+import java.time.ZoneId
+import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
+import java.time.format.TextStyle
+import java.util.Locale
 
 private const val MILLIS_PER_DAY = 86_400_000L
 
-/** Converts a [LocalDateTime] to epoch-day milliseconds used by the [DatePicker] API. */
-private fun LocalDateTime?.toDateEpochMillis(): Long? =
+/** Converts a [ZonedDateTime] to epoch-day milliseconds used by the [DatePicker] API. */
+private fun ZonedDateTime?.toDateEpochMillis(): Long? =
     this?.toLocalDate()?.toEpochDay()?.times(MILLIS_PER_DAY)
 
 /** Tabs shown in the Transport Detail bottom navigation bar. */
@@ -178,8 +181,8 @@ internal fun TransportDetailContent(
     onFlightNumberChange: (Int, String) -> Unit,
     onConfirmationNumberChange: (Int, String) -> Unit,
     onSetDefaultLeg: (Int) -> Unit = {},
-    onDepartureDateTimeChange: (Int, LocalDateTime?) -> Unit = { _, _ -> },
-    onArrivalDateTimeChange: (Int, LocalDateTime?) -> Unit = { _, _ -> },
+    onDepartureDateTimeChange: (Int, ZonedDateTime?) -> Unit = { _, _ -> },
+    onArrivalDateTimeChange: (Int, ZonedDateTime?) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier,
 ) {
     var selectedTab by rememberSaveable { mutableStateOf(TransportDetailTab.DETAILS) }
@@ -447,8 +450,8 @@ private fun TransportLegsTabContent(
     onFlightNumberChange: (Int, String) -> Unit,
     onConfirmationNumberChange: (Int, String) -> Unit,
     onSetDefaultLeg: (Int) -> Unit,
-    onDepartureDateTimeChange: (Int, LocalDateTime?) -> Unit,
-    onArrivalDateTimeChange: (Int, LocalDateTime?) -> Unit,
+    onDepartureDateTimeChange: (Int, ZonedDateTime?) -> Unit,
+    onArrivalDateTimeChange: (Int, ZonedDateTime?) -> Unit,
     innerPadding: PaddingValues,
     modifier: Modifier = Modifier,
 ) {
@@ -627,8 +630,8 @@ private fun TransportLegSection(
     onFlightNumberChange: (String) -> Unit,
     onConfirmationNumberChange: (String) -> Unit,
     onSetDefault: () -> Unit,
-    onDepartureDateTimeChange: (LocalDateTime?) -> Unit,
-    onArrivalDateTimeChange: (LocalDateTime?) -> Unit,
+    onDepartureDateTimeChange: (ZonedDateTime?) -> Unit,
+    onArrivalDateTimeChange: (ZonedDateTime?) -> Unit,
     minDateMillis: Long? = null,
     maxDateMillis: Long? = null,
     modifier: Modifier = Modifier,
@@ -786,11 +789,12 @@ private fun TransportLegSection(
 }
 
 /**
- * A labelled row showing date and time buttons for a single [LocalDateTime] value on a leg.
+ * A labelled row showing date, time, and timezone buttons for a single [ZonedDateTime] value on a leg.
  *
  * - Tapping the date button opens a [DatePickerDialog].
  * - Tapping the time button opens a [TimePicker] dialog (requires a date to be set first).
- * - Selecting a new date preserves the existing time (or defaults to midnight).
+ * - Selecting a new date preserves the existing time (or defaults to midnight) and zone.
+ * - The timezone abbreviation is shown alongside the time for awareness.
  *
  * @param minDateMillis Optional lower bound (inclusive) for selectable dates, in epoch-day
  *   milliseconds.  Dates before this value are disabled in the picker.
@@ -801,10 +805,11 @@ private fun TransportLegSection(
 @Composable
 private fun LegDateTimeRow(
     label: String,
-    dateTime: LocalDateTime?,
-    onDateTimeChange: (LocalDateTime?) -> Unit,
+    dateTime: ZonedDateTime?,
+    onDateTimeChange: (ZonedDateTime?) -> Unit,
     minDateMillis: Long? = null,
     maxDateMillis: Long? = null,
+    defaultZoneId: ZoneId = ZoneId.systemDefault(),
     modifier: Modifier = Modifier,
 ) {
     var showDatePicker by rememberSaveable { mutableStateOf(false) }
@@ -855,7 +860,8 @@ private fun LegDateTimeRow(
                         state.selectedDateMillis?.let { millis ->
                             val pickedDate = LocalDate.ofEpochDay(millis / MILLIS_PER_DAY)
                             val existingTime = dateTime?.toLocalTime() ?: LocalTime.MIDNIGHT
-                            onDateTimeChange(LocalDateTime.of(pickedDate, existingTime))
+                            val zone = dateTime?.zone ?: defaultZoneId
+                            onDateTimeChange(ZonedDateTime.of(pickedDate, existingTime, zone))
                         }
                         showDatePicker = false
                     },
@@ -884,7 +890,8 @@ private fun LegDateTimeRow(
                         // dateTime is always non-null here: the time button is disabled when
                         // dateTime == null, so this branch is purely defensive.
                         val date = dateTime?.toLocalDate() ?: LocalDate.now()
-                        onDateTimeChange(LocalDateTime.of(date, LocalTime.of(timeState.hour, timeState.minute)))
+                        val zone = dateTime?.zone ?: defaultZoneId
+                        onDateTimeChange(ZonedDateTime.of(date, LocalTime.of(timeState.hour, timeState.minute), zone))
                         showTimePicker = false
                     },
                 ) { Text(stringResource(R.string.dialog_ok)) }
@@ -929,8 +936,15 @@ private fun LegDateTimeRow(
             modifier = Modifier.height(32.dp),
             enabled = dateTime != null,
         ) {
+            val timeText = if (dateTime != null) {
+                val time = dateTime.format(timeFormatter)
+                val zoneAbbr = dateTime.zone.getDisplayName(TextStyle.SHORT, Locale.getDefault())
+                "$time $zoneAbbr"
+            } else {
+                "--:--"
+            }
             Text(
-                text = dateTime?.format(timeFormatter) ?: "--:--",
+                text = timeText,
                 style = MaterialTheme.typography.bodySmall,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,

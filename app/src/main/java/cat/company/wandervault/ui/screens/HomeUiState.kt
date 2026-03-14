@@ -7,11 +7,13 @@ data class HomeUiState(
     val showAddTripDialog: Boolean = false,
     val addTripTitle: String = "",
     val addTripImageUri: String? = null,
+    val addTripTimezone: String? = null,
     val showEditTripDialog: Boolean = false,
     val editTripId: Int? = null,
     val editTripTitle: String = "",
     val editTripImageUri: String? = null,
     val editTripOriginalImageUri: String? = null,
+    val editTripTimezone: String? = null,
     val tripToDelete: Trip? = null,
 ) {
     val isAddTripFormValid: Boolean

@@ -1,6 +1,6 @@
 package cat.company.wandervault.domain.model
 
-import java.time.LocalDateTime
+import java.time.ZonedDateTime
 
 /**
  * Represents a single stop in a trip itinerary.
@@ -9,9 +9,9 @@ import java.time.LocalDateTime
  * @param tripId The ID of the trip this destination belongs to.
  * @param name The name of the destination (e.g. "Paris", "Rome").
  * @param position Zero-based index used to order destinations within the trip.
- * @param arrivalDateTime When the traveller arrives at this destination.
+ * @param arrivalDateTime When the traveller arrives at this destination (timezone-aware).
  *   `null` for the first (start) destination, which has no arrival.
- * @param departureDateTime When the traveller departs from this destination.
+ * @param departureDateTime When the traveller departs from this destination (timezone-aware).
  *   `null` for the last (end) destination, which has no departure.
  * @param transport The transport used to travel **from** this destination to the next one,
  *   containing one or more ordered [Transport.legs].  `null` for the last destination (no onward
@@ -24,8 +24,8 @@ data class Destination(
     val tripId: Int,
     val name: String,
     val position: Int,
-    val arrivalDateTime: LocalDateTime? = null,
-    val departureDateTime: LocalDateTime? = null,
+    val arrivalDateTime: ZonedDateTime? = null,
+    val departureDateTime: ZonedDateTime? = null,
     val transport: Transport? = null,
     val notes: String? = null,
 )
