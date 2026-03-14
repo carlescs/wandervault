@@ -59,6 +59,7 @@ import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -796,7 +797,7 @@ private fun DeleteDestinationConfirmationDialog(
 
 /**
  * Dialog that lets the user pick a consecutive range of destinations and a timezone, then
- * applies [withZoneSameLocal] to all arrival/departure date-times in that range.
+ * applies [ZonedDateTime.withZoneSameLocal] to all arrival/departure date-times in that range.
  *
  * @param destinations Ordered list of destinations shown in the from/to dropdowns.
  * @param onApply Called with (fromIndex, toIndex, zoneId) when the user confirms.
@@ -814,6 +815,14 @@ private fun TimezoneRangeDialog(
     var selectedZoneId by rememberSaveable { mutableStateOf<String?>(null) }
     var hasSelectedTimezone by rememberSaveable { mutableStateOf(false) }
     var showTimezonePicker by rememberSaveable { mutableStateOf(false) }
+
+    // Clamp indices whenever the destination count changes (e.g. a destination is added or
+    // removed while this dialog is open, or after process recreation).
+    LaunchedEffect(destinations.size) {
+        val lastIdx = destinations.lastIndex.coerceAtLeast(0)
+        fromIndex = fromIndex.coerceIn(0, lastIdx)
+        toIndex = toIndex.coerceIn(fromIndex, lastIdx)
+    }
 
     if (showTimezonePicker) {
         TimezonePickerDialog(

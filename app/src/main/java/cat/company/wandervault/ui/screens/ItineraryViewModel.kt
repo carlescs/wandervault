@@ -116,7 +116,7 @@ class ItineraryViewModel(
 
     /**
      * Applies [zoneId] to the arrival and departure date-times of every destination whose
-     * index (0-based, sorted by position) falls in [[fromIndex]..[toIndex]].
+     * index (0-based, sorted by position) falls in [fromIndex]..[toIndex].
      *
      * The local date and time are preserved; only the zone offset changes
      * ([ZonedDateTime.withZoneSameLocal]).
@@ -126,12 +126,12 @@ class ItineraryViewModel(
      * @param zoneId    IANA zone ID to apply, or `null` to use the device default.
      */
     fun onApplyTimezoneToRange(fromIndex: Int, toIndex: Int, zoneId: String?) {
-        if (fromIndex > toIndex) return
         val zone = if (zoneId != null) ZoneId.of(zoneId) else ZoneId.systemDefault()
-        val destinations = _uiState.value.destinations
-        val range = destinations
-            .sortedBy { it.position }
-            .subList(fromIndex.coerceAtLeast(0), (toIndex + 1).coerceAtMost(destinations.size))
+        val sorted = _uiState.value.destinations.sortedBy { it.position }
+        val start = fromIndex.coerceIn(0, sorted.size)
+        val end = (toIndex + 1).coerceIn(0, sorted.size)
+        if (start >= end) return
+        val range = sorted.subList(start, end)
         viewModelScope.launch {
             range.map { dest ->
                 async {
