@@ -52,6 +52,7 @@ import cat.company.wandervault.ui.theme.WanderVaultTheme
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
@@ -810,8 +811,8 @@ private fun ShareHotelConfirmDialogPreview() {
                 tripId = 1,
                 name = "Rome",
                 position = 0,
-                arrivalDateTime = LocalDate.of(2025, 7, 10).atStartOfDay(),
-                departureDateTime = LocalDate.of(2025, 7, 14).atStartOfDay(),
+                arrivalDateTime = LocalDate.of(2025, 7, 10).atStartOfDay(ZoneId.systemDefault()),
+                departureDateTime = LocalDate.of(2025, 7, 14).atStartOfDay(ZoneId.systemDefault()),
             ),
             existingHotel = Hotel(
                 destinationId = 1,
