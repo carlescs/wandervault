@@ -19,7 +19,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
@@ -496,12 +498,13 @@ private val TransportType.labelRes: Int
     }
 
 /**
- * A labelled row showing date and time buttons for a single [ZonedDateTime] value.
+ * A labelled row showing date, time, and timezone buttons for a single [ZonedDateTime] value.
  *
  * - Tapping the date button opens a [DatePickerDialog].
  * - Tapping the time button opens a [TimePicker] dialog (requires a date to be set first).
+ * - Tapping the timezone button opens a timezone picker dialog (requires a date to be set first).
  * - Selecting a new date preserves the existing time (or defaults to midnight) and zone.
- * - The timezone abbreviation is shown alongside the time (e.g. "14:30 CET") for awareness.
+ * - Changing the timezone keeps the same local date and time, only the zone offset changes.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -516,6 +519,7 @@ private fun DateTimeRow(
 ) {
     var showDatePicker by rememberSaveable { mutableStateOf(false) }
     var showTimePicker by rememberSaveable { mutableStateOf(false) }
+    var showTimezonePicker by rememberSaveable { mutableStateOf(false) }
 
     val dateFormatter = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
     val timeFormatter = remember { DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT) }
@@ -610,6 +614,48 @@ private fun DateTimeRow(
         )
     }
 
+    if (showTimezonePicker) {
+        val deviceDefault = remember { ZoneId.systemDefault() }
+        AlertDialog(
+            onDismissRequest = { showTimezonePicker = false },
+            title = { Text(stringResource(R.string.itinerary_pick_timezone)) },
+            text = {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    Text(
+                        text = stringResource(R.string.trip_timezone_device_default, deviceDefault.id),
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                dateTime?.let { onDateTimeChange(it.withZoneSameLocal(deviceDefault)) }
+                                showTimezonePicker = false
+                            }
+                            .padding(vertical = 12.dp),
+                    )
+                    COMMON_TIMEZONES.forEach { zoneId ->
+                        Text(
+                            text = zoneId,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    dateTime?.let { onDateTimeChange(it.withZoneSameLocal(ZoneId.of(zoneId))) }
+                                    showTimezonePicker = false
+                                }
+                                .padding(vertical = 12.dp),
+                        )
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showTimezonePicker = false }) {
+                    Text(stringResource(R.string.dialog_cancel))
+                }
+            },
+        )
+    }
+
     Row(
         modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -642,15 +688,22 @@ private fun DateTimeRow(
             modifier = Modifier.height(32.dp),
             enabled = dateTime != null,
         ) {
-            val timeText = if (dateTime != null) {
-                val time = dateTime.format(timeFormatter)
-                val zoneAbbr = dateTime.zone.getDisplayName(TextStyle.SHORT, Locale.getDefault())
-                "$time $zoneAbbr"
-            } else {
-                "--:--"
-            }
             Text(
-                text = timeText,
+                text = if (dateTime != null) dateTime.format(timeFormatter) else "--:--",
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Spacer(modifier = Modifier.width(4.dp))
+        OutlinedButton(
+            onClick = { showTimezonePicker = true },
+            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+            modifier = Modifier.height(32.dp),
+            enabled = dateTime != null,
+        ) {
+            Text(
+                text = dateTime?.zone?.getDisplayName(TextStyle.SHORT, Locale.getDefault()) ?: "---",
                 style = MaterialTheme.typography.bodySmall,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
