@@ -157,7 +157,7 @@ internal fun TripDocumentsTabContent(
     val pendingUri = pendingSourceUri
     val pendingMime = pendingMimeType
     val pendingName = pendingOriginalName
-    val isAiAvailable = (uiState as? TripDocumentsUiState.Success)?.isAiAvailable ?: true
+    val isAiAvailable = (uiState as? TripDocumentsUiState.Success)?.isAiAvailable ?: false
     if (pendingUri != null && pendingMime != null && pendingName != null) {
         DocumentNameInputDialog(
             title = stringResource(R.string.documents_name_document_title),
@@ -254,7 +254,7 @@ internal fun TripDocumentsContent(
     var showDeleteSelectedDialog by rememberSaveable { mutableStateOf(false) }
     var showMoveSelectedDialog by rememberSaveable { mutableStateOf(false) }
 
-    val isAiAvailable = (uiState as? TripDocumentsUiState.Success)?.isAiAvailable ?: true
+    val isAiAvailable = (uiState as? TripDocumentsUiState.Success)?.isAiAvailable ?: false
 
     Box(modifier = Modifier.fillMaxSize()) {
         when (uiState) {

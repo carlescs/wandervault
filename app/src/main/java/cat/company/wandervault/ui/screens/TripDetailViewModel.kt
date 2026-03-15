@@ -9,6 +9,7 @@ import cat.company.wandervault.domain.usecase.GenerateTripDescriptionUseCase
 import cat.company.wandervault.domain.usecase.GetDestinationsForTripUseCase
 import cat.company.wandervault.domain.usecase.GetTripUseCase
 import cat.company.wandervault.domain.usecase.SaveTripDescriptionUseCase
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -43,10 +44,10 @@ class TripDetailViewModel(
 
     /**
      * Tracks on-device AI availability.
-     * Initialised to `true` (optimistic) and updated once in [init] after checking the model.
+     * Initialised to `false` (fail-closed) and updated once in [init] after checking the model.
      * Drives whether the AI description section is shown when no description is stored.
      */
-    private val _isAiAvailable = MutableStateFlow(true)
+    private val _isAiAvailable = MutableStateFlow(false)
 
     init {
         // Check AI availability upfront so the description section is hidden proactively
@@ -54,6 +55,8 @@ class TripDetailViewModel(
         viewModelScope.launch {
             val available = try {
                 generateTripDescriptionUseCase.isAvailable()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.w(TAG, "AI availability check failed; assuming unavailable", e)
                 false

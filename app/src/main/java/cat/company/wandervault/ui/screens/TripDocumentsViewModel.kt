@@ -19,6 +19,7 @@ import cat.company.wandervault.domain.usecase.SaveFolderUseCase
 import cat.company.wandervault.domain.usecase.SuggestDocumentNameUseCase
 import cat.company.wandervault.domain.usecase.UpdateDocumentUseCase
 import cat.company.wandervault.domain.usecase.UpdateFolderUseCase
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
@@ -83,9 +84,9 @@ class TripDocumentsViewModel(
 
     /**
      * Tracks on-device AI availability.
-     * Initialised to `true` (optimistic) and updated once in [init] after checking the model.
+     * Initialised to `false` (fail-closed) and updated once in [init] after checking the model.
      */
-    private val _isAiAvailable = MutableStateFlow(true)
+    private val _isAiAvailable = MutableStateFlow(false)
 
     init {
         // Check AI availability upfront so the suggest-name button is hidden proactively
@@ -93,6 +94,8 @@ class TripDocumentsViewModel(
         viewModelScope.launch {
             val available = try {
                 suggestDocumentName.isAvailable()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.w(TAG, "AI availability check failed; assuming unavailable", e)
                 false
