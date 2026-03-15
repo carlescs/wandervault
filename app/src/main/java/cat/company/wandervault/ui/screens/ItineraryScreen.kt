@@ -395,22 +395,27 @@ private fun DestinationTimelineItem(
                 // Show stay duration when both arrival and departure are set.
                 val stayDuration = destination.arrivalDateTime.durationUntil(destination.departureDateTime)
                 if (stayDuration != null) {
-                    Text(
-                        text = stringResource(
-                            R.string.itinerary_stay_duration,
-                            if (showStayDurationInDays) stayDuration.formattedWithDays() else stayDuration.formatted(),
-                        ),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
+                    Box(
                         modifier = Modifier
                             .padding(top = 2.dp)
                             .heightIn(min = 48.dp)
+                            .fillMaxWidth()
                             .clickable(
                                 role = Role.Button,
                                 onClickLabel = stringResource(R.string.itinerary_duration_toggle),
                                 onClick = { showStayDurationInDays = !showStayDurationInDays },
                             ),
-                    )
+                        contentAlignment = Alignment.CenterStart,
+                    ) {
+                        Text(
+                            text = stringResource(
+                                R.string.itinerary_stay_duration,
+                                if (showStayDurationInDays) stayDuration.formattedWithDays() else stayDuration.formatted(),
+                            ),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
                 }
             }
         }
@@ -533,22 +538,27 @@ private fun DestinationTimelineItem(
                         val transportDuration =
                             legs.first().departureDateTime.durationUntil(legs.last().arrivalDateTime)
                         if (transportDuration != null) {
-                            Text(
-                                text = stringResource(
-                                    R.string.itinerary_transport_duration,
-                                    if (showTransportDurationInDays) transportDuration.formattedWithDays() else transportDuration.formatted(),
-                                ),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary,
+                            Box(
                                 modifier = Modifier
                                     .padding(top = 2.dp)
                                     .heightIn(min = 48.dp)
+                                    .fillMaxWidth()
                                     .clickable(
                                         role = Role.Button,
                                         onClickLabel = stringResource(R.string.itinerary_duration_toggle),
                                         onClick = { showTransportDurationInDays = !showTransportDurationInDays },
                                     ),
-                            )
+                                contentAlignment = Alignment.CenterStart,
+                            ) {
+                                Text(
+                                    text = stringResource(
+                                        R.string.itinerary_transport_duration,
+                                        if (showTransportDurationInDays) transportDuration.formattedWithDays() else transportDuration.formatted(),
+                                    ),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                            }
                         }
                     }
                     // "Add destination here" button shown between this item and the next
