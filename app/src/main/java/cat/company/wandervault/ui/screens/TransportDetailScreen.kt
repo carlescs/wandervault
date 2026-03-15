@@ -528,6 +528,18 @@ private fun TransportLegsTabContent(
                 // picker constrains leg dates within the overall transport window.
                 val minDateMillis = uiState.destinationDepartureDateTime.toDateEpochMillis()
                 val maxDateMillis = uiState.nextDestinationArrivalDateTime.toDateEpochMillis()
+                // Infer the default timezone for each date picker from the surrounding items so
+                // the user does not have to manually pick a zone when setting a fresh date.
+                val defaultDepartureZoneId = if (index == 0) {
+                    uiState.destinationDepartureDateTime?.zone
+                } else {
+                    uiState.legs[index - 1].arrivalDateTime?.zone
+                } ?: ZoneId.systemDefault()
+                val defaultArrivalZoneId = if (isLastLeg) {
+                    uiState.nextDestinationArrivalDateTime?.zone
+                } else {
+                    uiState.legs[index + 1].departureDateTime?.zone
+                } ?: ZoneId.systemDefault()
                 // Leg card: type selector + booking details + move controls.
                 // Intermediate legs are deleted via their corresponding IntermediateLegStop
                 // delete button below.
@@ -546,6 +558,8 @@ private fun TransportLegsTabContent(
                     onArrivalDateTimeChange = { dt -> onArrivalDateTimeChange(index, dt) },
                     minDateMillis = minDateMillis,
                     maxDateMillis = maxDateMillis,
+                    defaultDepartureZoneId = defaultDepartureZoneId,
+                    defaultArrivalZoneId = defaultArrivalZoneId,
                 )
 
                 // Editable intermediate stop shown only between legs.
@@ -691,6 +705,8 @@ private fun TransportLegSection(
     onArrivalDateTimeChange: (ZonedDateTime?) -> Unit,
     minDateMillis: Long? = null,
     maxDateMillis: Long? = null,
+    defaultDepartureZoneId: ZoneId = ZoneId.systemDefault(),
+    defaultArrivalZoneId: ZoneId = ZoneId.systemDefault(),
     modifier: Modifier = Modifier,
 ) {
     val selectedType = leg.typeName?.let { name ->
@@ -806,6 +822,7 @@ private fun TransportLegSection(
                     onDateTimeChange = onDepartureDateTimeChange,
                     minDateMillis = minDateMillis,
                     maxDateMillis = maxDateMillis,
+                    defaultZoneId = defaultDepartureZoneId,
                     modifier = Modifier.fillMaxWidth(),
                 )
 
@@ -817,6 +834,7 @@ private fun TransportLegSection(
                     onDateTimeChange = onArrivalDateTimeChange,
                     minDateMillis = minDateMillis,
                     maxDateMillis = maxDateMillis,
+                    defaultZoneId = defaultArrivalZoneId,
                     modifier = Modifier.fillMaxWidth(),
                 )
 
