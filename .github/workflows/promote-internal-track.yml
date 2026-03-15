@@ -1,0 +1,147 @@
+name: Promote Internal Track
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_channel:
+        description: 'Target channel to promote the internal release to'
+        required: true
+        type: choice
+        default: beta
+        options:
+          - beta
+          - production
+          - beta and production
+
+permissions:
+  contents: read
+
+jobs:
+
+  promote:
+    name: Promote Internal Track to ${{ github.event.inputs.target_channel }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install Google API client
+        run: pip install google-api-python-client google-auth
+
+      - name: Promote latest internal release
+        env:
+          SERVICE_ACCOUNT_JSON: ${{ secrets.SERVICE_ACCOUNT_JSON }}
+          TARGET_CHANNEL: ${{ github.event.inputs.target_channel }}
+        run: |
+          python3 - <<'EOF'
+          import os
+          import json
+          from googleapiclient.discovery import build
+          from google.oauth2 import service_account
+
+          service_account_info = json.loads(os.environ['SERVICE_ACCOUNT_JSON'])
+          credentials = service_account.Credentials.from_service_account_info(
+              service_account_info,
+              scopes=['https://www.googleapis.com/auth/androidpublisher']
+          )
+          service = build('androidpublisher', 'v3', credentials=credentials)
+
+          package_name = 'cat.company.wandervault'
+
+          target_channel = os.environ['TARGET_CHANNEL']
+          if target_channel == 'beta and production':
+              target_tracks = ['beta', 'production']
+          else:
+              target_tracks = [target_channel]
+
+          edit = service.edits().insert(body={}, packageName=package_name).execute()
+          edit_id = edit['id']
+          committed = False
+
+          try:
+              internal_track = service.edits().tracks().get(
+                  packageName=package_name,
+                  editId=edit_id,
+                  track='internal'
+              ).execute()
+
+              completed_releases = [
+                  r for r in internal_track.get('releases', [])
+                  if r.get('status') == 'completed' and r.get('versionCodes')
+              ]
+
+              if not completed_releases:
+                  print(
+                      "No completed release with version codes found on the internal track. "
+                      "Ensure at least one release has been fully rolled out to internal testing "
+                      "before promoting."
+                  )
+                  raise SystemExit(1)
+
+              latest_release = max(
+                  completed_releases,
+                  key=lambda r: max(int(v) for v in r['versionCodes'])
+              )
+
+              version_codes = latest_release['versionCodes']
+              release_name = latest_release.get('name', '')
+              print(f"Promoting version codes {version_codes} (release '{release_name}') to: {', '.join(target_tracks)}.")
+
+              for track in target_tracks:
+                  existing_track = service.edits().tracks().get(
+                      packageName=package_name,
+                      editId=edit_id,
+                      track=track
+                  ).execute()
+
+                  blocking_releases = [
+                      r for r in existing_track.get('releases', [])
+                      if r.get('status') not in ('completed', 'draft')
+                  ]
+
+                  if blocking_releases:
+                      statuses = [r.get('status') for r in blocking_releases]
+                      print(
+                          f"Track '{track}' has active releases with statuses {statuses}. "
+                          "Aborting to avoid overwriting an in-progress or halted rollout."
+                      )
+                      raise SystemExit(1)
+
+                  service.edits().tracks().update(
+                      packageName=package_name,
+                      editId=edit_id,
+                      track=track,
+                      body={
+                          'track': track,
+                          'releases': [
+                              {
+                                  'versionCodes': version_codes,
+                                  'name': release_name,
+                                  'status': 'completed',
+                              }
+                          ]
+                      }
+                  ).execute()
+                  print(f"Track '{track}' updated.")
+
+              commit_result = service.edits().commit(
+                  packageName=package_name,
+                  editId=edit_id
+              ).execute()
+              committed = True
+              print(f"Promotion committed successfully. Edit id: {commit_result['id']}")
+
+          except Exception as e:
+              print(f"Unexpected error during promotion: {e}")
+              raise SystemExit(1)
+
+          finally:
+              if not committed:
+                  try:
+                      service.edits().delete(packageName=package_name, editId=edit_id).execute()
+                      print("Cleaned up uncommitted edit.")
+                  except Exception as cleanup_err:
+                      print(f"Warning: failed to clean up edit {edit_id}: {cleanup_err}")
+          EOF
