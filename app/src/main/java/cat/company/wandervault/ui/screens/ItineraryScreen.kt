@@ -68,6 +68,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
@@ -423,24 +425,29 @@ private fun DestinationTimelineItem(
         // ── Section 2: transport circle + transport info ──────────────────────────────
         if (!isLast) {
             val hasTransport = destination.transport != null && destination.transport.legs.isNotEmpty()
+            val timelineColor = MaterialTheme.colorScheme.primary
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(IntrinsicSize.Max),
+                    .drawBehind {
+                        // Draw the connecting line behind the content without a separate IntrinsicSize pass.
+                        // The Row sizes itself to the transport content; the line fills its full height.
+                        val x = 16.dp.toPx()
+                        drawLine(
+                            color = timelineColor,
+                            start = Offset(x, 0f),
+                            end = Offset(x, size.height),
+                            strokeWidth = 2.dp.toPx(),
+                        )
+                    },
             ) {
-                // Timeline: full-height line with transport circle overlaid at the centre
+                // Transport circle: vertically centred in the Row without IntrinsicSize
                 Box(
                     modifier = Modifier
                         .width(32.dp)
-                        .fillMaxHeight(),
+                        .align(Alignment.CenterVertically),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .width(2.dp)
-                            .fillMaxHeight()
-                            .background(MaterialTheme.colorScheme.primary),
-                    )
                     // Transport circle: filled when transport legs are set, dimmed outline otherwise
                     Box(
                         modifier = Modifier
