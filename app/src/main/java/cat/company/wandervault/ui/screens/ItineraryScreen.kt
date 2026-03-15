@@ -443,11 +443,11 @@ private fun DestinationTimelineItem(
                     },
             ) {
                 Row(modifier = Modifier.fillMaxWidth()) {
-                    // Transport circle: vertically centred in the Row without IntrinsicSize
+                    // Transport circle: aligned to the top of the Row to match the info column
                     Box(
                         modifier = Modifier
                             .width(TIMELINE_COLUMN_WIDTH_DP.dp)
-                            .align(Alignment.CenterVertically),
+                            .align(Alignment.Top),
                         contentAlignment = Alignment.Center,
                     ) {
                         // Transport circle: filled when transport legs are set, dimmed outline otherwise
