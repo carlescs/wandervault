@@ -530,16 +530,18 @@ private fun TransportLegsTabContent(
                 val maxDateMillis = uiState.nextDestinationArrivalDateTime.toDateEpochMillis()
                 // Infer the default timezone for each date picker from the surrounding items so
                 // the user does not have to manually pick a zone when setting a fresh date.
-                val defaultDepartureZoneId = if (index == 0) {
-                    uiState.destinationDepartureDateTime?.zone
-                } else {
-                    uiState.legs[index - 1].arrivalDateTime?.zone
-                } ?: ZoneId.systemDefault()
-                val defaultArrivalZoneId = if (isLastLeg) {
-                    uiState.nextDestinationArrivalDateTime?.zone
-                } else {
-                    uiState.legs[index + 1].departureDateTime?.zone
-                } ?: ZoneId.systemDefault()
+                // For departure: prefer the previous leg's arrival zone, then fall back to the
+                // origin destination's departure zone, then the device default.
+                val defaultDepartureZoneId = (
+                    if (index == 0) null else uiState.legs[index - 1].arrivalDateTime?.zone
+                ) ?: uiState.destinationDepartureDateTime?.zone
+                    ?: ZoneId.systemDefault()
+                // For arrival: prefer the next leg's departure zone, then fall back to the
+                // next destination's arrival zone, then the device default.
+                val defaultArrivalZoneId = (
+                    if (isLastLeg) null else uiState.legs[index + 1].departureDateTime?.zone
+                ) ?: uiState.nextDestinationArrivalDateTime?.zone
+                    ?: ZoneId.systemDefault()
                 // Leg card: type selector + booking details + move controls.
                 // Intermediate legs are deleted via their corresponding IntermediateLegStop
                 // delete button below.
