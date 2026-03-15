@@ -157,6 +157,7 @@ internal fun TripDocumentsTabContent(
     val pendingUri = pendingSourceUri
     val pendingMime = pendingMimeType
     val pendingName = pendingOriginalName
+    val isAiAvailable = (uiState as? TripDocumentsUiState.Success)?.isAiAvailable ?: true
     if (pendingUri != null && pendingMime != null && pendingName != null) {
         DocumentNameInputDialog(
             title = stringResource(R.string.documents_name_document_title),
@@ -177,6 +178,7 @@ internal fun TripDocumentsTabContent(
                 pendingOriginalName = null
                 viewModel.clearSuggestName()
             },
+            isAiAvailable = isAiAvailable,
         )
     }
 
@@ -251,6 +253,8 @@ internal fun TripDocumentsContent(
     var documentToDelete by remember { mutableStateOf<TripDocument?>(null) }
     var showDeleteSelectedDialog by rememberSaveable { mutableStateOf(false) }
     var showMoveSelectedDialog by rememberSaveable { mutableStateOf(false) }
+
+    val isAiAvailable = (uiState as? TripDocumentsUiState.Success)?.isAiAvailable ?: true
 
     Box(modifier = Modifier.fillMaxSize()) {
         when (uiState) {
@@ -498,6 +502,7 @@ internal fun TripDocumentsContent(
                 documentToRename = null
                 onClearSuggestName()
             },
+            isAiAvailable = isAiAvailable,
         )
     }
 
@@ -929,6 +934,7 @@ private fun DocumentNameInputDialog(
     onSuggest: () -> Unit,
     onConfirm: (String) -> Unit,
     onDismiss: () -> Unit,
+    isAiAvailable: Boolean = true,
 ) {
     var text by rememberSaveable(initialName) { mutableStateOf(initialName) }
 
@@ -955,32 +961,34 @@ private fun DocumentNameInputDialog(
                     label = { Text(label) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
-                    trailingIcon = {
-                        if (isSuggesting) {
-                            CircularProgressIndicator(
-                                modifier = Modifier
-                                    .size(24.dp)
-                                    .semantics {
-                                        contentDescription = suggestLoadingDesc
-                                    },
-                                strokeWidth = 2.dp,
-                            )
-                        } else {
-                            IconButton(
-                                onClick = onSuggest,
-                                enabled = suggestNameState !is SuggestNameUiState.Unavailable,
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.AutoAwesome,
-                                    contentDescription = stringResource(R.string.documents_suggest_name),
-                                    tint = if (suggestNameState is SuggestNameUiState.Unavailable ||
-                                        suggestNameState is SuggestNameUiState.Error
-                                    ) {
-                                        MaterialTheme.colorScheme.error
-                                    } else {
-                                        MaterialTheme.colorScheme.onSurfaceVariant
-                                    },
+                    trailingIcon = if (!isAiAvailable) null else {
+                        {
+                            if (isSuggesting) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier
+                                        .size(24.dp)
+                                        .semantics {
+                                            contentDescription = suggestLoadingDesc
+                                        },
+                                    strokeWidth = 2.dp,
                                 )
+                            } else {
+                                IconButton(
+                                    onClick = onSuggest,
+                                    enabled = suggestNameState !is SuggestNameUiState.Unavailable,
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.AutoAwesome,
+                                        contentDescription = stringResource(R.string.documents_suggest_name),
+                                        tint = if (suggestNameState is SuggestNameUiState.Unavailable ||
+                                            suggestNameState is SuggestNameUiState.Error
+                                        ) {
+                                            MaterialTheme.colorScheme.error
+                                        } else {
+                                            MaterialTheme.colorScheme.onSurfaceVariant
+                                        },
+                                    )
+                                }
                             }
                         }
                     },

@@ -180,11 +180,13 @@ internal fun DocumentInfoContent(
                 },
                 actions = {
                     if (uiState is DocumentInfoUiState.Success) {
-                        IconButton(onClick = onAnalyzeDocument) {
-                            Icon(
-                                imageVector = Icons.Default.FindInPage,
-                                contentDescription = stringResource(R.string.documents_analyze_action),
-                            )
+                        if (uiState.isAiAvailable) {
+                            IconButton(onClick = onAnalyzeDocument) {
+                                Icon(
+                                    imageVector = Icons.Default.FindInPage,
+                                    contentDescription = stringResource(R.string.documents_analyze_action),
+                                )
+                            }
                         }
                         IconButton(onClick = { onOpenDocument(uiState.document) }) {
                             Icon(

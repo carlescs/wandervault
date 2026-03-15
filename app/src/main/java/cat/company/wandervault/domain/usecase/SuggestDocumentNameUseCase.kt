@@ -7,6 +7,7 @@ import cat.company.wandervault.domain.repository.DocumentSummaryRepository
  * based on its content.
  */
 class SuggestDocumentNameUseCase(private val repository: DocumentSummaryRepository) {
+    suspend fun isAvailable(): Boolean = repository.isAvailable()
     suspend operator fun invoke(
         fileUri: String,
         mimeType: String,

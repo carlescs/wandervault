@@ -81,7 +81,25 @@ class TripDocumentsViewModel(
     /** Tracks the running suggestion job so it can be cancelled on demand. */
     private var suggestNameJob: Job? = null
 
+    /**
+     * Tracks on-device AI availability.
+     * Initialised to `true` (optimistic) and updated once in [init] after checking the model.
+     */
+    private val _isAiAvailable = MutableStateFlow(true)
+
     init {
+        // Check AI availability upfront so the suggest-name button is hidden proactively
+        // on devices that do not support Gemini Nano.
+        viewModelScope.launch {
+            val available = try {
+                suggestDocumentName.isAvailable()
+            } catch (e: Exception) {
+                Log.w(TAG, "AI availability check failed; assuming unavailable", e)
+                false
+            }
+            _isAiAvailable.value = available
+        }
+
         viewModelScope.launch {
             // allFoldersFlow is independent of navigation level, so it is hoisted outside
             // flatMapLatest to avoid creating a new Room observer on every folder navigation.
@@ -112,9 +130,10 @@ class TripDocumentsViewModel(
                         )
                     }
                 }
-            // Merge selection state separately to preserve it across DB-driven updates.
-            combine(contentFlow, _selectedDocumentIds) { state, selectedIds ->
-                state.copy(selectedDocumentIds = selectedIds)
+            // Merge selection and AI availability state separately to preserve them across
+            // DB-driven updates.
+            combine(contentFlow, _selectedDocumentIds, _isAiAvailable) { state, selectedIds, aiAvailable ->
+                state.copy(selectedDocumentIds = selectedIds, isAiAvailable = aiAvailable)
             }.collect { state ->
                 _uiState.value = state
             }

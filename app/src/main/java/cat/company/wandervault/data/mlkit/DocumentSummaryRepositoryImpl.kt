@@ -47,6 +47,10 @@ class DocumentSummaryRepositoryImpl(private val context: Context) : DocumentSumm
         TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
     }
 
+    override suspend fun isAvailable(): Boolean = withContext(Dispatchers.IO) {
+        generationClient.checkStatus() != FeatureStatus.UNAVAILABLE
+    }
+
     /**
      * Reads the document at [fileUri] and uses on-device Gemini Nano to extract a summary and
      * any trip-relevant information.
