@@ -9,6 +9,7 @@ import cat.company.wandervault.domain.usecase.GenerateTripDescriptionUseCase
 import cat.company.wandervault.domain.usecase.GetDestinationsForTripUseCase
 import cat.company.wandervault.domain.usecase.GetTripUseCase
 import cat.company.wandervault.domain.usecase.SaveTripDescriptionUseCase
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -41,13 +42,35 @@ class TripDetailViewModel(
     /** Cached destinations used for on-demand re-generation triggered by the user. */
     private var lastDestinations: List<Destination> = emptyList()
 
+    /**
+     * Tracks on-device AI availability.
+     * Initialised to `false` (fail-closed) and updated once in [init] after checking the model.
+     * Drives whether the AI description section is shown when no description is stored.
+     */
+    private val _isAiAvailable = MutableStateFlow(false)
+
     init {
+        // Check AI availability upfront so the description section is hidden proactively
+        // on devices that do not support Gemini Nano, without requiring a generate attempt.
+        viewModelScope.launch {
+            val available = try {
+                generateTripDescriptionUseCase.isAvailable()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "AI availability check failed; assuming unavailable", e)
+                false
+            }
+            _isAiAvailable.value = available
+        }
+
         viewModelScope.launch {
             combine(
                 getTripUseCase(tripId),
                 getDestinationsForTripUseCase(tripId),
-            ) { trip, destinations -> Pair(trip, destinations) }
-                .collect { (trip, destinations) ->
+                _isAiAvailable,
+            ) { trip, destinations, aiAvailable -> Triple(trip, destinations, aiAvailable) }
+                .collect { (trip, destinations, aiAvailable) ->
                     if (trip == null) {
                         _uiState.value = TripDetailUiState.Error
                         return@collect
@@ -58,10 +81,10 @@ class TripDetailViewModel(
                     // so DB remains the source of truth for all other states.
                     val currentDescription =
                         (_uiState.value as? TripDetailUiState.Success)?.descriptionState
-                    val persistedDescription = if (trip.aiDescription != null) {
-                        DescriptionState.Available(trip.aiDescription)
-                    } else {
-                        DescriptionState.None
+                    val persistedDescription = when {
+                        trip.aiDescription != null -> DescriptionState.Available(trip.aiDescription)
+                        !aiAvailable -> DescriptionState.Unavailable
+                        else -> DescriptionState.None
                     }
                     // Only preserve Loading to avoid a flicker while generation is in progress;
                     // for all other states the DB value is the source of truth.

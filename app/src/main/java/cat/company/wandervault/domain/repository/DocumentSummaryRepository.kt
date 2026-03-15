@@ -8,6 +8,12 @@ import cat.company.wandervault.domain.model.DocumentExtractionResult
 interface DocumentSummaryRepository {
 
     /**
+     * Returns `true` if on-device AI is supported on this device (model is available or can be
+     * downloaded). Returns `false` if the device permanently does not support the feature.
+     */
+    suspend fun isAvailable(): Boolean
+
+    /**
      * Reads the document at [fileUri] and uses on-device AI to extract a summary and any
      * trip-relevant information (dates, destinations, booking references, etc.).
      *

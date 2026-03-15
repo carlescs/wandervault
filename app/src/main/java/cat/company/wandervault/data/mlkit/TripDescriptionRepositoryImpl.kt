@@ -23,6 +23,10 @@ class TripDescriptionRepositoryImpl : TripDescriptionRepository {
 
     private val client by lazy { Generation.getClient() }
 
+    override suspend fun isAvailable(): Boolean = withContext(Dispatchers.IO) {
+        client.checkStatus() != FeatureStatus.UNAVAILABLE
+    }
+
     override suspend fun generateDescription(trip: Trip, destinations: List<Destination>): String? =
         withContext(Dispatchers.IO) {
             when (client.checkStatus()) {

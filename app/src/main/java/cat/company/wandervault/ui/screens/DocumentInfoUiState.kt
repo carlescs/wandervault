@@ -23,6 +23,8 @@ sealed class DocumentInfoUiState {
         val fileSizeBytes: Long? = null,
         val folderName: String? = null,
         val analyzeState: AnalyzeDocumentUiState? = null,
+        /** Whether on-device AI is supported on this device. */
+        val isAiAvailable: Boolean = true,
     ) : DocumentInfoUiState()
 
     /** The requested document could not be found. */

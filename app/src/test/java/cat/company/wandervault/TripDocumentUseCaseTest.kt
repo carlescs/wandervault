@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -280,6 +281,32 @@ class TripDocumentUseCaseTest {
 
         assertNull(result)
     }
+
+    // ── isAvailable delegation ────────────────────────────────────────────────
+
+    @Test
+    fun `SummarizeDocumentUseCase isAvailable returns true when repository is available`() = runTest {
+        val fakeRepo = FakeDocumentSummaryRepository(null, available = true)
+        assertTrue(SummarizeDocumentUseCase(fakeRepo).isAvailable())
+    }
+
+    @Test
+    fun `SummarizeDocumentUseCase isAvailable returns false when repository is unavailable`() = runTest {
+        val fakeRepo = FakeDocumentSummaryRepository(null, available = false)
+        assertFalse(SummarizeDocumentUseCase(fakeRepo).isAvailable())
+    }
+
+    @Test
+    fun `SuggestDocumentNameUseCase isAvailable returns true when repository is available`() = runTest {
+        val fakeRepo = FakeDocumentSummaryRepository(null, available = true)
+        assertTrue(SuggestDocumentNameUseCase(fakeRepo).isAvailable())
+    }
+
+    @Test
+    fun `SuggestDocumentNameUseCase isAvailable returns false when repository is unavailable`() = runTest {
+        val fakeRepo = FakeDocumentSummaryRepository(null, available = false)
+        assertFalse(SuggestDocumentNameUseCase(fakeRepo).isAvailable())
+    }
 }
 
 private class FakeTripDocumentRepository : TripDocumentRepository {
@@ -355,8 +382,11 @@ private class FakeTripDocumentRepository : TripDocumentRepository {
 private class FakeDocumentSummaryRepository(
     private val result: DocumentExtractionResult?,
     private val suggestedName: String? = null,
+    private val available: Boolean = true,
 ) : DocumentSummaryRepository {
     var lastTripYear: Int? = null
+
+    override suspend fun isAvailable(): Boolean = available
 
     override suspend fun extractDocumentInfo(
         fileUri: String,

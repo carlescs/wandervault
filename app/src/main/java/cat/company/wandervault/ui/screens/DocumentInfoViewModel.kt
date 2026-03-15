@@ -23,6 +23,7 @@ import cat.company.wandervault.domain.usecase.SaveTripDescriptionUseCase
 import cat.company.wandervault.domain.usecase.SummarizeDocumentUseCase
 import cat.company.wandervault.domain.usecase.UpdateDocumentUseCase
 import cat.company.wandervault.domain.usecase.UpdateTransportLegUseCase
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -82,6 +83,12 @@ class DocumentInfoViewModel(
     /** Current document analysis state; updated independently from the DB-driven document flow. */
     private val _analyzeState = MutableStateFlow<AnalyzeDocumentUiState?>(null)
 
+    /**
+     * Tracks on-device AI availability.
+     * Initialised to `false` (fail-closed) and updated once in [init] after checking the model.
+     */
+    private val _isAiAvailable = MutableStateFlow(false)
+
     /** The coroutine running the current document analysis, kept so it can be cancelled. */
     private var analyzeJob: Job? = null
 
@@ -138,9 +145,10 @@ class DocumentInfoViewModel(
                 }
             },
         _analyzeState,
-    ) { docState, analyzeState ->
+        _isAiAvailable,
+    ) { docState, analyzeState, aiAvailable ->
         if (docState is DocumentInfoUiState.Success) {
-            docState.copy(analyzeState = analyzeState)
+            docState.copy(analyzeState = analyzeState, isAiAvailable = aiAvailable)
         } else {
             docState
         }
@@ -150,6 +158,22 @@ class DocumentInfoViewModel(
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = DocumentInfoUiState.Loading,
         )
+
+    init {
+        // Check AI availability upfront so the Analyze button is hidden proactively
+        // on devices that do not support Gemini Nano.
+        viewModelScope.launch {
+            val available = try {
+                summarizeDocument.isAvailable()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "AI availability check failed; assuming unavailable", e)
+                false
+            }
+            _isAiAvailable.value = available
+        }
+    }
 
     private suspend fun resolveFileSize(uri: String): Long? = withContext(Dispatchers.IO) {
         try {

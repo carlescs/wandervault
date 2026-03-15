@@ -13,6 +13,7 @@ import cat.company.wandervault.domain.repository.TripDescriptionRepository
  * @return The generated description text, or `null` if Gemini Nano is not available on this device.
  */
 class GenerateTripDescriptionUseCase(private val repository: TripDescriptionRepository) {
+    suspend fun isAvailable(): Boolean = repository.isAvailable()
     suspend operator fun invoke(trip: Trip, destinations: List<Destination>): String? {
         val travelDestinations = destinations.drop(1).dropLast(1)
         return repository.generateDescription(trip, travelDestinations)

@@ -8,6 +8,7 @@ import cat.company.wandervault.domain.repository.DocumentSummaryRepository
  * on-device ML Kit.
  */
 class SummarizeDocumentUseCase(private val repository: DocumentSummaryRepository) {
+    suspend fun isAvailable(): Boolean = repository.isAvailable()
     suspend operator fun invoke(
         fileUri: String,
         mimeType: String,

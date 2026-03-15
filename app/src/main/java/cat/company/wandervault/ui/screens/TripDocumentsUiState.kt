@@ -44,5 +44,7 @@ sealed class TripDocumentsUiState {
         val allFolders: List<TripDocumentFolder> = emptyList(),
         val writeError: DocumentsWriteError? = null,
         val selectedDocumentIds: Set<Int> = emptySet(),
+        /** Whether on-device AI is supported on this device. */
+        val isAiAvailable: Boolean = true,
     ) : TripDocumentsUiState()
 }
