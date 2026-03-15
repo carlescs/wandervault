@@ -447,6 +447,7 @@ private fun DestinationTimelineItem(
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier
                         .padding(top = 2.dp)
+                        .heightIn(min = 48.dp)
                         .clickable(
                             role = Role.Button,
                             onClickLabel = stringResource(R.string.itinerary_duration_toggle),
@@ -518,6 +519,7 @@ private fun DestinationTimelineItem(
                             color = MaterialTheme.colorScheme.primary,
                             modifier = Modifier
                                 .padding(top = 2.dp)
+                                .heightIn(min = 48.dp)
                                 .clickable(
                                     role = Role.Button,
                                     onClickLabel = stringResource(R.string.itinerary_duration_toggle),
