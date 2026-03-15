@@ -97,6 +97,7 @@ import java.time.format.TextStyle
 import java.util.Locale
 
 private const val MILLIS_PER_DAY = 86_400_000L
+private const val TIMELINE_COLUMN_WIDTH_DP = 32
 
 /** Converts a [ZonedDateTime] to epoch-day milliseconds used by the [DatePicker] API. */
 private fun ZonedDateTime?.toDateEpochMillis(): Long? =
@@ -298,7 +299,7 @@ private fun DestinationTimelineItem(
             // Timeline: top line → destination dot → connector line to transport section
             Column(
                 modifier = Modifier
-                    .width(32.dp)
+                    .width(TIMELINE_COLUMN_WIDTH_DP.dp)
                     .fillMaxHeight(),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
@@ -444,14 +445,14 @@ private fun DestinationTimelineItem(
                 // Transport circle: vertically centred in the Row without IntrinsicSize
                 Box(
                     modifier = Modifier
-                        .width(32.dp)
+                        .width(TIMELINE_COLUMN_WIDTH_DP.dp)
                         .align(Alignment.CenterVertically),
                     contentAlignment = Alignment.Center,
                 ) {
                     // Transport circle: filled when transport legs are set, dimmed outline otherwise
                     Box(
                         modifier = Modifier
-                            .size(32.dp)
+                            .size(TIMELINE_COLUMN_WIDTH_DP.dp)
                             .background(
                                 color = if (hasTransport) {
                                     MaterialTheme.colorScheme.primaryContainer
@@ -568,24 +569,24 @@ private fun DestinationTimelineItem(
                             }
                         }
                     }
-                    // "Add destination here" button shown between this item and the next
-                    TextButton(
-                        onClick = onAddAfter,
-                        modifier = Modifier.padding(top = 4.dp),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp),
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = stringResource(R.string.itinerary_add_destination_here),
-                            style = MaterialTheme.typography.labelSmall,
-                        )
-                    }
                     Spacer(modifier = Modifier.height(8.dp))
                 }
+            }
+            // "Add destination here" button shown between this item and the next
+            TextButton(
+                onClick = onAddAfter,
+                modifier = Modifier.padding(start = TIMELINE_COLUMN_WIDTH_DP.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = stringResource(R.string.itinerary_add_destination_here),
+                    style = MaterialTheme.typography.labelSmall,
+                )
             }
         }
     }
