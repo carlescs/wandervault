@@ -541,11 +541,15 @@ private fun DestinationTimelineItem(
                                 )
                             }
                         }
-                        // Show total transport duration when first leg has departure and last leg has arrival.
+                        // Show total transport duration when the destination has a departure and the
+                        // next destination has an arrival.  Using the destination-level date-times
+                        // (rather than the individual leg fields) ensures the duration is always
+                        // visible for single-leg transports whose leg dates may not have been
+                        // explicitly persisted to the database.
                         val legs = destination.transport?.legs
                         if (!legs.isNullOrEmpty()) {
                             val transportDuration =
-                                legs.first().departureDateTime.durationUntil(legs.last().arrivalDateTime)
+                                destination.departureDateTime.durationUntil(nextDestination?.arrivalDateTime)
                             if (transportDuration != null) {
                                 Box(
                                     modifier = Modifier
