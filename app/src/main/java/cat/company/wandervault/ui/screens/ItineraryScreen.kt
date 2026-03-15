@@ -85,6 +85,7 @@ import cat.company.wandervault.domain.model.TransportType
 import cat.company.wandervault.ui.theme.WanderVaultTheme
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
+import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
@@ -431,6 +432,17 @@ private fun DestinationTimelineItem(
                 )
             }
 
+            // Show stay duration when both arrival and departure are set.
+            val stayDuration = destination.arrivalDateTime.durationUntil(destination.departureDateTime)
+            if (stayDuration != null) {
+                Text(
+                    text = stringResource(R.string.itinerary_stay_duration, stayDuration.formatted()),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
+
             if (!isLast) {
                 // Show transport details for all legs when set
                 val legIconSize = 12.dp
@@ -476,6 +488,23 @@ private fun DestinationTimelineItem(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.padding(top = 2.dp, start = legIconSize + legIconSpacing),
+                        )
+                    }
+                }
+                // Show total transport duration when first leg has departure and last leg has arrival.
+                val legs = destination.transport?.legs
+                if (!legs.isNullOrEmpty()) {
+                    val transportDuration =
+                        legs.first().departureDateTime.durationUntil(legs.last().arrivalDateTime)
+                    if (transportDuration != null) {
+                        Text(
+                            text = stringResource(
+                                R.string.itinerary_transport_duration,
+                                transportDuration.formatted(),
+                            ),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(top = 2.dp),
                         )
                     }
                 }
