@@ -427,12 +427,12 @@ private fun DestinationTimelineItem(
         if (!isLast) {
             val hasTransport = destination.transport != null && destination.transport.legs.isNotEmpty()
             val timelineColor = MaterialTheme.colorScheme.primary
-            Row(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .drawBehind {
                         // Draw the connecting line behind the content without a separate IntrinsicSize pass.
-                        // The Row sizes itself to the transport content; the line fills its full height.
+                        // The Column sizes itself to the transport content + "add here" button; the line fills its full height.
                         val x = 16.dp.toPx()
                         drawLine(
                             color = timelineColor,
@@ -442,151 +442,153 @@ private fun DestinationTimelineItem(
                         )
                     },
             ) {
-                // Transport circle: vertically centred in the Row without IntrinsicSize
-                Box(
-                    modifier = Modifier
-                        .width(TIMELINE_COLUMN_WIDTH_DP.dp)
-                        .align(Alignment.CenterVertically),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    // Transport circle: filled when transport legs are set, dimmed outline otherwise
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    // Transport circle: vertically centred in the Row without IntrinsicSize
                     Box(
                         modifier = Modifier
-                            .size(TIMELINE_COLUMN_WIDTH_DP.dp)
-                            .background(
-                                color = if (hasTransport) {
-                                    MaterialTheme.colorScheme.primaryContainer
-                                } else {
-                                    MaterialTheme.colorScheme.surface
-                                },
-                                shape = CircleShape,
-                            )
-                            .clickable(
-                                role = Role.Button,
-                                onClickLabel = stringResource(
+                            .width(TIMELINE_COLUMN_WIDTH_DP.dp)
+                            .align(Alignment.CenterVertically),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        // Transport circle: filled when transport legs are set, dimmed outline otherwise
+                        Box(
+                            modifier = Modifier
+                                .size(TIMELINE_COLUMN_WIDTH_DP.dp)
+                                .background(
+                                    color = if (hasTransport) {
+                                        MaterialTheme.colorScheme.primaryContainer
+                                    } else {
+                                        MaterialTheme.colorScheme.surface
+                                    },
+                                    shape = CircleShape,
+                                )
+                                .clickable(
+                                    role = Role.Button,
+                                    onClickLabel = stringResource(
+                                        if (hasTransport) R.string.itinerary_change_transport
+                                        else R.string.itinerary_add_transport,
+                                    ),
+                                    onClick = onTransportClick,
+                                ),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                imageVector = destination.transport?.legs?.timelineLeg()?.type?.icon ?: Icons.Default.Add,
+                                contentDescription = stringResource(
                                     if (hasTransport) R.string.itinerary_change_transport
                                     else R.string.itinerary_add_transport,
                                 ),
-                                onClick = onTransportClick,
-                            ),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            imageVector = destination.transport?.legs?.timelineLeg()?.type?.icon ?: Icons.Default.Add,
-                            contentDescription = stringResource(
-                                if (hasTransport) R.string.itinerary_change_transport
-                                else R.string.itinerary_add_transport,
-                            ),
-                            modifier = Modifier.size(18.dp),
-                            tint = if (hasTransport) {
-                                MaterialTheme.colorScheme.onPrimaryContainer
-                            } else {
-                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-                            },
-                        )
+                                modifier = Modifier.size(18.dp),
+                                tint = if (hasTransport) {
+                                    MaterialTheme.colorScheme.onPrimaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                                },
+                            )
+                        }
                     }
-                }
 
-                // Transport info content
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(start = 12.dp),
-                ) {
-                    // Show transport details for all legs when set
-                    val legIconSize = 12.dp
-                    val legIconSpacing = 4.dp
-                    destination.transport?.legs?.forEach { leg ->
-                        // Show the type icon + type label + booking details first
-                        val typeLabel = stringResource(leg.type.labelRes)
-                        val bookingDetails = listOfNotNull(
-                            leg.company,
-                            leg.flightNumber,
-                            leg.reservationConfirmationNumber,
-                        )
-                        val rowText = if (bookingDetails.isNotEmpty()) {
-                            "$typeLabel · ${bookingDetails.joinToString(" · ")}"
-                        } else {
-                            typeLabel
-                        }
-                        Row(
-                            modifier = Modifier.padding(top = 2.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(legIconSpacing),
-                        ) {
-                            Icon(
-                                imageVector = leg.type.icon,
-                                contentDescription = typeLabel,
-                                modifier = Modifier.size(legIconSize),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    // Transport info content
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(start = 12.dp),
+                    ) {
+                        // Show transport details for all legs when set
+                        val legIconSize = 12.dp
+                        val legIconSpacing = 4.dp
+                        destination.transport?.legs?.forEach { leg ->
+                            // Show the type icon + type label + booking details first
+                            val typeLabel = stringResource(leg.type.labelRes)
+                            val bookingDetails = listOfNotNull(
+                                leg.company,
+                                leg.flightNumber,
+                                leg.reservationConfirmationNumber,
                             )
-                            Text(
-                                text = rowText,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                        // Show the stop name (intermediate destination) after booking details
-                        leg.stopName?.takeIf { it.isNotBlank() }?.let { stopName ->
-                            Text(
-                                text = stopName,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.padding(top = 2.dp, start = legIconSize + legIconSpacing),
-                            )
-                        }
-                    }
-                    // Show total transport duration when first leg has departure and last leg has arrival.
-                    val legs = destination.transport?.legs
-                    if (!legs.isNullOrEmpty()) {
-                        val transportDuration =
-                            legs.first().departureDateTime.durationUntil(legs.last().arrivalDateTime)
-                        if (transportDuration != null) {
-                            Box(
-                                modifier = Modifier
-                                    .padding(top = 2.dp)
-                                    .heightIn(min = 48.dp)
-                                    .fillMaxWidth()
-                                    .clickable(
-                                        role = Role.Button,
-                                        onClickLabel = stringResource(R.string.itinerary_duration_toggle),
-                                        onClick = { showTransportDurationInDays = !showTransportDurationInDays },
-                                    ),
-                                contentAlignment = Alignment.CenterStart,
+                            val rowText = if (bookingDetails.isNotEmpty()) {
+                                "$typeLabel · ${bookingDetails.joinToString(" · ")}"
+                            } else {
+                                typeLabel
+                            }
+                            Row(
+                                modifier = Modifier.padding(top = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(legIconSpacing),
                             ) {
+                                Icon(
+                                    imageVector = leg.type.icon,
+                                    contentDescription = typeLabel,
+                                    modifier = Modifier.size(legIconSize),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
                                 Text(
-                                    text = stringResource(
-                                        R.string.itinerary_transport_duration,
-                                        if (showTransportDurationInDays) transportDuration.formattedWithDays() else transportDuration.formatted(),
-                                    ),
+                                    text = rowText,
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.primary,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                            // Show the stop name (intermediate destination) after booking details
+                            leg.stopName?.takeIf { it.isNotBlank() }?.let { stopName ->
+                                Text(
+                                    text = stopName,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.padding(top = 2.dp, start = legIconSize + legIconSpacing),
                                 )
                             }
                         }
+                        // Show total transport duration when first leg has departure and last leg has arrival.
+                        val legs = destination.transport?.legs
+                        if (!legs.isNullOrEmpty()) {
+                            val transportDuration =
+                                legs.first().departureDateTime.durationUntil(legs.last().arrivalDateTime)
+                            if (transportDuration != null) {
+                                Box(
+                                    modifier = Modifier
+                                        .padding(top = 2.dp)
+                                        .heightIn(min = 48.dp)
+                                        .fillMaxWidth()
+                                        .clickable(
+                                            role = Role.Button,
+                                            onClickLabel = stringResource(R.string.itinerary_duration_toggle),
+                                            onClick = { showTransportDurationInDays = !showTransportDurationInDays },
+                                        ),
+                                    contentAlignment = Alignment.CenterStart,
+                                ) {
+                                    Text(
+                                        text = stringResource(
+                                            R.string.itinerary_transport_duration,
+                                            if (showTransportDurationInDays) transportDuration.formattedWithDays() else transportDuration.formatted(),
+                                        ),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                    )
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
                     }
-                    Spacer(modifier = Modifier.height(8.dp))
                 }
-            }
-            // "Add destination here" button shown between this item and the next
-            TextButton(
-                onClick = onAddAfter,
-                modifier = Modifier.padding(start = TIMELINE_COLUMN_WIDTH_DP.dp),
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp),
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = stringResource(R.string.itinerary_add_destination_here),
-                    style = MaterialTheme.typography.labelSmall,
-                )
+                // "Add destination here" button shown between this item and the next
+                TextButton(
+                    onClick = onAddAfter,
+                    modifier = Modifier.padding(start = TIMELINE_COLUMN_WIDTH_DP.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = stringResource(R.string.itinerary_add_destination_here),
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                }
             }
         }
     }
