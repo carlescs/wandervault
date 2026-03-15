@@ -105,31 +105,6 @@ private const val MILLIS_PER_DAY = 86_400_000L
 private fun ZonedDateTime?.toDateEpochMillis(): Long? =
     this?.toLocalDate()?.toEpochDay()?.times(MILLIS_PER_DAY)
 
-/**
- * Formats this [Duration] as a compact, human-readable string such as "2h 35m", "1h", or "45m".
- * The result is always based on total hours + remaining minutes.
- */
-private fun Duration.formatted(): String {
-    val h = toHours()
-    val m = (toMinutes() % 60).toInt()
-    return when {
-        h > 0L && m > 0 -> "${h}h ${m}m"
-        h > 0L -> "${h}h"
-        else -> "${m}m"
-    }
-}
-
-/**
- * Returns the positive [Duration] from this [ZonedDateTime] until [other], accounting for
- * different timezones by comparing UTC instants.  Returns `null` if either value is `null`,
- * or if [other] is not strictly after this instant.
- */
-private fun ZonedDateTime?.durationUntil(other: ZonedDateTime?): Duration? {
-    if (this == null || other == null) return null
-    val d = Duration.between(this, other)
-    return if (!d.isNegative && !d.isZero) d else null
-}
-
 /** Tabs shown in the Transport Detail bottom navigation bar. */
 private enum class TransportDetailTab(@StringRes val labelRes: Int, val icon: ImageVector) {
     DETAILS(R.string.transport_detail_tab_details, Icons.Default.Info),
