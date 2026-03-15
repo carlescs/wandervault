@@ -409,6 +409,10 @@ private fun DestinationTimelineItem(
             val nextArrivalMillis = nextDestination?.arrivalDateTime.toDateEpochMillis()
             val ownArrivalMillis = destination.arrivalDateTime.toDateEpochMillis()
             val ownDepartureMillis = destination.departureDateTime.toDateEpochMillis()
+
+            var showStayDurationInDays by rememberSaveable { mutableStateOf(false) }
+            var showTransportDurationInDays by rememberSaveable { mutableStateOf(false) }
+
             // Show arrival only for non-first destinations (hidden when there is only one place)
             if (!isFirst) {
                 DateTimeRow(
@@ -435,10 +439,19 @@ private fun DestinationTimelineItem(
             val stayDuration = destination.arrivalDateTime.durationUntil(destination.departureDateTime)
             if (stayDuration != null) {
                 Text(
-                    text = stringResource(R.string.itinerary_stay_duration, stayDuration.formatted()),
+                    text = stringResource(
+                        R.string.itinerary_stay_duration,
+                        if (showStayDurationInDays) stayDuration.formattedWithDays() else stayDuration.formatted(),
+                    ),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(top = 2.dp),
+                    modifier = Modifier
+                        .padding(top = 2.dp)
+                        .clickable(
+                            role = Role.Button,
+                            onClickLabel = stringResource(R.string.itinerary_duration_toggle),
+                            onClick = { showStayDurationInDays = !showStayDurationInDays },
+                        ),
                 )
             }
 
@@ -499,11 +512,17 @@ private fun DestinationTimelineItem(
                         Text(
                             text = stringResource(
                                 R.string.itinerary_transport_duration,
-                                transportDuration.formatted(),
+                                if (showTransportDurationInDays) transportDuration.formattedWithDays() else transportDuration.formatted(),
                             ),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(top = 2.dp),
+                            modifier = Modifier
+                                .padding(top = 2.dp)
+                                .clickable(
+                                    role = Role.Button,
+                                    onClickLabel = stringResource(R.string.itinerary_duration_toggle),
+                                    onClick = { showTransportDurationInDays = !showTransportDurationInDays },
+                                ),
                         )
                     }
                 }

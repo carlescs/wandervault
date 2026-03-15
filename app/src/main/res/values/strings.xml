@@ -128,6 +128,7 @@
     <string name="itinerary_destination_open_details">Open details</string>
     <string name="itinerary_stay_duration">Stay: %s</string>
     <string name="itinerary_transport_duration">Total: %s</string>
+    <string name="itinerary_duration_toggle">Toggle duration format</string>
 
     <!-- Timezone range picker (applied to a group of itinerary destinations) -->
     <string name="itinerary_change_timezone_range">Change timezone for group</string>
