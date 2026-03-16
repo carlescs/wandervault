@@ -26,7 +26,7 @@ import cat.company.wandervault.ui.theme.WanderVaultTheme
  *
  * Supported syntax:
  * - `# H1`, `## H2`, `### H3` headings
- * - `**bold**` inline bold
+ * - `**bold**` and `__bold__` inline bold
  * - `*italic*` and `_italic_` inline italic (word-boundary aware)
  * - `` `code` `` inline monospace code
  * - `- item` and `* item` unordered list items
@@ -143,19 +143,18 @@ internal fun parseMarkdownBlocks(text: String): List<MarkdownBlock> {
  * Matches inline markdown spans. Each alternative maps to a capture group:
  * 1. `` `code` ``
  * 2. `**bold**`
- * 3. `*italic*` — only when not adjacent to a word character or another `*`, so that
+ * 3. `__bold__` — word-boundary aware to avoid matching compound words (e.g. `word__not__matched`)
+ * 4. `*italic*` — only when not adjacent to a word character or another `*`, so that
  *    ordinary `*` used as a literal (e.g. "2*x") is not treated as emphasis.
- * 4. `_italic_` — only when not adjacent to a word character, so that underscores in
+ * 5. `_italic_` — only when not adjacent to a word character, so that underscores in
  *    snake_case identifiers (e.g. `foo_bar_baz`) are never treated as emphasis markers.
- *
- * Note: `__bold__` is intentionally not supported because double-underscore sequences
- * appear in code identifiers (Python dunders, etc.) and would cause false positives.
  */
 private val inlineRegex = Regex(
     "`([^`]+)`" +                            // 1: `code`
     "|\\*\\*(.+?)\\*\\*" +                   // 2: **bold**
-    "|(?<![*\\w])\\*([^*]+?)\\*(?![*\\w])" + // 3: *italic* (word-boundary aware; not within **bold**)
-    "|(?<!\\w)_([^_]+?)_(?!\\w)",            // 4: _italic_ (word-boundary aware; excludes snake_case)
+    "|(?<!\\w)__(.+?)__(?!\\w)" +            // 3: __bold__ (word-boundary aware)
+    "|(?<![*\\w])\\*([^*]+?)\\*(?![*\\w])" + // 4: *italic* (word-boundary aware; not within **bold**)
+    "|(?<!\\w)_([^_]+?)_(?!\\w)",            // 5: _italic_ (word-boundary aware; excludes snake_case)
 )
 
 /**
@@ -164,9 +163,8 @@ private val inlineRegex = Regex(
  *
  * Supported patterns (in evaluation order):
  * 1. `` `code` `` → monospace
- * 2. `**text**` → bold
- * 3. `*text*` → italic (word-boundary aware)
- * 4. `_text_` → italic (word-boundary aware)
+ * 2. `**text**` or `__text__` → bold
+ * 3. `*text*` or `_text_` → italic (word-boundary aware)
  */
 internal fun parseInlineMarkdown(text: String): AnnotatedString = buildAnnotatedString {
     var cursor = 0
@@ -188,15 +186,21 @@ internal fun parseInlineMarkdown(text: String): AnnotatedString = buildAnnotated
                 pop()
             }
             match.groupValues[3].isNotEmpty() -> {
-                // *italic*
-                pushStyle(SpanStyle(fontStyle = FontStyle.Italic))
+                // __bold__
+                pushStyle(SpanStyle(fontWeight = FontWeight.Bold))
                 append(match.groupValues[3])
                 pop()
             }
             match.groupValues[4].isNotEmpty() -> {
-                // _italic_
+                // *italic*
                 pushStyle(SpanStyle(fontStyle = FontStyle.Italic))
                 append(match.groupValues[4])
+                pop()
+            }
+            match.groupValues[5].isNotEmpty() -> {
+                // _italic_
+                pushStyle(SpanStyle(fontStyle = FontStyle.Italic))
+                append(match.groupValues[5])
                 pop()
             }
         }

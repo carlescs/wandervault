@@ -69,9 +69,8 @@ class MarkdownTextTest {
     }
 
     @Test
-    fun `double underscores (dunder-style) left intact`() {
-        // __bold__ syntax is intentionally unsupported to avoid false positives
-        assertEquals("__init__", parseInlineMarkdown("__init__").text)
+    fun `double underscore syntax creates bold text`() {
+        assertEquals("bold", parseInlineMarkdown("__bold__").text)
     }
 
     @Test
