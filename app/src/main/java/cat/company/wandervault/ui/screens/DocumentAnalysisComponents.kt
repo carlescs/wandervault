@@ -479,8 +479,8 @@ internal fun AnalyzeDocumentDialog(
                             style = MaterialTheme.typography.labelLarge,
                         )
                         HorizontalDivider()
-                        Text(
-                            text = analyzeState.answer,
+                        MarkdownText(
+                            markdown = analyzeState.answer,
                             style = MaterialTheme.typography.bodyMedium,
                         )
                     }
