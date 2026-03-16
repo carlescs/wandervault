@@ -271,6 +271,8 @@ class DocumentInfoViewModel(
                     question = question,
                     answer = answer,
                 )
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.w(TAG, "Document question failed for ${document.name}", e)
                 _analyzeState.value = AnalyzeDocumentUiState.Error(e.message ?: e.toString())
