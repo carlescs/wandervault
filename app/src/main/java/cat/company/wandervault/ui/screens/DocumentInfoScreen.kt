@@ -34,6 +34,8 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.OpenInNew
+import androidx.compose.material.icons.filled.QuestionAnswer
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.BottomSheetScaffold
 import androidx.compose.material3.CircularProgressIndicator
@@ -42,11 +44,13 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberBottomSheetScaffoldState
 import androidx.compose.material3.rememberStandardBottomSheetState
@@ -118,6 +122,7 @@ fun DocumentInfoScreen(
         onNavigateUp = onNavigateUp,
         onOpenDocument = { document -> openTripDocument(context, document) },
         onAnalyzeDocument = viewModel::analyzeDocument,
+        onAskQuestion = viewModel::askQuestion,
         onAnalyzeApplyChanges = viewModel::applyAnalysisChanges,
         onAnalyzeFlightLegSelected = viewModel::onFlightLegSelected,
         onAnalyzeFlightConfirmed = viewModel::onFlightConfirmed,
@@ -142,6 +147,7 @@ internal fun DocumentInfoContent(
     onNavigateUp: () -> Unit,
     onOpenDocument: (TripDocument) -> Unit = {},
     onAnalyzeDocument: () -> Unit = {},
+    onAskQuestion: (String) -> Unit = {},
     onAnalyzeApplyChanges: () -> Unit = {},
     onAnalyzeFlightLegSelected: (TransportLeg) -> Unit = {},
     onAnalyzeFlightConfirmed: () -> Unit = {},
@@ -159,6 +165,9 @@ internal fun DocumentInfoContent(
     } else {
         stringResource(R.string.document_info_title)
     }
+
+    var showAskDialog by remember { mutableStateOf(false) }
+    var questionDraft by remember { mutableStateOf("") }
 
     Scaffold(
         modifier = modifier,
@@ -181,6 +190,12 @@ internal fun DocumentInfoContent(
                 actions = {
                     if (uiState is DocumentInfoUiState.Success) {
                         if (uiState.isAiAvailable) {
+                            IconButton(onClick = { showAskDialog = true }) {
+                                Icon(
+                                    imageVector = Icons.Default.QuestionAnswer,
+                                    contentDescription = stringResource(R.string.document_info_ask_action),
+                                )
+                            }
                             IconButton(onClick = onAnalyzeDocument) {
                                 Icon(
                                     imageVector = Icons.Default.FindInPage,
@@ -248,6 +263,50 @@ internal fun DocumentInfoContent(
             onTripInfoConfirmed = onAnalyzeTripInfoConfirmed,
             onDismiss = onAnalyzeDismiss,
             onSkipItem = onAnalyzeSkipItem,
+        )
+    }
+
+    // Question input dialog: collects the user's question before triggering the AI call.
+    if (showAskDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showAskDialog = false
+                questionDraft = ""
+            },
+            title = { Text(stringResource(R.string.document_info_ask_title)) },
+            text = {
+                OutlinedTextField(
+                    value = questionDraft,
+                    onValueChange = { questionDraft = it },
+                    label = { Text(stringResource(R.string.document_info_ask_hint)) },
+                    singleLine = false,
+                    maxLines = 4,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val q = questionDraft.trim()
+                        if (q.isNotEmpty()) {
+                            showAskDialog = false
+                            questionDraft = ""
+                            onAskQuestion(q)
+                        }
+                    },
+                    enabled = questionDraft.trim().isNotEmpty(),
+                ) {
+                    Text(stringResource(R.string.document_info_ask_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showAskDialog = false
+                    questionDraft = ""
+                }) {
+                    Text(stringResource(R.string.dialog_cancel))
+                }
+            },
         )
     }
 }

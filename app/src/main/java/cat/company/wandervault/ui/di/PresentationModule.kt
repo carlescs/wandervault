@@ -60,6 +60,7 @@ val presentationModule = module {
             getDocumentById = get(),
             getAllFoldersForTrip = get(),
             summarizeDocument = get(),
+            askDocumentQuestion = get(),
             updateDocument = get(),
             getTrip = get(),
             saveTripDescription = get(),

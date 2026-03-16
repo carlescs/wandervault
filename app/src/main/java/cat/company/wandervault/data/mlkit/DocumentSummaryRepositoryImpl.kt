@@ -310,6 +310,33 @@ class DocumentSummaryRepositoryImpl(private val context: Context) : DocumentSumm
         appendLine("Document text:")
         append(documentText)
     }
+
+    override suspend fun askQuestion(
+        fileUri: String,
+        mimeType: String,
+        question: String,
+        onDownloadProgress: ((bytesDownloaded: Long) -> Unit)?,
+    ): String? = withContext(Dispatchers.IO) {
+        when (generationClient.checkStatus()) {
+            FeatureStatus.UNAVAILABLE -> return@withContext null
+            FeatureStatus.DOWNLOADABLE -> awaitDownload(onDownloadProgress)
+            FeatureStatus.AVAILABLE -> Unit
+        }
+        val text = readDocumentText(fileUri, mimeType) ?: return@withContext null
+        val prompt = buildString {
+            appendLine("Answer the following question about the travel document below.")
+            appendLine("Question: $question")
+            appendLine()
+            appendLine("Document text:")
+            append(text)
+        }
+        val request = generateContentRequest(TextPart(prompt)) {
+            maxOutputTokens = QUESTION_MAX_OUTPUT_TOKENS
+        }
+        val response = generationClient.generateContent(request)
+        response.candidates.firstOrNull()?.text?.trim()?.ifBlank { null }
+    }
+
     companion object {
         private const val TAG = "DocumentSummaryRepo"
 
@@ -321,6 +348,9 @@ class DocumentSummaryRepositoryImpl(private val context: Context) : DocumentSumm
 
         /** Maximum tokens Gemini Nano may generate for a filename suggestion. */
         private const val NAME_SUGGESTION_MAX_TOKENS = 32
+
+        /** Maximum tokens Gemini Nano may generate for a free-form question answer. */
+        private const val QUESTION_MAX_OUTPUT_TOKENS = 256
 
         /** Maximum number of PDF pages to process (avoids excessive OCR time on large documents). */
         private const val MAX_PDF_PAGES = 10

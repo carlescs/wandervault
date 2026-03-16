@@ -129,4 +129,15 @@ sealed class AnalyzeDocumentUiState {
      * @param relevantTripInfo The extracted general trip info text that will be saved.
      */
     data class TripInfoConfirm(val relevantTripInfo: String) : AnalyzeDocumentUiState()
+
+    /**
+     * A free-form question was asked about the document and Gemini Nano returned an answer.
+     *
+     * @param question The question the user asked.
+     * @param answer The answer returned by the AI.
+     */
+    data class QuestionResult(
+        val question: String,
+        val answer: String,
+    ) : AnalyzeDocumentUiState()
 }

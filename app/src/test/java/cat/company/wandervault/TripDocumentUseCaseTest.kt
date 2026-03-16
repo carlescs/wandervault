@@ -5,6 +5,7 @@ import cat.company.wandervault.domain.model.TripDocument
 import cat.company.wandervault.domain.model.TripDocumentFolder
 import cat.company.wandervault.domain.repository.DocumentSummaryRepository
 import cat.company.wandervault.domain.repository.TripDocumentRepository
+import cat.company.wandervault.domain.usecase.AskDocumentQuestionUseCase
 import cat.company.wandervault.domain.usecase.CopyDocumentToInternalStorageUseCase
 import cat.company.wandervault.domain.usecase.DeleteDocumentUseCase
 import cat.company.wandervault.domain.usecase.DeleteFolderUseCase
@@ -307,6 +308,59 @@ class TripDocumentUseCaseTest {
         val fakeRepo = FakeDocumentSummaryRepository(null, available = false)
         assertFalse(SuggestDocumentNameUseCase(fakeRepo).isAvailable())
     }
+
+    // ── AskDocumentQuestionUseCase ────────────────────────────────────────────
+
+    @Test
+    fun `AskDocumentQuestionUseCase returns answer from repository`() = runTest {
+        val fakeRepo = FakeDocumentSummaryRepository(null, questionAnswer = "Gate B12")
+
+        val result = AskDocumentQuestionUseCase(fakeRepo)(
+            "file:///documents/boarding.pdf",
+            "application/pdf",
+            "What is the departure gate?",
+        )
+
+        assertEquals("Gate B12", result)
+    }
+
+    @Test
+    fun `AskDocumentQuestionUseCase returns null when repository returns null`() = runTest {
+        val fakeRepo = FakeDocumentSummaryRepository(null, questionAnswer = null)
+
+        val result = AskDocumentQuestionUseCase(fakeRepo)(
+            "file:///documents/photo.jpg",
+            "image/jpeg",
+            "What flight is this?",
+        )
+
+        assertNull(result)
+    }
+
+    @Test
+    fun `AskDocumentQuestionUseCase forwards question to repository`() = runTest {
+        val fakeRepo = FakeDocumentSummaryRepository(null, questionAnswer = "Answer")
+
+        AskDocumentQuestionUseCase(fakeRepo)(
+            "file:///documents/doc.txt",
+            "text/plain",
+            "What is the booking reference?",
+        )
+
+        assertEquals("What is the booking reference?", fakeRepo.lastQuestion)
+    }
+
+    @Test
+    fun `AskDocumentQuestionUseCase isAvailable returns true when repository is available`() = runTest {
+        val fakeRepo = FakeDocumentSummaryRepository(null, available = true)
+        assertTrue(AskDocumentQuestionUseCase(fakeRepo).isAvailable())
+    }
+
+    @Test
+    fun `AskDocumentQuestionUseCase isAvailable returns false when repository is unavailable`() = runTest {
+        val fakeRepo = FakeDocumentSummaryRepository(null, available = false)
+        assertFalse(AskDocumentQuestionUseCase(fakeRepo).isAvailable())
+    }
 }
 
 private class FakeTripDocumentRepository : TripDocumentRepository {
@@ -382,9 +436,11 @@ private class FakeTripDocumentRepository : TripDocumentRepository {
 private class FakeDocumentSummaryRepository(
     private val result: DocumentExtractionResult?,
     private val suggestedName: String? = null,
+    private val questionAnswer: String? = null,
     private val available: Boolean = true,
 ) : DocumentSummaryRepository {
     var lastTripYear: Int? = null
+    var lastQuestion: String? = null
 
     override suspend fun isAvailable(): Boolean = available
 
@@ -403,4 +459,14 @@ private class FakeDocumentSummaryRepository(
         mimeType: String,
         onDownloadProgress: ((bytesDownloaded: Long) -> Unit)?,
     ): String? = suggestedName
+
+    override suspend fun askQuestion(
+        fileUri: String,
+        mimeType: String,
+        question: String,
+        onDownloadProgress: ((bytesDownloaded: Long) -> Unit)?,
+    ): String? {
+        lastQuestion = question
+        return questionAnswer
+    }
 }
