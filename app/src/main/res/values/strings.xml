@@ -334,4 +334,10 @@
     <string name="document_info_pdf_page_indicator">Page %1$d of %2$d</string>
     <string name="documents_info_action">Info</string>
     <string name="documents_view_info_content_desc">View info: %s</string>
+    <string name="document_info_ask_action">Ask a question</string>
+    <string name="document_info_ask_title">Ask Gemini Nano</string>
+    <string name="document_info_ask_hint">Your question about this document</string>
+    <string name="document_info_ask_confirm">Ask</string>
+    <string name="document_info_ask_result_title">Answer</string>
+    <string name="document_info_ask_result_question">Q: %s</string>
 </resources>

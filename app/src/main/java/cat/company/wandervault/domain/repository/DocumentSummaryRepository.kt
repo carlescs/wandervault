@@ -56,4 +56,25 @@ interface DocumentSummaryRepository {
         mimeType: String,
         onDownloadProgress: ((bytesDownloaded: Long) -> Unit)? = null,
     ): String?
+
+    /**
+     * Reads the document at [fileUri] and uses on-device AI to answer [question] about its
+     * content.
+     *
+     * @param fileUri URI of the document file in internal storage.
+     * @param mimeType MIME type of the document (e.g. "text/plain", "application/pdf").
+     * @param question The question to ask about the document.
+     * @param onDownloadProgress Optional callback invoked with the number of bytes downloaded
+     *   so far while the Gemini Nano model is being downloaded to the device.
+     * @return The AI's answer as a plain string, or `null` if on-device AI is permanently
+     *   unavailable on this device or the document content cannot be read.
+     * @throws Exception for transient failures so callers can distinguish permanent
+     *   unavailability (null) from retriable errors.
+     */
+    suspend fun askQuestion(
+        fileUri: String,
+        mimeType: String,
+        question: String,
+        onDownloadProgress: ((bytesDownloaded: Long) -> Unit)? = null,
+    ): String?
 }

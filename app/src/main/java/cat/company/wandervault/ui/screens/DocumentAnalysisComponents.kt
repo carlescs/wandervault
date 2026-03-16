@@ -100,6 +100,7 @@ internal fun AnalyzeDocumentDialog(
         is AnalyzeDocumentUiState.FlightAddLegConfirm -> R.string.documents_analyze_confirm_add_leg_title
         is AnalyzeDocumentUiState.HotelConfirm -> R.string.documents_analyze_confirm_hotel_title
         is AnalyzeDocumentUiState.TripInfoConfirm -> R.string.documents_analyze_confirm_trip_info_title
+        is AnalyzeDocumentUiState.QuestionResult -> R.string.document_info_ask_result_title
         else -> R.string.documents_analyze_title
     }
 
@@ -465,6 +466,21 @@ internal fun AnalyzeDocumentDialog(
                         HorizontalDivider()
                         Text(
                             text = analyzeState.relevantTripInfo,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+
+                    is AnalyzeDocumentUiState.QuestionResult -> {
+                        Text(
+                            text = stringResource(
+                                R.string.document_info_ask_result_question,
+                                analyzeState.question,
+                            ),
+                            style = MaterialTheme.typography.labelLarge,
+                        )
+                        HorizontalDivider()
+                        Text(
+                            text = analyzeState.answer,
                             style = MaterialTheme.typography.bodyMedium,
                         )
                     }
