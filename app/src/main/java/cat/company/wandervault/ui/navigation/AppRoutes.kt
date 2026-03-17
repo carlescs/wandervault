@@ -9,6 +9,7 @@ internal object AppRoutes {
     const val LOCATION_DETAIL = "location_detail/{destinationId}"
     const val TRANSPORT_DETAIL = "transport_detail/{destinationId}"
     const val DOCUMENT_INFO = "document_info/{documentId}"
+    const val DOCUMENT_CHAT = "document_chat/{documentId}"
     const val SETTINGS = "settings"
     const val DATA_ADMIN = "data_admin"
 
@@ -23,4 +24,7 @@ internal object AppRoutes {
 
     /** Returns the navigable route for a specific document info screen. */
     fun documentInfo(documentId: Int) = "document_info/$documentId"
+
+    /** Returns the navigable route for the document chat screen for a specific document. */
+    fun documentChat(documentId: Int) = "document_chat/$documentId"
 }

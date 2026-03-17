@@ -10,7 +10,6 @@ import cat.company.wandervault.domain.model.Hotel
 import cat.company.wandervault.domain.model.HotelInfo
 import cat.company.wandervault.domain.model.TransportLeg
 import cat.company.wandervault.domain.model.TransportType
-import cat.company.wandervault.domain.usecase.AskDocumentQuestionUseCase
 import cat.company.wandervault.domain.usecase.GetAllFoldersForTripUseCase
 import cat.company.wandervault.domain.usecase.GetDestinationsForTripUseCase
 import cat.company.wandervault.domain.usecase.GetDocumentByIdUseCase
@@ -52,7 +51,6 @@ import java.io.File
  * @param getDocumentById Use-case that streams the document entity.
  * @param getAllFoldersForTrip Use-case that streams all folders in the document's trip.
  * @param summarizeDocument Use-case that runs ML Kit analysis on a document.
- * @param askDocumentQuestion Use-case that asks Gemini Nano a free-form question about a document.
  * @param updateDocument Use-case that persists an updated document record.
  * @param getTrip Use-case that retrieves the parent trip.
  * @param saveTripDescription Use-case that saves the trip AI description.
@@ -70,7 +68,6 @@ class DocumentInfoViewModel(
     private val getDocumentById: GetDocumentByIdUseCase,
     private val getAllFoldersForTrip: GetAllFoldersForTripUseCase,
     private val summarizeDocument: SummarizeDocumentUseCase,
-    private val askDocumentQuestion: AskDocumentQuestionUseCase,
     private val updateDocument: UpdateDocumentUseCase,
     private val getTrip: GetTripUseCase,
     private val saveTripDescription: SaveTripDescriptionUseCase,
@@ -237,45 +234,6 @@ class DocumentInfoViewModel(
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to persist refreshed summary for ${document.name}", e)
-            }
-        }
-    }
-
-    /**
-     * Asks Gemini Nano a free-form [question] about the current document.
-     *
-     * Sets [AnalyzeDocumentUiState.Loading] immediately while the document is being read.
-     * If the Gemini Nano model needs to be downloaded first, transitions to
-     * [AnalyzeDocumentUiState.Downloading] with live byte-count updates.
-     * On success sets [AnalyzeDocumentUiState.QuestionResult] with the question and answer.
-     * On permanent unavailability sets [AnalyzeDocumentUiState.Unavailable].
-     * On transient failure sets [AnalyzeDocumentUiState.Error].
-     *
-     * No-op when the document is not yet loaded.
-     */
-    fun askQuestion(question: String) {
-        val document = (uiState.value as? DocumentInfoUiState.Success)?.document ?: return
-        analyzeJob?.cancel()
-        _analyzeState.value = AnalyzeDocumentUiState.Loading
-        analyzeJob = viewModelScope.launch {
-            try {
-                val answer = askDocumentQuestion(document.uri, document.mimeType, question) { bytesDownloaded ->
-                    _analyzeState.value = AnalyzeDocumentUiState.Downloading(bytesDownloaded)
-                }
-                if (answer == null) {
-                    Log.w(TAG, "askDocumentQuestion returned null for ${document.name}; AI unavailable or unsupported type")
-                    _analyzeState.value = AnalyzeDocumentUiState.Unavailable
-                    return@launch
-                }
-                _analyzeState.value = AnalyzeDocumentUiState.QuestionResult(
-                    question = question,
-                    answer = answer,
-                )
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.w(TAG, "Document question failed for ${document.name}", e)
-                _analyzeState.value = AnalyzeDocumentUiState.Error(e.message ?: e.toString())
             }
         }
     }

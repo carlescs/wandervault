@@ -39,6 +39,7 @@ import cat.company.wandervault.domain.model.DocumentExtractionResult
 import cat.company.wandervault.domain.model.FlightInfo
 import cat.company.wandervault.domain.model.HotelInfo
 import cat.company.wandervault.domain.model.TransportLeg
+import cat.company.wandervault.ui.util.formatBytes
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
@@ -100,7 +101,6 @@ internal fun AnalyzeDocumentDialog(
         is AnalyzeDocumentUiState.FlightAddLegConfirm -> R.string.documents_analyze_confirm_add_leg_title
         is AnalyzeDocumentUiState.HotelConfirm -> R.string.documents_analyze_confirm_hotel_title
         is AnalyzeDocumentUiState.TripInfoConfirm -> R.string.documents_analyze_confirm_trip_info_title
-        is AnalyzeDocumentUiState.QuestionResult -> R.string.document_info_ask_result_title
         else -> R.string.documents_analyze_title
     }
 
@@ -469,21 +469,6 @@ internal fun AnalyzeDocumentDialog(
                             style = MaterialTheme.typography.bodyMedium,
                         )
                     }
-
-                    is AnalyzeDocumentUiState.QuestionResult -> {
-                        Text(
-                            text = stringResource(
-                                R.string.document_info_ask_result_question,
-                                analyzeState.question,
-                            ),
-                            style = MaterialTheme.typography.labelLarge,
-                        )
-                        HorizontalDivider()
-                        MarkdownText(
-                            markdown = analyzeState.answer,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    }
                 }
             }
         },
@@ -699,15 +684,3 @@ internal fun buildHotelInfoText(hotel: HotelInfo, formattedRef: String?): String
 internal fun DocumentExtractionResult.hasProposedChanges(): Boolean =
     flightInfoList.isNotEmpty() || hotelInfoList.isNotEmpty() || relevantTripInfo != null
 
-/**
- * Formats [bytes] as a human-readable file size string (B / KB / MB).
- * Used to display Gemini Nano model download progress in the analysis dialog.
- */
-internal fun formatBytes(bytes: Long): String = when {
-    bytes < BYTES_PER_KB -> "$bytes B"
-    bytes < BYTES_PER_MB -> "${bytes / BYTES_PER_KB} KB"
-    else -> "%.1f MB".format(bytes.toFloat() / BYTES_PER_MB.toFloat())
-}
-
-private const val BYTES_PER_KB = 1_024L
-private const val BYTES_PER_MB = 1_024L * 1_024L

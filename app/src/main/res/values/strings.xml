@@ -335,9 +335,14 @@
     <string name="documents_info_action">Info</string>
     <string name="documents_view_info_content_desc">View info: %s</string>
     <string name="document_info_ask_action">Ask a question</string>
-    <string name="document_info_ask_title">Ask Gemini Nano</string>
-    <string name="document_info_ask_hint">Your question about this document</string>
-    <string name="document_info_ask_confirm">Ask</string>
-    <string name="document_info_ask_result_title">Answer</string>
-    <string name="document_info_ask_result_question">Q: %s</string>
+    <string name="document_chat_title">Ask Gemini Nano</string>
+    <string name="document_chat_navigate_up">Navigate up</string>
+    <string name="document_chat_not_found">Document not found.</string>
+    <string name="document_chat_empty">Ask a question about this document to start the conversation.</string>
+    <string name="document_chat_thinking">Thinking…</string>
+    <string name="document_chat_input_hint">Ask a question…</string>
+    <string name="document_chat_send">Send</string>
+    <string name="document_chat_error_unavailable">AI is not available on this device.</string>
+    <string name="document_chat_error_generic">Could not get an answer. Please try again.</string>
+    <string name="document_chat_downloading">Downloading AI model… %s</string>
 </resources>
