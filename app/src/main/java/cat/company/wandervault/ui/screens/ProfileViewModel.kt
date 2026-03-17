@@ -80,11 +80,12 @@ class ProfileViewModel(
 
     /**
      * Loads available Drive folders so the user can pick one.
-     * Populates [ProfileUiState.availableDriveFolders].
+     * Sets [ProfileUiState.isFolderPickerOpen] to `true` so the dialog is shown even
+     * when Drive returns an empty folder list.
      */
     fun onOpenFolderPicker() {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoadingFolders = true, driveError = null) }
+            _uiState.update { it.copy(isFolderPickerOpen = true, isLoadingFolders = true, driveError = null) }
             listDriveFolders()
                 .onSuccess { folders ->
                     _uiState.update {
@@ -95,6 +96,9 @@ class ProfileViewModel(
                     _uiState.update {
                         it.copy(
                             isLoadingFolders = false,
+                            // Keep isFolderPickerOpen = true so the dialog stays visible;
+                            // the error is shown via driveError on top and the user can
+                            // dismiss it and then cancel the picker themselves.
                             driveError = e.message ?: "Failed to load folders",
                         )
                     }
@@ -106,7 +110,11 @@ class ProfileViewModel(
     fun onFolderSelected(folder: DriveFolder) {
         setSelectedDriveFolder(folder)
         _uiState.update {
-            it.copy(selectedDriveFolder = folder, availableDriveFolders = emptyList())
+            it.copy(
+                selectedDriveFolder = folder,
+                isFolderPickerOpen = false,
+                availableDriveFolders = emptyList(),
+            )
         }
     }
 
@@ -123,6 +131,11 @@ class ProfileViewModel(
 
     /** Dismisses the folder picker dialog without selecting a folder. */
     fun onDismissFolderPicker() {
-        _uiState.update { it.copy(availableDriveFolders = emptyList()) }
+        _uiState.update {
+            it.copy(
+                isFolderPickerOpen = false,
+                availableDriveFolders = emptyList(),
+            )
+        }
     }
 }

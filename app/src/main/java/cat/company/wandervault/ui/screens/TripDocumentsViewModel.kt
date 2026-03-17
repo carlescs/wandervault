@@ -263,6 +263,10 @@ class TripDocumentsViewModel(
      */
     fun addDocument(name: String, sourceUri: String, mimeType: String) {
         val currentFolder = _folderStack.value.lastOrNull()
+        // Capture the current folder stack value so the remote path mirrors the complete
+        // on-device folder hierarchy at the time of the save, even if the user navigates
+        // away before the async upload starts.
+        val folderStack = _folderStack.value
         launchWrite {
             val internalUri = copyDocumentToInternalStorage(sourceUri)
                 ?: throw IllegalStateException("Failed to copy document to internal storage")
@@ -280,7 +284,7 @@ class TripDocumentsViewModel(
                 localUri = internalUri,
                 mimeType = mimeType,
                 fileName = name.trim(),
-                folder = currentFolder,
+                folderStack = folderStack,
             )
         }
     }
@@ -289,12 +293,15 @@ class TripDocumentsViewModel(
      * Uploads [localUri] to Drive in a separate coroutine so that a failed upload never
      * rolls back the local document save.  Logs failures for diagnostics but does not
      * surface them as a [DocumentsWriteError].
+     *
+     * [folderStack] is the complete list of folders the user navigated into, which is used
+     * to build a remote path that mirrors the full on-device folder hierarchy.
      */
     private fun uploadToDriveAsync(
         localUri: String,
         mimeType: String,
         fileName: String,
-        folder: TripDocumentFolder?,
+        folderStack: List<TripDocumentFolder>,
     ) {
         viewModelScope.launch {
             try {
@@ -303,9 +310,11 @@ class TripDocumentsViewModel(
                 // network/background update. The nullable fallback is a belt-and-suspenders
                 // guard for the edge case where the trip row no longer exists.
                 val tripName = getTrip(tripId).firstOrNull()?.name ?: "Trip $tripId"
+                // Build the full remote path: [tripName, folder1, folder2, …] so the Drive
+                // hierarchy mirrors the complete on-device folder structure, not just the leaf.
                 val remotePath = buildList {
                     add(tripName)
-                    if (folder != null) add(folder.name)
+                    addAll(folderStack.map { it.name })
                 }
                 uploadDocumentToDrive(
                     localUri = localUri,
@@ -313,12 +322,12 @@ class TripDocumentsViewModel(
                     fileName = fileName,
                     remotePath = remotePath,
                 ).onFailure { e ->
-                    Log.w(TAG, "Drive upload skipped or failed: ${e.message}")
+                    Log.w(TAG, "Drive upload skipped or failed for '$fileName' (tripId=$tripId)", e)
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Log.w(TAG, "Drive upload error", e)
+                Log.w(TAG, "Drive upload error for '$fileName' (tripId=$tripId)", e)
             }
         }
     }
