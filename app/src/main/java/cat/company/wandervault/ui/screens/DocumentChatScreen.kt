@@ -154,6 +154,7 @@ internal fun DocumentChatContent(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun DocumentChatSuccessContent(
     uiState: DocumentChatUiState.Success,
