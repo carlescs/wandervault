@@ -298,6 +298,10 @@ class TripDocumentsViewModel(
     ) {
         viewModelScope.launch {
             try {
+                // Room Flows emit their first value synchronously from the SQLite cache, so
+                // firstOrNull() returns the current trip state rather than waiting for a
+                // network/background update. The nullable fallback is a belt-and-suspenders
+                // guard for the edge case where the trip row no longer exists.
                 val tripName = getTrip(tripId).firstOrNull()?.name ?: "Trip $tripId"
                 val remotePath = buildList {
                     add(tripName)

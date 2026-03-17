@@ -28,6 +28,8 @@ private const val KEY_DRIVE_FOLDER_NAME = "drive_folder_name"
  */
 class GoogleDriveRepositoryImpl(context: Context) : GoogleDriveRepository {
 
+    // SharedPreferences is obtained from the injected Context, following the same pattern as
+    // AppPreferencesRepositoryImpl which is also registered in Koin with androidContext().
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     override fun isSignedIn(): Boolean = prefs.getBoolean(KEY_DRIVE_SIGNED_IN, false)
