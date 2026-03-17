@@ -7,6 +7,7 @@ import cat.company.wandervault.ui.screens.FavoritesViewModel
 import cat.company.wandervault.ui.screens.HomeViewModel
 import cat.company.wandervault.ui.screens.ItineraryViewModel
 import cat.company.wandervault.ui.screens.LocationDetailViewModel
+import cat.company.wandervault.ui.screens.ProfileViewModel
 import cat.company.wandervault.ui.screens.SettingsViewModel
 import cat.company.wandervault.ui.screens.ShareViewModel
 import cat.company.wandervault.ui.screens.TransportDetailViewModel
@@ -19,6 +20,16 @@ import org.koin.dsl.module
 val presentationModule = module {
     viewModel { HomeViewModel(get(), get(), get(), get(), get(), get(), get()) }
     viewModel { SettingsViewModel(get()) }
+    viewModel {
+        ProfileViewModel(
+            getDriveSignInStatus = get(),
+            signInToDrive = get(),
+            signOutFromDrive = get(),
+            getSelectedDriveFolder = get(),
+            setSelectedDriveFolder = get(),
+            listDriveFolders = get(),
+        )
+    }
     viewModel { params -> TripDetailViewModel(params.get(), get(), get(), get(), get()) }
     viewModel { params ->
         ItineraryViewModel(
@@ -96,6 +107,8 @@ val presentationModule = module {
             copyDocumentToInternalStorage = get(),
             getAllFoldersForTrip = get(),
             suggestDocumentName = get(),
+            getTrip = get(),
+            uploadDocumentToDrive = get(),
         )
     }
     viewModel { params ->
