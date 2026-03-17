@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cat.company.wandervault.R
 import cat.company.wandervault.ui.theme.WanderVaultTheme
+import cat.company.wandervault.ui.util.formatBytes
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
 

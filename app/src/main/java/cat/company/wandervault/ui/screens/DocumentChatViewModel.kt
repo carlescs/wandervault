@@ -66,12 +66,16 @@ class DocumentChatViewModel(
     /**
      * Sends [question] to Gemini Nano and appends both the question and the AI answer to the
      * chat history. A no-op when the document is not yet loaded or a request is already in flight.
+     *
+     * Uses `askJob?.isActive` as the concurrency guard rather than `_isThinking`. Because
+     * `askJob` is assigned synchronously before any suspension point in the launched coroutine,
+     * this check is race-free: a second call on the main thread will always see the active job
+     * from the first call.
      */
     fun sendMessage(question: String) {
         val state = uiState.value as? DocumentChatUiState.Success ?: return
-        if (_isThinking.value) return
+        if (askJob?.isActive == true) return
 
-        askJob?.cancel()
         askJob = viewModelScope.launch {
             _messages.value = _messages.value + ChatMessage.UserMessage(question)
             _isThinking.value = true
