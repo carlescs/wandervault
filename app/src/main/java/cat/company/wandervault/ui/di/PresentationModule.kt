@@ -1,6 +1,7 @@
 package cat.company.wandervault.ui.di
 
 import cat.company.wandervault.ui.screens.DataAdminViewModel
+import cat.company.wandervault.ui.screens.DocumentChatViewModel
 import cat.company.wandervault.ui.screens.DocumentInfoViewModel
 import cat.company.wandervault.ui.screens.FavoritesViewModel
 import cat.company.wandervault.ui.screens.HomeViewModel
@@ -55,12 +56,18 @@ val presentationModule = module {
     viewModel { DataAdminViewModel(androidApplication(), get(), get()) }
     viewModel { FavoritesViewModel(get(), get()) }
     viewModel { params ->
+        DocumentChatViewModel(
+            documentId = params.get(),
+            getDocumentById = get(),
+            askDocumentQuestion = get(),
+        )
+    }
+    viewModel { params ->
         DocumentInfoViewModel(
             documentId = params.get(),
             getDocumentById = get(),
             getAllFoldersForTrip = get(),
             summarizeDocument = get(),
-            askDocumentQuestion = get(),
             updateDocument = get(),
             getTrip = get(),
             saveTripDescription = get(),
