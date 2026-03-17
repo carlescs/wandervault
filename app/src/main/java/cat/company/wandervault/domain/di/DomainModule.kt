@@ -9,6 +9,7 @@ import cat.company.wandervault.domain.usecase.CreateBackupUseCase
 import cat.company.wandervault.domain.usecase.DeleteDestinationUseCase
 import cat.company.wandervault.domain.usecase.DeleteDocumentUseCase
 import cat.company.wandervault.domain.usecase.DeleteFolderUseCase
+import cat.company.wandervault.domain.usecase.DeleteHotelUseCase
 import cat.company.wandervault.domain.usecase.DeleteImageUseCase
 import cat.company.wandervault.domain.usecase.DeleteTransportLegUseCase
 import cat.company.wandervault.domain.usecase.DeleteTransportUseCase
@@ -20,14 +21,16 @@ import cat.company.wandervault.domain.usecase.GetDestinationsForTripUseCase
 import cat.company.wandervault.domain.usecase.GetDocumentsInFolderUseCase
 import cat.company.wandervault.domain.usecase.GetAllFoldersForTripUseCase
 import cat.company.wandervault.domain.usecase.GetDocumentByIdUseCase
+import cat.company.wandervault.domain.usecase.GetDriveSignInStatusUseCase
 import cat.company.wandervault.domain.usecase.GetNextDestinationUseCase
 import cat.company.wandervault.domain.usecase.GetOrCreateTransportForDestinationUseCase
-import cat.company.wandervault.domain.usecase.DeleteHotelUseCase
 import cat.company.wandervault.domain.usecase.GetHotelForDestinationUseCase
 import cat.company.wandervault.domain.usecase.GetHotelsForDestinationsUseCase
 import cat.company.wandervault.domain.usecase.GetRootDocumentsUseCase
 import cat.company.wandervault.domain.usecase.GetRootFoldersUseCase
+import cat.company.wandervault.domain.usecase.GetSelectedDriveFolderUseCase
 import cat.company.wandervault.domain.usecase.GetSubFoldersUseCase
+import cat.company.wandervault.domain.usecase.ListDriveFoldersUseCase
 import cat.company.wandervault.domain.usecase.SaveDocumentUseCase
 import cat.company.wandervault.domain.usecase.SaveFolderUseCase
 import cat.company.wandervault.domain.usecase.SaveHotelUseCase
@@ -38,6 +41,9 @@ import cat.company.wandervault.domain.usecase.SaveDestinationUseCase
 import cat.company.wandervault.domain.usecase.SaveTransportLegUseCase
 import cat.company.wandervault.domain.usecase.SaveTripDescriptionUseCase
 import cat.company.wandervault.domain.usecase.SaveTripUseCase
+import cat.company.wandervault.domain.usecase.SetSelectedDriveFolderUseCase
+import cat.company.wandervault.domain.usecase.SignInToDriveUseCase
+import cat.company.wandervault.domain.usecase.SignOutFromDriveUseCase
 import cat.company.wandervault.domain.usecase.SummarizeDocumentUseCase
 import cat.company.wandervault.domain.usecase.SuggestDocumentNameUseCase
 import cat.company.wandervault.domain.usecase.UpdateDestinationUseCase
@@ -45,6 +51,7 @@ import cat.company.wandervault.domain.usecase.UpdateDocumentUseCase
 import cat.company.wandervault.domain.usecase.UpdateFolderUseCase
 import cat.company.wandervault.domain.usecase.UpdateTransportLegUseCase
 import cat.company.wandervault.domain.usecase.UpdateTripUseCase
+import cat.company.wandervault.domain.usecase.UploadDocumentToDriveUseCase
 import org.koin.dsl.module
 
 val domainModule = module {
@@ -93,4 +100,11 @@ val domainModule = module {
     factory { SuggestDocumentNameUseCase(get()) }
     factory { AskDocumentQuestionUseCase(get()) }
     factory { GetDocumentByIdUseCase(get()) }
+    factory { GetDriveSignInStatusUseCase(get()) }
+    factory { SignInToDriveUseCase(get()) }
+    factory { SignOutFromDriveUseCase(get()) }
+    factory { GetSelectedDriveFolderUseCase(get()) }
+    factory { SetSelectedDriveFolderUseCase(get()) }
+    factory { ListDriveFoldersUseCase(get()) }
+    factory { UploadDocumentToDriveUseCase(get()) }
 }

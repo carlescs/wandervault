@@ -4,6 +4,7 @@ import androidx.room.Room
 import cat.company.wandervault.data.local.WanderVaultDatabase
 import cat.company.wandervault.data.mlkit.DocumentSummaryRepositoryImpl
 import cat.company.wandervault.data.mlkit.TripDescriptionRepositoryImpl
+import cat.company.wandervault.data.remote.google.GoogleDriveRepositoryImpl
 import cat.company.wandervault.data.repository.AppPreferencesRepositoryImpl
 import cat.company.wandervault.data.repository.BackupRepositoryImpl
 import cat.company.wandervault.data.repository.DestinationRepositoryImpl
@@ -16,6 +17,7 @@ import cat.company.wandervault.domain.repository.BackupRepository
 import cat.company.wandervault.domain.repository.DocumentSummaryRepository
 import cat.company.wandervault.domain.repository.DestinationRepository
 import cat.company.wandervault.data.repository.HotelRepositoryImpl
+import cat.company.wandervault.domain.repository.GoogleDriveRepository
 import cat.company.wandervault.domain.repository.HotelRepository
 import cat.company.wandervault.domain.repository.ImageRepository
 import cat.company.wandervault.domain.repository.TransportRepository
@@ -69,4 +71,5 @@ val dataModule = module {
     single<DocumentSummaryRepository> { DocumentSummaryRepositoryImpl(androidContext()) }
     single<BackupRepository> { BackupRepositoryImpl(androidContext(), get()) }
     single<AppPreferencesRepository> { AppPreferencesRepositoryImpl(androidContext()) }
+    single<GoogleDriveRepository> { GoogleDriveRepositoryImpl(androidContext()) }
 }

@@ -21,6 +21,22 @@
     <string name="profile_subtitle">Manage your account and preferences</string>
     <string name="profile_settings_desc">Settings</string>
 
+    <!-- Profile screen – Google Drive section -->
+    <string name="profile_drive_section">Google Drive</string>
+    <string name="profile_drive_signed_in">Connected to Google Drive</string>
+    <string name="profile_drive_signed_in_subtitle">Documents are automatically backed up to your selected folder</string>
+    <string name="profile_drive_sign_out">Sign out</string>
+    <string name="profile_drive_signed_out_description">Sign in to back up your trip documents to Google Drive automatically.</string>
+    <string name="profile_drive_sign_in">Sign in with Google</string>
+    <string name="profile_drive_folder_label">Upload folder</string>
+    <string name="profile_drive_folder_none">No folder selected – tap to choose</string>
+    <string name="profile_drive_folder_clear">Clear folder selection</string>
+    <string name="profile_drive_folder_picker_title">Choose a Drive folder</string>
+    <string name="profile_drive_folder_picker_empty">No folders found in your Drive</string>
+    <string name="profile_drive_folder_picker_cancel">Cancel</string>
+    <string name="profile_drive_error_title">Google Drive error</string>
+    <string name="profile_drive_error_dismiss">OK</string>
+
     <!-- Settings screen -->
     <string name="settings_title">Settings</string>
     <string name="settings_navigate_up">Navigate up</string>
