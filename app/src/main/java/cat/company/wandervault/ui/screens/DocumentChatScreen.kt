@@ -5,9 +5,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -168,10 +171,19 @@ private fun DocumentChatSuccessContent(
         }
     }
 
+    // Also scroll to the bottom when the keyboard opens so the latest messages stay visible.
+    val imeVisible = WindowInsets.isImeVisible
+    LaunchedEffect(imeVisible) {
+        if (imeVisible && messageCount > 0) {
+            listState.animateScrollToItem(messageCount - 1)
+        }
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
             .padding(innerPadding)
+            .consumeWindowInsets(innerPadding)
             .imePadding(),
     ) {
         // ── Message list ───────────────────────────────────────────────────────
