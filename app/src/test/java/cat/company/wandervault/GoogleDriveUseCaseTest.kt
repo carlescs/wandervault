@@ -1,12 +1,9 @@
 package cat.company.wandervault
 
-import android.content.Intent
 import cat.company.wandervault.domain.model.DriveFolder
 import cat.company.wandervault.domain.repository.GoogleDriveRepository
-import cat.company.wandervault.domain.usecase.BuildSignInIntentUseCase
 import cat.company.wandervault.domain.usecase.GetDriveSignInStatusUseCase
 import cat.company.wandervault.domain.usecase.GetSelectedDriveFolderUseCase
-import cat.company.wandervault.domain.usecase.HandleSignInResultUseCase
 import cat.company.wandervault.domain.usecase.ListDriveFoldersUseCase
 import cat.company.wandervault.domain.usecase.SetSelectedDriveFolderUseCase
 import cat.company.wandervault.domain.usecase.SignInToDriveUseCase
@@ -23,6 +20,8 @@ import org.junit.Test
  * Unit tests for Google Drive use-cases.
  *
  * Uses a [FakeGoogleDriveRepository] stub to avoid network/platform dependencies.
+ * Interactive sign-in intent construction and result parsing ([DriveSignInClient]) are
+ * Android-specific concerns handled by the data layer and are NOT exercised here.
  */
 class GoogleDriveUseCaseTest {
 
@@ -157,30 +156,6 @@ class GoogleDriveUseCaseTest {
         assertTrue(result.isSuccess)
         assertEquals("driveFile123", result.getOrThrow())
     }
-
-    // ── BuildSignInIntentUseCase ─────────────────────────────────────────────
-
-    @Test
-    fun `BuildSignInIntentUseCase returns intent from repository`() {
-        val intent = BuildSignInIntentUseCase(repository)()
-        assertEquals(repository.fakeSignInIntent, intent)
-    }
-
-    // ── HandleSignInResultUseCase ────────────────────────────────────────────
-
-    @Test
-    fun `HandleSignInResultUseCase returns success from repository`() = runTest {
-        val result = HandleSignInResultUseCase(repository)(null)
-        assertTrue(result.isSuccess)
-        assertTrue(repository.signedIn)
-    }
-
-    @Test
-    fun `HandleSignInResultUseCase returns failure when repository throws`() = runTest {
-        repository.handleSignInShouldFail = true
-        val result = HandleSignInResultUseCase(repository)(null)
-        assertTrue(result.isFailure)
-    }
 }
 
 // ── Fake implementation ───────────────────────────────────────────────────────
@@ -189,25 +164,15 @@ private class FakeGoogleDriveRepository : GoogleDriveRepository {
 
     var signedIn = false
     var signInShouldFail = false
-    var handleSignInShouldFail = false
     var selectedFolderId: String? = null
     var selectedFolderName: String? = null
     var foldersToReturn: List<DriveFolder> = emptyList()
     var uploadFileIdToReturn: String = "fileId"
-    val fakeSignInIntent: Intent = Intent("fake_sign_in")
 
     override fun isSignedIn(): Boolean = signedIn
 
     override suspend fun signIn(): Result<Unit> {
         if (signInShouldFail) return Result.failure(RuntimeException("Sign-in failed"))
-        signedIn = true
-        return Result.success(Unit)
-    }
-
-    override fun buildSignInIntent(): Intent = fakeSignInIntent
-
-    override suspend fun handleSignInResult(data: Intent?): Result<Unit> {
-        if (handleSignInShouldFail) return Result.failure(RuntimeException("Handle sign-in failed"))
         signedIn = true
         return Result.success(Unit)
     }

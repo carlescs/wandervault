@@ -40,7 +40,7 @@ private const val DRIVE_FOLDER_MIME = "application/vnd.google-apps.folder"
  * A `google-services.json` file is not strictly required for Sign-In — the GMS SDK
  * resolves the client ID automatically from the registered package name + SHA-1.
  */
-class GoogleDriveRepositoryImpl(private val context: Context) : GoogleDriveRepository {
+class GoogleDriveRepositoryImpl(private val context: Context) : GoogleDriveRepository, DriveSignInClient {
 
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
@@ -77,7 +77,14 @@ class GoogleDriveRepositoryImpl(private val context: Context) : GoogleDriveRepos
                 persistSignIn()
                 return@withContext Result.success(Unit)
             }
-            Tasks.await(googleSignInClient.silentSignIn())
+            val account = Tasks.await(googleSignInClient.silentSignIn())
+            if (!GoogleSignIn.hasPermissions(account, Scope(DriveScopes.DRIVE_FILE))) {
+                return@withContext Result.failure(
+                    IllegalStateException(
+                        "Drive scope not granted for silent sign-in account",
+                    ),
+                )
+            }
             persistSignIn()
             Result.success(Unit)
         } catch (e: Exception) {
@@ -140,14 +147,22 @@ class GoogleDriveRepositoryImpl(private val context: Context) : GoogleDriveRepos
     override suspend fun listFolders(): Result<List<DriveFolder>> = withContext(Dispatchers.IO) {
         try {
             val service = requireDriveService()
-            val result = service.files().list()
-                .setQ("mimeType='$DRIVE_FOLDER_MIME' and trashed=false")
-                .setSpaces("drive")
-                .setFields("nextPageToken, files(id, name)")
-                .execute()
-            val folders = result.files
-                ?.map { DriveFolder(id = it.id, name = it.name) }
-                ?: emptyList()
+            val folders = mutableListOf<DriveFolder>()
+            var pageToken: String? = null
+            do {
+                val result = service.files().list()
+                    .setQ(
+                        "mimeType='$DRIVE_FOLDER_MIME'" +
+                            " and 'root' in parents" +
+                            " and trashed=false",
+                    )
+                    .setSpaces("drive")
+                    .setFields("nextPageToken, files(id, name)")
+                    .setPageToken(pageToken)
+                    .execute()
+                result.files?.mapTo(folders) { DriveFolder(id = it.id, name = it.name) }
+                pageToken = result.nextPageToken
+            } while (pageToken != null)
             Result.success(folders)
         } catch (e: Exception) {
             Result.failure(e)
