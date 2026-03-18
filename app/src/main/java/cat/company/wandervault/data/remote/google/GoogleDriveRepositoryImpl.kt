@@ -21,6 +21,7 @@ import com.google.api.services.drive.DriveScopes
 import com.google.api.services.drive.model.File
 import cat.company.wandervault.domain.model.DriveFolder
 import cat.company.wandervault.domain.repository.GoogleDriveRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -99,6 +100,7 @@ class GoogleDriveRepositoryImpl(private val context: Context) : GoogleDriveRepos
             persistSignIn()
             Result.success(Unit)
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             // Silent sign-in failed.  Clear any partial sign-in state so the interactive
             // flow shows the account chooser and Drive consent screen from scratch.
             clearSignInState()
@@ -130,6 +132,7 @@ class GoogleDriveRepositoryImpl(private val context: Context) : GoogleDriveRepos
                     Result.failure(RuntimeException(e.toReadableMessage(), e))
                 }
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 Result.failure(e)
             }
         }
@@ -186,6 +189,7 @@ class GoogleDriveRepositoryImpl(private val context: Context) : GoogleDriveRepos
             } while (pageToken != null)
             Result.success(folders)
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             Result.failure(e)
         }
     }
@@ -220,6 +224,7 @@ class GoogleDriveRepositoryImpl(private val context: Context) : GoogleDriveRepos
             }
             Result.success(uploaded.id)
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             Result.failure(e)
         }
     }
