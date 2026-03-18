@@ -24,6 +24,7 @@ val presentationModule = module {
         ProfileViewModel(
             getDriveSignInStatus = get(),
             signInToDrive = get(),
+            driveSignInClient = get(),
             signOutFromDrive = get(),
             getSelectedDriveFolder = get(),
             setSelectedDriveFolder = get(),

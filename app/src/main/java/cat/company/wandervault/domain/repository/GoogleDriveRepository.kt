@@ -7,6 +7,10 @@ import cat.company.wandervault.domain.model.DriveFolder
  *
  * Handles authentication, folder listing, and file uploads.  Implementations are
  * expected to use OAuth 2.0 (via Google Sign-In) and the Drive REST API.
+ *
+ * Interactive sign-in intent construction and result parsing are deliberately kept
+ * out of this interface to avoid coupling the domain layer to Android platform types.
+ * Those concerns are handled by [cat.company.wandervault.data.remote.google.DriveSignInClient].
  */
 interface GoogleDriveRepository {
 
@@ -14,10 +18,13 @@ interface GoogleDriveRepository {
     fun isSignedIn(): Boolean
 
     /**
-     * Initiates the Google Sign-In / OAuth flow.
+     * Attempts a silent (no-UI) sign-in using a previously granted account.
      *
-     * @return [Result.success] on successful sign-in, [Result.failure] with the
-     *   underlying exception otherwise.
+     * Returns [Result.success] when the account is already authorised for the Drive scope.
+     * Returns [Result.failure] when no cached account exists or it lacks the required scope;
+     * in that case the caller should use
+     * [cat.company.wandervault.data.remote.google.DriveSignInClient.buildSignInIntent] to
+     * start the interactive sign-in activity.
      */
     suspend fun signIn(): Result<Unit>
 
@@ -43,10 +50,11 @@ interface GoogleDriveRepository {
     fun setSelectedFolder(folderId: String?, folderName: String?)
 
     /**
-     * Lists the top-level Drive folders accessible to the signed-in user.
+     * Lists the top-level Drive folders (direct children of the Drive root) accessible
+     * to the signed-in user.
      *
-     * @return [Result.success] with the list of folders, or [Result.failure] with the
-     *   underlying exception.
+     * @return [Result.success] with the complete list of top-level folders, or
+     *   [Result.failure] with the underlying exception.
      */
     suspend fun listFolders(): Result<List<DriveFolder>>
 

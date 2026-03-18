@@ -20,6 +20,8 @@ import org.junit.Test
  * Unit tests for Google Drive use-cases.
  *
  * Uses a [FakeGoogleDriveRepository] stub to avoid network/platform dependencies.
+ * Interactive sign-in intent construction and result parsing ([DriveSignInClient]) are
+ * Android-specific concerns handled by the data layer and are NOT exercised here.
  */
 class GoogleDriveUseCaseTest {
 
