@@ -6,6 +6,7 @@ import android.net.Uri
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInClient
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.auth.api.signin.GoogleSignInStatusCodes
 import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.common.api.CommonStatusCodes
 import com.google.android.gms.common.api.Scope
@@ -97,6 +98,9 @@ class GoogleDriveRepositoryImpl(private val context: Context) : GoogleDriveRepos
 
     override suspend fun handleSignInResult(data: Intent?): Result<Unit> =
         withContext(Dispatchers.IO) {
+            if (data == null) {
+                return@withContext Result.failure(SignInCancelledException())
+            }
             try {
                 val task = GoogleSignIn.getSignedInAccountFromIntent(data)
                 // Verify the account is non-null; credentials are retrieved lazily from
@@ -108,7 +112,11 @@ class GoogleDriveRepositoryImpl(private val context: Context) : GoogleDriveRepos
                 persistSignIn()
                 Result.success(Unit)
             } catch (e: ApiException) {
-                Result.failure(RuntimeException(e.toReadableMessage(), e))
+                if (e.statusCode == GoogleSignInStatusCodes.SIGN_IN_CANCELLED) {
+                    Result.failure(SignInCancelledException())
+                } else {
+                    Result.failure(RuntimeException(e.toReadableMessage(), e))
+                }
             } catch (e: Exception) {
                 Result.failure(e)
             }

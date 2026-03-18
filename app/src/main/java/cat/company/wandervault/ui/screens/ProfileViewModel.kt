@@ -4,6 +4,7 @@ import android.content.Intent
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import cat.company.wandervault.data.remote.google.DriveSignInClient
+import cat.company.wandervault.data.remote.google.SignInCancelledException
 import cat.company.wandervault.domain.model.DriveFolder
 import cat.company.wandervault.domain.usecase.GetDriveSignInStatusUseCase
 import cat.company.wandervault.domain.usecase.GetSelectedDriveFolderUseCase
@@ -97,7 +98,12 @@ class ProfileViewModel(
     /**
      * Handles the [Intent] returned from the Google Sign-In activity.
      *
-     * @param data The result intent from a successful sign-in activity result.
+     * Passing `null` for [data] is treated as a cancellation (identical to
+     * [onSignInCancelled]). A [SignInCancelledException] returned by
+     * [DriveSignInClient.handleSignInResult] is also treated as a silent cancellation
+     * so no error dialog is shown to the user.
+     *
+     * @param data The result intent from the sign-in activity, or `null` if cancelled.
      */
     fun onSignInResult(data: Intent?) {
         viewModelScope.launch {
@@ -112,11 +118,16 @@ class ProfileViewModel(
                     }
                 }
                 .onFailure { e ->
-                    _uiState.update {
-                        it.copy(
-                            isSigningIn = false,
-                            driveError = e.message ?: "Sign-in failed",
-                        )
+                    if (e is SignInCancelledException) {
+                        // User cancelled – reset loading state without showing an error.
+                        _uiState.update { it.copy(isSigningIn = false) }
+                    } else {
+                        _uiState.update {
+                            it.copy(
+                                isSigningIn = false,
+                                driveError = e.message ?: "Sign-in failed",
+                            )
+                        }
                     }
                 }
         }
