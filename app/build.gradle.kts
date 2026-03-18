@@ -74,6 +74,11 @@ android {
     buildFeatures {
         compose = true
     }
+    packaging {
+        // Exclude duplicate META-INF/DEPENDENCIES brought in by Apache HTTP Components
+        // (transitive dependencies of the Google Drive API).
+        resources.excludes.add("META-INF/DEPENDENCIES")
+    }
 }
 
 ksp {
