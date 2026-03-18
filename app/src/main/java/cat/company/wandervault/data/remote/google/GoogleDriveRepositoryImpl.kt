@@ -7,6 +7,7 @@ import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInClient
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
+import com.google.android.gms.common.api.CommonStatusCodes
 import com.google.android.gms.common.api.Scope
 import com.google.android.gms.tasks.Tasks
 import com.google.api.client.googleapis.extensions.android.gms.auth.GoogleAccountCredential
@@ -107,7 +108,7 @@ class GoogleDriveRepositoryImpl(private val context: Context) : GoogleDriveRepos
                 persistSignIn()
                 Result.success(Unit)
             } catch (e: ApiException) {
-                Result.failure(e)
+                Result.failure(RuntimeException(e.toReadableMessage(), e))
             } catch (e: Exception) {
                 Result.failure(e)
             }
@@ -277,4 +278,25 @@ class GoogleDriveRepositoryImpl(private val context: Context) : GoogleDriveRepos
         }
         return service.files().create(metadata).setFields("id").execute().id
     }
+}
+
+/**
+ * Maps an [ApiException] status code to a human-readable description.
+ *
+ * The default [ApiException.message] is formatted as `"<code>: <detail>"` which is
+ * meaningless to end users (e.g. "10: ").  This extension returns a cleaner message
+ * covering the most common failure codes.
+ */
+private fun ApiException.toReadableMessage(): String = when (statusCode) {
+    CommonStatusCodes.DEVELOPER_ERROR ->
+        "Google Sign-In is not available. Please contact support (code $statusCode)."
+    CommonStatusCodes.NETWORK_ERROR ->
+        "Network error during Google Sign-In. Please check your connection and try again."
+    CommonStatusCodes.SIGN_IN_REQUIRED ->
+        "Sign-in is required. Please try again."
+    CommonStatusCodes.INVALID_ACCOUNT ->
+        "Invalid Google account selected. Please choose a different account."
+    CommonStatusCodes.TIMEOUT ->
+        "Google Sign-In timed out. Please try again."
+    else -> "Google Sign-In failed (error $statusCode)."
 }
