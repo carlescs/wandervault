@@ -97,7 +97,7 @@ class ProfileViewModel(
     /**
      * Handles the [Intent] returned from the Google Sign-In activity.
      *
-     * @param data The result intent, or `null` if the user cancelled.
+     * @param data The result intent from a successful sign-in activity result.
      */
     fun onSignInResult(data: Intent?) {
         viewModelScope.launch {
@@ -120,6 +120,14 @@ class ProfileViewModel(
                     }
                 }
         }
+    }
+
+    /**
+     * Called when the user dismisses the Google Sign-In chooser without selecting an
+     * account (e.g. presses Back).  Clears the signing-in state without showing an error.
+     */
+    fun onSignInCancelled() {
+        _uiState.update { it.copy(isSigningIn = false) }
     }
 
     /** Signs the user out of Google Drive and clears the selected folder. */

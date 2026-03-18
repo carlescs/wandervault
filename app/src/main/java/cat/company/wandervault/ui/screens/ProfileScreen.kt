@@ -1,5 +1,6 @@
 package cat.company.wandervault.ui.screens
 
+import android.app.Activity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -74,10 +75,16 @@ fun ProfileScreen(
 
     // Launcher for the Google Sign-In activity.  The result intent is passed back
     // to the ViewModel which extracts the account and updates sign-in state.
+    // When the user cancels (presses Back) the result code is RESULT_CANCELED and no
+    // error should be shown – onSignInCancelled() just clears the loading state.
     val signInLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult(),
     ) { result ->
-        viewModel.onSignInResult(result.data)
+        if (result.resultCode == Activity.RESULT_OK) {
+            viewModel.onSignInResult(result.data)
+        } else {
+            viewModel.onSignInCancelled()
+        }
     }
 
     // Collect sign-in intent events emitted when silent sign-in fails.
