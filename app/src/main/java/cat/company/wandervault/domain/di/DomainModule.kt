@@ -1,6 +1,7 @@
 package cat.company.wandervault.domain.di
 
 import cat.company.wandervault.domain.usecase.AskDocumentQuestionUseCase
+import cat.company.wandervault.domain.usecase.BuildSignInIntentUseCase
 import cat.company.wandervault.domain.usecase.CopyDocumentToInternalStorageUseCase
 import cat.company.wandervault.domain.usecase.GetFavoriteTripsUseCase
 import cat.company.wandervault.domain.usecase.ToggleFavoriteTripUseCase
@@ -22,6 +23,7 @@ import cat.company.wandervault.domain.usecase.GetDocumentsInFolderUseCase
 import cat.company.wandervault.domain.usecase.GetAllFoldersForTripUseCase
 import cat.company.wandervault.domain.usecase.GetDocumentByIdUseCase
 import cat.company.wandervault.domain.usecase.GetDriveSignInStatusUseCase
+import cat.company.wandervault.domain.usecase.HandleSignInResultUseCase
 import cat.company.wandervault.domain.usecase.GetNextDestinationUseCase
 import cat.company.wandervault.domain.usecase.GetOrCreateTransportForDestinationUseCase
 import cat.company.wandervault.domain.usecase.GetHotelForDestinationUseCase
@@ -102,6 +104,8 @@ val domainModule = module {
     factory { GetDocumentByIdUseCase(get()) }
     factory { GetDriveSignInStatusUseCase(get()) }
     factory { SignInToDriveUseCase(get()) }
+    factory { BuildSignInIntentUseCase(get()) }
+    factory { HandleSignInResultUseCase(get()) }
     factory { SignOutFromDriveUseCase(get()) }
     factory { GetSelectedDriveFolderUseCase(get()) }
     factory { SetSelectedDriveFolderUseCase(get()) }

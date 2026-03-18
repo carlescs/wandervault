@@ -1,5 +1,7 @@
 package cat.company.wandervault.ui.screens
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -38,6 +40,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -68,6 +71,22 @@ fun ProfileScreen(
     viewModel: ProfileViewModel = koinViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    // Launcher for the Google Sign-In activity.  The result intent is passed back
+    // to the ViewModel which extracts the account and updates sign-in state.
+    val signInLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        viewModel.onSignInResult(result.data)
+    }
+
+    // Collect sign-in intent events emitted when silent sign-in fails.
+    LaunchedEffect(Unit) {
+        viewModel.signInIntentEvent.collect { intent ->
+            signInLauncher.launch(intent)
+        }
+    }
+
     ProfileContent(
         uiState = uiState,
         onNavigateToSettings = onNavigateToSettings,

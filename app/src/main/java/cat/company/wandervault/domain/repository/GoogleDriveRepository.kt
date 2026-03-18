@@ -1,5 +1,6 @@
 package cat.company.wandervault.domain.repository
 
+import android.content.Intent
 import cat.company.wandervault.domain.model.DriveFolder
 
 /**
@@ -14,12 +15,32 @@ interface GoogleDriveRepository {
     fun isSignedIn(): Boolean
 
     /**
-     * Initiates the Google Sign-In / OAuth flow.
+     * Attempts a silent (no-UI) sign-in using a previously granted account.
      *
-     * @return [Result.success] on successful sign-in, [Result.failure] with the
-     *   underlying exception otherwise.
+     * Returns [Result.success] when the account is already authorised for the Drive scope.
+     * Returns [Result.failure] when no cached account exists or it lacks the required scope;
+     * in that case the caller should obtain an explicit sign-in intent via [buildSignInIntent]
+     * and handle the result with [handleSignInResult].
      */
     suspend fun signIn(): Result<Unit>
+
+    /**
+     * Builds the [Intent] that launches the Google Sign-In activity.
+     *
+     * This is only needed when [signIn] returns a failure (i.e. there is no cached account).
+     * Launch this intent with [ActivityResultLauncher] and pass the result data to
+     * [handleSignInResult].
+     */
+    fun buildSignInIntent(): Intent
+
+    /**
+     * Processes the [Intent] returned from the Google Sign-In activity.
+     *
+     * @param data The result [Intent] from the sign-in activity, or `null` if the user
+     *   cancelled.
+     * @return [Result.success] on successful sign-in, [Result.failure] otherwise.
+     */
+    suspend fun handleSignInResult(data: Intent?): Result<Unit>
 
     /** Signs the user out of their Google account and clears any cached credentials. */
     suspend fun signOut()
