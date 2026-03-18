@@ -3,9 +3,11 @@ package cat.company.wandervault.data.remote.google
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.util.Log
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInClient
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.auth.api.signin.GoogleSignInStatusCodes
 import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.common.api.CommonStatusCodes
 import com.google.android.gms.common.api.Scope
@@ -19,6 +21,7 @@ import com.google.api.services.drive.DriveScopes
 import com.google.api.services.drive.model.File
 import cat.company.wandervault.domain.model.DriveFolder
 import cat.company.wandervault.domain.repository.GoogleDriveRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -68,6 +71,10 @@ class GoogleDriveRepositoryImpl(private val context: Context) : GoogleDriveRepos
      * Attempts a silent sign-in using a cached account that already has the Drive scope.
      * Returns [Result.failure] when interactive sign-in is required; the caller should
      * then use [buildSignInIntent] + [handleSignInResult].
+     *
+     * Any partial Google Sign-In state is cleared (via [GoogleSignInClient.signOut]) before
+     * returning failure.  This ensures the subsequent interactive flow starts from a clean
+     * state and Google will present both the account chooser and the Drive consent screen.
      */
     override suspend fun signIn(): Result<Unit> = withContext(Dispatchers.IO) {
         try {
@@ -80,6 +87,10 @@ class GoogleDriveRepositoryImpl(private val context: Context) : GoogleDriveRepos
             }
             val account = Tasks.await(googleSignInClient.silentSignIn())
             if (!GoogleSignIn.hasPermissions(account, Scope(DriveScopes.DRIVE_FILE))) {
+                // Account is signed in but Drive scope was never granted.  Clear the
+                // cached sign-in state so the interactive flow will show the Drive
+                // consent screen instead of skipping it.
+                clearSignInState()
                 return@withContext Result.failure(
                     IllegalStateException(
                         "Drive scope not granted for silent sign-in account",
@@ -89,6 +100,10 @@ class GoogleDriveRepositoryImpl(private val context: Context) : GoogleDriveRepos
             persistSignIn()
             Result.success(Unit)
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            // Silent sign-in failed.  Clear any partial sign-in state so the interactive
+            // flow shows the account chooser and Drive consent screen from scratch.
+            clearSignInState()
             Result.failure(e)
         }
     }
@@ -97,6 +112,9 @@ class GoogleDriveRepositoryImpl(private val context: Context) : GoogleDriveRepos
 
     override suspend fun handleSignInResult(data: Intent?): Result<Unit> =
         withContext(Dispatchers.IO) {
+            if (data == null) {
+                return@withContext Result.failure(SignInCancelledException())
+            }
             try {
                 val task = GoogleSignIn.getSignedInAccountFromIntent(data)
                 // Verify the account is non-null; credentials are retrieved lazily from
@@ -108,8 +126,13 @@ class GoogleDriveRepositoryImpl(private val context: Context) : GoogleDriveRepos
                 persistSignIn()
                 Result.success(Unit)
             } catch (e: ApiException) {
-                Result.failure(RuntimeException(e.toReadableMessage(), e))
+                if (e.statusCode == GoogleSignInStatusCodes.SIGN_IN_CANCELLED) {
+                    Result.failure(SignInCancelledException())
+                } else {
+                    Result.failure(RuntimeException(e.toReadableMessage(), e))
+                }
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 Result.failure(e)
             }
         }
@@ -166,6 +189,7 @@ class GoogleDriveRepositoryImpl(private val context: Context) : GoogleDriveRepos
             } while (pageToken != null)
             Result.success(folders)
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             Result.failure(e)
         }
     }
@@ -200,6 +224,7 @@ class GoogleDriveRepositoryImpl(private val context: Context) : GoogleDriveRepos
             }
             Result.success(uploaded.id)
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             Result.failure(e)
         }
     }
@@ -232,6 +257,20 @@ class GoogleDriveRepositoryImpl(private val context: Context) : GoogleDriveRepos
     private fun persistSignIn() {
         driveService = null
         prefs.edit().putBoolean(KEY_DRIVE_SIGNED_IN, true).apply()
+    }
+
+    /**
+     * Clears the cached [Drive] service and signs out of [GoogleSignInClient].
+     *
+     * Called before returning [Result.failure] from [signIn] so that any partial
+     * sign-in state held by Google Play Services is discarded.  A clean state
+     * ensures the subsequent interactive sign-in intent will display the account
+     * chooser **and** the Drive consent screen instead of silently skipping them.
+     */
+    private fun clearSignInState() {
+        driveService = null
+        runCatching { Tasks.await(googleSignInClient.signOut()) }
+            .onFailure { e -> Log.w(APP_NAME, "Failed to clear Google sign-in state during cleanup", e) }
     }
 
     /**

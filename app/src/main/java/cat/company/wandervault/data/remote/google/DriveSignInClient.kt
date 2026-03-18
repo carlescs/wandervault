@@ -20,7 +20,17 @@ interface DriveSignInClient {
      *
      * @param data The result intent from the sign-in activity, or `null` if the user
      *   cancelled.
-     * @return [Result.success] on successful sign-in, [Result.failure] otherwise.
+     * @return [Result.success] on successful sign-in, [Result.failure] with
+     *   [SignInCancelledException] when the user cancelled, or [Result.failure] with
+     *   another exception for actual errors.
      */
     suspend fun handleSignInResult(data: Intent?): Result<Unit>
 }
+
+/**
+ * Thrown by [DriveSignInClient.handleSignInResult] when the user explicitly cancelled
+ * the sign-in flow (e.g. pressed Back or dismissed the consent screen).
+ *
+ * Callers should treat this as a silent no-op rather than displaying an error message.
+ */
+class SignInCancelledException : Exception("Sign-in was cancelled by the user")
