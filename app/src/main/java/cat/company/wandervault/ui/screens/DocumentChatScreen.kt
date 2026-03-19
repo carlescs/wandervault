@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -186,8 +185,7 @@ private fun DocumentChatSuccessContent(
         modifier = modifier
             .fillMaxSize()
             .padding(innerPadding)
-            .consumeWindowInsets(innerPadding)
-            .imePadding(),
+            .consumeWindowInsets(innerPadding),
     ) {
         // ── Message list ───────────────────────────────────────────────────────
 
