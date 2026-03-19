@@ -14,13 +14,11 @@ import cat.company.wandervault.domain.usecase.GetDocumentsInFolderUseCase
 import cat.company.wandervault.domain.usecase.GetRootDocumentsUseCase
 import cat.company.wandervault.domain.usecase.GetRootFoldersUseCase
 import cat.company.wandervault.domain.usecase.GetSubFoldersUseCase
-import cat.company.wandervault.domain.usecase.GetTripUseCase
 import cat.company.wandervault.domain.usecase.SaveDocumentUseCase
 import cat.company.wandervault.domain.usecase.SaveFolderUseCase
 import cat.company.wandervault.domain.usecase.SuggestDocumentNameUseCase
 import cat.company.wandervault.domain.usecase.UpdateDocumentUseCase
 import cat.company.wandervault.domain.usecase.UpdateFolderUseCase
-import cat.company.wandervault.domain.usecase.UploadDocumentToDriveUseCase
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -29,7 +27,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.launch
 
@@ -60,8 +57,6 @@ class TripDocumentsViewModel(
     private val copyDocumentToInternalStorage: CopyDocumentToInternalStorageUseCase,
     private val getAllFoldersForTrip: GetAllFoldersForTripUseCase,
     private val suggestDocumentName: SuggestDocumentNameUseCase,
-    private val getTrip: GetTripUseCase,
-    private val uploadDocumentToDrive: UploadDocumentToDriveUseCase,
 ) : ViewModel() {
 
     /** Stack of folders the user has navigated into; empty = at root. */
@@ -263,10 +258,6 @@ class TripDocumentsViewModel(
      */
     fun addDocument(name: String, sourceUri: String, mimeType: String) {
         val currentFolder = _folderStack.value.lastOrNull()
-        // Capture the current folder stack value so the remote path mirrors the complete
-        // on-device folder hierarchy at the time of the save, even if the user navigates
-        // away before the async upload starts.
-        val folderStack = _folderStack.value
         launchWrite {
             val internalUri = copyDocumentToInternalStorage(sourceUri)
                 ?: throw IllegalStateException("Failed to copy document to internal storage")
@@ -279,56 +270,6 @@ class TripDocumentsViewModel(
                     mimeType = mimeType,
                 ),
             )
-            // Best-effort Drive upload: does not block or fail the local save.
-            uploadToDriveAsync(
-                localUri = internalUri,
-                mimeType = mimeType,
-                fileName = name.trim(),
-                folderStack = folderStack,
-            )
-        }
-    }
-
-    /**
-     * Uploads [localUri] to Drive in a separate coroutine so that a failed upload never
-     * rolls back the local document save.  Logs failures for diagnostics but does not
-     * surface them as a [DocumentsWriteError].
-     *
-     * [folderStack] is the complete list of folders the user navigated into, which is used
-     * to build a remote path that mirrors the full on-device folder hierarchy.
-     */
-    private fun uploadToDriveAsync(
-        localUri: String,
-        mimeType: String,
-        fileName: String,
-        folderStack: List<TripDocumentFolder>,
-    ) {
-        viewModelScope.launch {
-            try {
-                // Room Flows emit their first value synchronously from the SQLite cache, so
-                // firstOrNull() returns the current trip state rather than waiting for a
-                // network/background update. The nullable fallback is a belt-and-suspenders
-                // guard for the edge case where the trip row no longer exists.
-                val tripName = getTrip(tripId).firstOrNull()?.title ?: "Trip $tripId"
-                // Build the full remote path: [tripName, folder1, folder2, …] so the Drive
-                // hierarchy mirrors the complete on-device folder structure, not just the leaf.
-                val remotePath = buildList {
-                    add(tripName)
-                    addAll(folderStack.map { it.name })
-                }
-                uploadDocumentToDrive(
-                    localUri = localUri,
-                    mimeType = mimeType,
-                    fileName = fileName,
-                    remotePath = remotePath,
-                ).onFailure { e ->
-                    Log.w(TAG, "Drive upload skipped or failed for '$fileName' (tripId=$tripId)", e)
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.w(TAG, "Drive upload error for '$fileName' (tripId=$tripId)", e)
-            }
         }
     }
 
