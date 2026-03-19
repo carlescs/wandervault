@@ -2,6 +2,7 @@ package cat.company.wandervault.data.mlkit
 
 import cat.company.wandervault.domain.model.Destination
 import cat.company.wandervault.domain.model.Trip
+import cat.company.wandervault.domain.repository.AppPreferencesRepository
 import cat.company.wandervault.domain.repository.TripDescriptionRepository
 import com.google.mlkit.genai.common.DownloadStatus
 import com.google.mlkit.genai.common.FeatureStatus
@@ -18,8 +19,12 @@ import java.util.Locale
 /**
  * ML Kit implementation of [TripDescriptionRepository] that uses the on-device Gemini Nano
  * Prompt API to generate a short, engaging trip summary.
+ *
+ * @param appPreferences Repository used to read the user-selected AI output language.
  */
-class TripDescriptionRepositoryImpl : TripDescriptionRepository {
+class TripDescriptionRepositoryImpl(
+    private val appPreferences: AppPreferencesRepository,
+) : TripDescriptionRepository {
 
     private val client by lazy { Generation.getClient() }
 
@@ -60,11 +65,13 @@ class TripDescriptionRepositoryImpl : TripDescriptionRepository {
     private fun buildPrompt(trip: Trip, destinations: List<Destination>): String {
         val dateFormatter = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
         val dateTimeFormatter = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT)
+        val languageName = resolveLanguageName()
 
         return buildString {
             appendLine(
                 "Write a short, engaging 2–3 sentence description for the following trip. " +
-                    "Focus on the places visited and the overall experience.",
+                    "Focus on the places visited and the overall experience. " +
+                    "Respond in $languageName.",
             )
             appendLine()
             appendLine("Trip name: ${trip.title}")
@@ -95,6 +102,13 @@ class TripDescriptionRepositoryImpl : TripDescriptionRepository {
                 }
             }
         }
+    }
+
+    /** Returns the English display name of the configured AI language, falling back to the device default. */
+    private fun resolveLanguageName(): String {
+        val tag = appPreferences.getAiLanguage() ?: Locale.getDefault().toLanguageTag()
+        return Locale.forLanguageTag(tag).getDisplayLanguage(Locale.ENGLISH)
+            .replaceFirstChar { it.titlecase(Locale.ENGLISH) }
     }
 
     companion object {

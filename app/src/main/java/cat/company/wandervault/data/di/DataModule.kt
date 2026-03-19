@@ -65,8 +65,8 @@ val dataModule = module {
     single<HotelRepository> { HotelRepositoryImpl(get()) }
     single<TripDocumentRepository> { TripDocumentRepositoryImpl(androidContext(), get(), get()) }
     single<ImageRepository> { ImageRepositoryImpl(androidContext()) }
-    single<TripDescriptionRepository> { TripDescriptionRepositoryImpl() }
-    single<DocumentSummaryRepository> { DocumentSummaryRepositoryImpl(androidContext()) }
+    single<TripDescriptionRepository> { TripDescriptionRepositoryImpl(get()) }
+    single<DocumentSummaryRepository> { DocumentSummaryRepositoryImpl(androidContext(), get()) }
     single<BackupRepository> { BackupRepositoryImpl(androidContext(), get()) }
     single<AppPreferencesRepository> { AppPreferencesRepositoryImpl(androidContext()) }
 }

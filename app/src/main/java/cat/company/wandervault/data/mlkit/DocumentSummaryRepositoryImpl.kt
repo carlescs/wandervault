@@ -8,6 +8,7 @@ import android.net.Uri
 import android.os.ParcelFileDescriptor
 import android.util.Log
 import cat.company.wandervault.domain.model.DocumentExtractionResult
+import cat.company.wandervault.domain.repository.AppPreferencesRepository
 import cat.company.wandervault.domain.repository.DocumentSummaryRepository
 import com.google.mlkit.genai.common.DownloadStatus
 import com.google.mlkit.genai.common.FeatureStatus
@@ -24,6 +25,7 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.InputStream
+import java.util.Locale
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
@@ -40,7 +42,10 @@ import kotlin.coroutines.resumeWithException
  *
  * Documents of unsupported types return `null`.
  */
-class DocumentSummaryRepositoryImpl(private val context: Context) : DocumentSummaryRepository {
+class DocumentSummaryRepositoryImpl(
+    private val context: Context,
+    private val appPreferences: AppPreferencesRepository,
+) : DocumentSummaryRepository {
 
     private val generationClient by lazy { Generation.getClient() }
     private val textRecognizer by lazy {
@@ -254,11 +259,13 @@ class DocumentSummaryRepositoryImpl(private val context: Context) : DocumentSumm
             FeatureStatus.AVAILABLE -> Unit
         }
         val text = readDocumentText(fileUri, mimeType) ?: return@withContext null
+        val languageName = resolveLanguageName()
         val prompt = buildString {
             appendLine(
                 "Read the following travel document and suggest a concise filename for it " +
                     "(2 to 5 words, no file extension, use spaces between words). " +
-                    "Return only the filename, nothing else.",
+                    "Return only the filename, nothing else. " +
+                    "Respond in $languageName.",
             )
             appendLine()
             appendLine("Document text:")
@@ -273,9 +280,10 @@ class DocumentSummaryRepositoryImpl(private val context: Context) : DocumentSumm
     }
 
     private fun buildPrompt(documentText: String, tripYear: Int?): String = buildString {
+        val languageName = resolveLanguageName()
         appendLine(
             "Analyze the following travel document and respond with exactly two sections " +
-                "separated by the marker \"---\":",
+                "separated by the marker \"---\". Respond in $languageName.",
         )
         appendLine(
             "Section 1: A brief summary (2–3 sentences) of what this document contains.",
@@ -323,9 +331,11 @@ class DocumentSummaryRepositoryImpl(private val context: Context) : DocumentSumm
             FeatureStatus.AVAILABLE -> Unit
         }
         val text = readDocumentText(fileUri, mimeType) ?: return@withContext null
+        val languageName = resolveLanguageName()
         val prompt = buildString {
             appendLine("Answer the following question about the travel document below.")
             appendLine("Question: $question")
+            appendLine("Respond in $languageName.")
             appendLine()
             appendLine("Document text:")
             append(text)
@@ -335,6 +345,13 @@ class DocumentSummaryRepositoryImpl(private val context: Context) : DocumentSumm
         }
         val response = generationClient.generateContent(request)
         response.candidates.firstOrNull()?.text?.trim()?.ifBlank { null }
+    }
+
+    /** Returns the English display name of the configured AI language, falling back to the device default. */
+    private fun resolveLanguageName(): String {
+        val tag = appPreferences.getAiLanguage() ?: Locale.getDefault().toLanguageTag()
+        return Locale.forLanguageTag(tag).getDisplayLanguage(Locale.ENGLISH)
+            .replaceFirstChar { it.titlecase(Locale.ENGLISH) }
     }
 
     companion object {

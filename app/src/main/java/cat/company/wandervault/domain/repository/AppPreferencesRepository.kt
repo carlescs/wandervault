@@ -15,4 +15,16 @@ interface AppPreferencesRepository {
      * default.
      */
     fun setDefaultTimezone(zoneId: String?)
+
+    /**
+     * Returns the BCP-47 language tag chosen by the user for AI-generated content, or `null` if
+     * the user has not set a preference (meaning the device language should be used).
+     */
+    fun getAiLanguage(): String?
+
+    /**
+     * Persists [languageTag] as the preferred language for AI-generated content.
+     * Pass `null` to revert to the device default language.
+     */
+    fun setAiLanguage(languageTag: String?)
 }
