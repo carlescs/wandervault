@@ -14,13 +14,19 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenu
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -33,6 +39,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -45,12 +52,30 @@ import cat.company.wandervault.R
 import cat.company.wandervault.ui.theme.WanderVaultTheme
 import org.koin.androidx.compose.koinViewModel
 import java.time.ZoneId
+import java.util.Locale
+
+/** BCP-47 language tags available for AI-generated content. */
+internal val AI_LANGUAGE_TAGS = listOf(
+    "ar",
+    "de",
+    "en",
+    "es",
+    "fr",
+    "it",
+    "ja",
+    "ko",
+    "nl",
+    "pt",
+    "ru",
+    "zh",
+)
 
 /**
  * Settings screen.
  *
  * Displays app-wide settings grouped into sections. Exposes:
  * - An app-wide default timezone selector under the "General" section.
+ * - An AI language selector under the "AI" section.
  * - A "Data Administration" entry that opens the backup/restore flow.
  *
  * @param onNavigateUp Called when the user taps the back button.
@@ -71,6 +96,7 @@ fun SettingsScreen(
         onNavigateUp = onNavigateUp,
         onNavigateToDataAdmin = onNavigateToDataAdmin,
         onDefaultTimezoneChange = viewModel::onDefaultTimezoneChange,
+        onAiLanguageChange = viewModel::onAiLanguageChange,
         modifier = modifier,
     )
 }
@@ -82,6 +108,7 @@ internal fun SettingsContent(
     onNavigateUp: () -> Unit,
     onNavigateToDataAdmin: () -> Unit,
     onDefaultTimezoneChange: (String?) -> Unit = {},
+    onAiLanguageChange: (String?) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Scaffold(
@@ -116,6 +143,20 @@ internal fun SettingsContent(
             AppTimezoneRow(
                 currentTimezone = uiState.defaultTimezone,
                 onTimezoneChange = onDefaultTimezoneChange,
+            )
+            HorizontalDivider()
+
+            // ── AI section ─────────────────────────────────────────────────
+            Text(
+                text = stringResource(R.string.settings_section_ai),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            )
+            HorizontalDivider()
+            AiLanguageRow(
+                currentLanguageTag = uiState.aiLanguage,
+                onLanguageChange = onAiLanguageChange,
             )
             HorizontalDivider()
 
@@ -227,12 +268,100 @@ private fun AppTimezoneRow(
     }
 }
 
+/**
+ * A settings row that lets the user pick the preferred language for AI-generated content
+ * using a combo box.
+ *
+ * The device's current default language is always shown as the "no preference" option.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AiLanguageRow(
+    currentLanguageTag: String?,
+    onLanguageChange: (String?) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val deviceLocale = LocalConfiguration.current.locales.get(0) ?: Locale.getDefault()
+    val deviceDefaultLanguage = deviceLocale.getDisplayLanguage(deviceLocale)
+        .replaceFirstChar { it.titlecase(deviceLocale) }
+    val deviceDefaultLabel = stringResource(
+        R.string.settings_ai_language_device_default,
+        deviceDefaultLanguage,
+    )
+    val displayValue = if (currentLanguageTag != null) {
+        Locale.forLanguageTag(currentLanguageTag).getDisplayLanguage(deviceLocale)
+            .replaceFirstChar { it.titlecase(deviceLocale) }
+    } else {
+        deviceDefaultLabel
+    }
+
+    var expanded by rememberSaveable { mutableStateOf(false) }
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            Icons.Default.AutoAwesome,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(24.dp),
+        )
+        Spacer(modifier = Modifier.width(16.dp))
+        ExposedDropdownMenuBox(
+            expanded = expanded,
+            onExpandedChange = { expanded = it },
+            modifier = Modifier.weight(1f),
+        ) {
+            OutlinedTextField(
+                value = displayValue,
+                onValueChange = {},
+                readOnly = true,
+                label = { Text(stringResource(R.string.settings_ai_language_label)) },
+                trailingIcon = {
+                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .menuAnchor(MenuAnchorType.PrimaryNotEditable),
+                singleLine = true,
+            )
+            ExposedDropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false },
+            ) {
+                DropdownMenuItem(
+                    text = { Text(deviceDefaultLabel) },
+                    onClick = {
+                        onLanguageChange(null)
+                        expanded = false
+                    },
+                )
+                AI_LANGUAGE_TAGS.forEach { tag ->
+                    val label = Locale.forLanguageTag(tag)
+                        .getDisplayLanguage(deviceLocale)
+                        .replaceFirstChar { it.titlecase(deviceLocale) }
+                    DropdownMenuItem(
+                        text = { Text(label) },
+                        onClick = {
+                            onLanguageChange(tag)
+                            expanded = false
+                        },
+                    )
+                }
+            }
+        }
+    }
+}
+
 @Preview(showBackground = true)
 @Composable
 private fun SettingsScreenPreview() {
     WanderVaultTheme {
         SettingsContent(
-            uiState = SettingsUiState(defaultTimezone = "Europe/London"),
+            uiState = SettingsUiState(defaultTimezone = "Europe/London", aiLanguage = "en"),
             onNavigateUp = {},
             onNavigateToDataAdmin = {},
         )
