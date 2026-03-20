@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenu
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -281,9 +282,11 @@ private fun AiLanguageRow(
     modifier: Modifier = Modifier,
 ) {
     val deviceLocale = LocalConfiguration.current.locales.get(0) ?: Locale.getDefault()
+    val deviceDefaultLanguage = deviceLocale.getDisplayLanguage(deviceLocale)
+        .replaceFirstChar { it.titlecase(deviceLocale) }
     val deviceDefaultLabel = stringResource(
         R.string.settings_ai_language_device_default,
-        deviceLocale.getDisplayLanguage(deviceLocale),
+        deviceDefaultLanguage,
     )
     val displayValue = if (currentLanguageTag != null) {
         Locale.forLanguageTag(currentLanguageTag).getDisplayLanguage(deviceLocale)

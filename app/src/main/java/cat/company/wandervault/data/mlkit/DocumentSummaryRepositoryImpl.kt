@@ -25,7 +25,6 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.InputStream
-import java.util.Locale
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
@@ -259,13 +258,12 @@ class DocumentSummaryRepositoryImpl(
             FeatureStatus.AVAILABLE -> Unit
         }
         val text = readDocumentText(fileUri, mimeType) ?: return@withContext null
-        val languageName = resolveLanguageName()
         val prompt = buildString {
             appendLine(
                 "Read the following travel document and suggest a concise filename for it " +
                     "(2 to 5 words, no file extension, use spaces between words). " +
                     "Return only the filename, nothing else. " +
-                    "Respond in $languageName.",
+                    "Respond in ${appPreferences.resolvedAiLanguageName()}.",
             )
             appendLine()
             appendLine("Document text:")
@@ -280,10 +278,9 @@ class DocumentSummaryRepositoryImpl(
     }
 
     private fun buildPrompt(documentText: String, tripYear: Int?): String = buildString {
-        val languageName = resolveLanguageName()
         appendLine(
             "Analyze the following travel document and respond with exactly two sections " +
-                "separated by the marker \"---\". Respond in $languageName.",
+                "separated by the marker \"---\". Respond in ${appPreferences.resolvedAiLanguageName()}.",
         )
         appendLine(
             "Section 1: A brief summary (2–3 sentences) of what this document contains.",
@@ -331,11 +328,10 @@ class DocumentSummaryRepositoryImpl(
             FeatureStatus.AVAILABLE -> Unit
         }
         val text = readDocumentText(fileUri, mimeType) ?: return@withContext null
-        val languageName = resolveLanguageName()
         val prompt = buildString {
             appendLine("Answer the following question about the travel document below.")
             appendLine("Question: $question")
-            appendLine("Respond in $languageName.")
+            appendLine("Respond in ${appPreferences.resolvedAiLanguageName()}.")
             appendLine()
             appendLine("Document text:")
             append(text)
@@ -345,13 +341,6 @@ class DocumentSummaryRepositoryImpl(
         }
         val response = generationClient.generateContent(request)
         response.candidates.firstOrNull()?.text?.trim()?.ifBlank { null }
-    }
-
-    /** Returns the English display name of the configured AI language, falling back to the device default. */
-    private fun resolveLanguageName(): String {
-        val tag = appPreferences.getAiLanguage() ?: Locale.getDefault().toLanguageTag()
-        return Locale.forLanguageTag(tag).getDisplayLanguage(Locale.ENGLISH)
-            .replaceFirstChar { it.titlecase(Locale.ENGLISH) }
     }
 
     companion object {

@@ -65,13 +65,11 @@ class TripDescriptionRepositoryImpl(
     private fun buildPrompt(trip: Trip, destinations: List<Destination>): String {
         val dateFormatter = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
         val dateTimeFormatter = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT)
-        val languageName = resolveLanguageName()
-
         return buildString {
             appendLine(
                 "Write a short, engaging 2–3 sentence description for the following trip. " +
                     "Focus on the places visited and the overall experience. " +
-                    "Respond in $languageName.",
+                    "Respond in ${appPreferences.resolvedAiLanguageName()}.",
             )
             appendLine()
             appendLine("Trip name: ${trip.title}")
@@ -102,13 +100,6 @@ class TripDescriptionRepositoryImpl(
                 }
             }
         }
-    }
-
-    /** Returns the English display name of the configured AI language, falling back to the device default. */
-    private fun resolveLanguageName(): String {
-        val tag = appPreferences.getAiLanguage() ?: Locale.getDefault().toLanguageTag()
-        return Locale.forLanguageTag(tag).getDisplayLanguage(Locale.ENGLISH)
-            .replaceFirstChar { it.titlecase(Locale.ENGLISH) }
     }
 
     companion object {
