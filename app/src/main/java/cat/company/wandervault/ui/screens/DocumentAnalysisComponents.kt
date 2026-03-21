@@ -16,7 +16,6 @@ import androidx.compose.material.icons.filled.AirplanemodeActive
 import androidx.compose.material.icons.filled.Hotel
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -36,7 +35,6 @@ import cat.company.wandervault.domain.model.Destination
 import cat.company.wandervault.domain.model.FlightInfo
 import cat.company.wandervault.domain.model.HotelInfo
 import cat.company.wandervault.domain.model.TransportLeg
-import cat.company.wandervault.ui.util.formatBytes
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
@@ -118,34 +116,6 @@ internal fun AnalyzeDocumentDialog(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 when (analyzeState) {
-                    is AnalyzeDocumentUiState.Loading -> {
-                        CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
-                        Text(
-                            text = stringResource(R.string.documents_analyze_analyzing),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-
-                    is AnalyzeDocumentUiState.Downloading -> {
-                        CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
-                        Text(
-                            text = stringResource(R.string.documents_analyze_downloading),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        if (analyzeState.bytesDownloaded > 0) {
-                            Text(
-                                text = stringResource(
-                                    R.string.documents_analyze_downloaded_bytes,
-                                    formatBytes(analyzeState.bytesDownloaded),
-                                ),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-
                     is AnalyzeDocumentUiState.Unavailable -> {
                         Text(
                             text = stringResource(R.string.documents_analyze_unavailable),

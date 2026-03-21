@@ -1001,14 +1001,15 @@ private fun DocumentInfoAnalyzingPreview() {
         summary = null,
     )
     WanderVaultTheme {
-        DocumentInfoContent(
+        DocumentInfoSheetContent(
             uiState = DocumentInfoUiState.Success(
                 document = document,
                 fileSizeBytes = 245_760L,
                 folderName = "Flight Documents",
                 analyzeState = AnalyzeDocumentUiState.Loading,
             ),
-            onNavigateUp = {},
+            onAnalyzeDocument = {},
+            onDeleteAiDescription = {},
         )
     }
 }
@@ -1025,14 +1026,15 @@ private fun DocumentInfoDownloadingPreview() {
         summary = null,
     )
     WanderVaultTheme {
-        DocumentInfoContent(
+        DocumentInfoSheetContent(
             uiState = DocumentInfoUiState.Success(
                 document = document,
                 fileSizeBytes = 245_760L,
                 folderName = "Flight Documents",
                 analyzeState = AnalyzeDocumentUiState.Downloading(bytesDownloaded = 12_345_678L),
             ),
-            onNavigateUp = {},
+            onAnalyzeDocument = {},
+            onDeleteAiDescription = {},
         )
     }
 }
