@@ -16,7 +16,6 @@ import androidx.compose.material.icons.filled.AirplanemodeActive
 import androidx.compose.material.icons.filled.Hotel
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -36,22 +35,23 @@ import cat.company.wandervault.domain.model.Destination
 import cat.company.wandervault.domain.model.FlightInfo
 import cat.company.wandervault.domain.model.HotelInfo
 import cat.company.wandervault.domain.model.TransportLeg
-import cat.company.wandervault.ui.util.formatBytes
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
 /**
- * A single unified dialog that covers the entire document-analysis flow. Keeping one [AlertDialog]
- * composable alive for the lifetime of the analysis (rather than swapping between separate
- * composables per state) prevents a subtle Android bug: removing a Compose [AlertDialog] from the
- * composition calls [android.app.Dialog.dismiss] on the underlying window, which asynchronously
- * fires the [android.content.DialogInterface.OnDismissListener] and therefore also invokes
- * [onDismissRequest]. If a separate dialog were used for each state, transitions between
- * confirmation states would silently invoke [onDismiss], clearing the current
+ * A single unified dialog that covers the interactive steps of the document-analysis flow.
+ * Keeping one [AlertDialog] composable alive for the lifetime of the interactive analysis (rather
+ * than swapping between separate composables per state) prevents a subtle Android bug: removing a
+ * Compose [AlertDialog] from the composition calls [android.app.Dialog.dismiss] on the underlying
+ * window, which asynchronously fires the [android.content.DialogInterface.OnDismissListener] and
+ * therefore also invokes [onDismissRequest]. If a separate dialog were used for each state,
+ * transitions between confirmation states would silently invoke [onDismiss], clearing the current
  * [AnalyzeDocumentUiState] and preventing the confirmation dialog from being displayed.
  *
+ * [AnalyzeDocumentUiState.Loading] and [AnalyzeDocumentUiState.Downloading] are NOT handled here;
+ * they are shown inline in the screen instead. This dialog is only shown for interactive states.
+ *
  * The dialog title, body, confirm button and dismiss button all adapt to [analyzeState]:
- * - [AnalyzeDocumentUiState.Loading] / [AnalyzeDocumentUiState.Downloading]: progress indicator.
  * - [AnalyzeDocumentUiState.Unavailable] / [AnalyzeDocumentUiState.Error]: status message.
  * - [AnalyzeDocumentUiState.FlightConfirm] / [AnalyzeDocumentUiState.HotelConfirm]: extracted
  *   info alongside the matched leg / destination; "Confirm" button applies the changes.
@@ -65,8 +65,7 @@ import java.time.format.FormatStyle
  *   [AnalyzeDocumentUiState.FlightAddLegConfirm].
  *
  * @param onDismiss Called to cancel and close the entire dialog (back button, outside tap, or
- *   "Cancel" during [AnalyzeDocumentUiState.Loading], [AnalyzeDocumentUiState.Downloading],
- *   [AnalyzeDocumentUiState.Error], or [AnalyzeDocumentUiState.Unavailable]).
+ *   "Cancel" during [AnalyzeDocumentUiState.Error] or [AnalyzeDocumentUiState.Unavailable]).
  * @param onSkipItem Called when the user taps "Skip" or "Cancel" during a per-item step
  *   ([AnalyzeDocumentUiState.FlightLegSelection], [AnalyzeDocumentUiState.FlightTransportSelection],
  *   [AnalyzeDocumentUiState.HotelDestinationSelection], [AnalyzeDocumentUiState.FlightConfirm],
@@ -117,34 +116,6 @@ internal fun AnalyzeDocumentDialog(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 when (analyzeState) {
-                    is AnalyzeDocumentUiState.Loading -> {
-                        CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
-                        Text(
-                            text = stringResource(R.string.documents_analyze_analyzing),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-
-                    is AnalyzeDocumentUiState.Downloading -> {
-                        CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
-                        Text(
-                            text = stringResource(R.string.documents_analyze_downloading),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        if (analyzeState.bytesDownloaded > 0) {
-                            Text(
-                                text = stringResource(
-                                    R.string.documents_analyze_downloaded_bytes,
-                                    formatBytes(analyzeState.bytesDownloaded),
-                                ),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-
                     is AnalyzeDocumentUiState.Unavailable -> {
                         Text(
                             text = stringResource(R.string.documents_analyze_unavailable),

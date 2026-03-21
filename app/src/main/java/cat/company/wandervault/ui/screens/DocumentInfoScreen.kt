@@ -52,6 +52,7 @@ import androidx.compose.material3.SheetValue
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberBottomSheetScaffoldState
 import androidx.compose.material3.rememberStandardBottomSheetState
@@ -85,6 +86,7 @@ import cat.company.wandervault.domain.model.Destination
 import cat.company.wandervault.domain.model.TransportLeg
 import cat.company.wandervault.domain.model.TripDocument
 import cat.company.wandervault.ui.theme.WanderVaultTheme
+import cat.company.wandervault.ui.util.formatBytes
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import kotlinx.coroutines.Dispatchers
@@ -236,16 +238,18 @@ internal fun DocumentInfoContent(
                     innerPadding = innerPadding,
                     onAnalyzeDocument = onAnalyzeDocument,
                     onDeleteAiDescription = onDeleteAiDescription,
+                    onAnalyzeDismiss = onAnalyzeDismiss,
                 )
             }
         }
     }
 
-    // Show the unified analysis dialog whenever an analysis is active. A single AlertDialog
-    // composable is used for all states so that the same dialog window persists throughout the
-    // entire analysis flow, avoiding spurious onDismissRequest calls on state transitions.
+    // Show the unified analysis dialog for interactive states only. Loading and Downloading states
+    // are rendered inline in the sheet instead. A single AlertDialog composable is used for all
+    // interactive states so that the same dialog window persists throughout the flow, avoiding
+    // spurious onDismissRequest calls on state transitions between interactive steps.
     val analyzeState = (uiState as? DocumentInfoUiState.Success)?.analyzeState
-    if (analyzeState != null) {
+    if (analyzeState != null && !analyzeState.isInProgress) {
         AnalyzeDocumentDialog(
             analyzeState = analyzeState,
             onFlightLegSelected = onAnalyzeFlightLegSelected,
@@ -268,6 +272,7 @@ private fun DocumentInfoSuccessContent(
     innerPadding: PaddingValues,
     onAnalyzeDocument: () -> Unit,
     onDeleteAiDescription: () -> Unit,
+    onAnalyzeDismiss: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val scaffoldState = rememberBottomSheetScaffoldState(
@@ -292,6 +297,7 @@ private fun DocumentInfoSuccessContent(
                     uiState = uiState,
                     onAnalyzeDocument = onAnalyzeDocument,
                     onDeleteAiDescription = onDeleteAiDescription,
+                    onAnalyzeDismiss = onAnalyzeDismiss,
                 )
             },
             sheetDragHandle = {
@@ -343,6 +349,7 @@ private fun DocumentInfoSheetContent(
     uiState: DocumentInfoUiState.Success,
     onAnalyzeDocument: () -> Unit,
     onDeleteAiDescription: () -> Unit,
+    onAnalyzeDismiss: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -395,7 +402,43 @@ private fun DocumentInfoSheetContent(
         )
         Spacer(modifier = Modifier.height(4.dp))
         val summary = uiState.document.summary
-        if (summary.isNullOrBlank()) {
+        val analyzeState = uiState.analyzeState
+        val isAnalysisInProgress = analyzeState?.isInProgress == true
+        if (isAnalysisInProgress) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = if (analyzeState is AnalyzeDocumentUiState.Loading) {
+                            stringResource(R.string.documents_analyze_analyzing)
+                        } else {
+                            stringResource(R.string.documents_analyze_downloading)
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    if (analyzeState is AnalyzeDocumentUiState.Downloading &&
+                        analyzeState.bytesDownloaded > 0
+                    ) {
+                        Text(
+                            text = stringResource(
+                                R.string.documents_analyze_downloaded_bytes,
+                                formatBytes(analyzeState.bytesDownloaded),
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            TextButton(onClick = onAnalyzeDismiss) {
+                Text(stringResource(R.string.dialog_cancel))
+            }
+        } else if (summary.isNullOrBlank()) {
             Text(
                 text = stringResource(R.string.document_info_no_ai_description),
                 style = MaterialTheme.typography.bodyMedium,
@@ -416,7 +459,7 @@ private fun DocumentInfoSheetContent(
             )
         }
 
-        val showGenerateButton = uiState.isAiAvailable && summary.isNullOrBlank()
+        val showGenerateButton = uiState.isAiAvailable && summary.isNullOrBlank() && !isAnalysisInProgress
         val showDeleteButton = !summary.isNullOrBlank()
 
         if (showGenerateButton || showDeleteButton) {
@@ -942,6 +985,56 @@ private fun DocumentInfoTextFilePreview() {
                 folderName = "Travel Plans",
             ),
             onNavigateUp = {},
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun DocumentInfoAnalyzingPreview() {
+    val document = TripDocument(
+        id = 4,
+        tripId = 1,
+        name = "boarding_pass.pdf",
+        uri = "",
+        mimeType = "application/pdf",
+        summary = null,
+    )
+    WanderVaultTheme {
+        DocumentInfoSheetContent(
+            uiState = DocumentInfoUiState.Success(
+                document = document,
+                fileSizeBytes = 245_760L,
+                folderName = "Flight Documents",
+                analyzeState = AnalyzeDocumentUiState.Loading,
+            ),
+            onAnalyzeDocument = {},
+            onDeleteAiDescription = {},
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun DocumentInfoDownloadingPreview() {
+    val document = TripDocument(
+        id = 5,
+        tripId = 1,
+        name = "boarding_pass.pdf",
+        uri = "",
+        mimeType = "application/pdf",
+        summary = null,
+    )
+    WanderVaultTheme {
+        DocumentInfoSheetContent(
+            uiState = DocumentInfoUiState.Success(
+                document = document,
+                fileSizeBytes = 245_760L,
+                folderName = "Flight Documents",
+                analyzeState = AnalyzeDocumentUiState.Downloading(bytesDownloaded = 12_345_678L),
+            ),
+            onAnalyzeDocument = {},
+            onDeleteAiDescription = {},
         )
     }
 }

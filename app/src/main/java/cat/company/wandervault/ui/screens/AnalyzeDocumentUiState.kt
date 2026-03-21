@@ -117,3 +117,10 @@ sealed class AnalyzeDocumentUiState {
      */
     data class TripInfoConfirm(val relevantTripInfo: String) : AnalyzeDocumentUiState()
 }
+
+/**
+ * Returns `true` when the analysis is in a progress-only state ([AnalyzeDocumentUiState.Loading]
+ * or [AnalyzeDocumentUiState.Downloading]) that is shown inline rather than in a dialog.
+ */
+val AnalyzeDocumentUiState.isInProgress: Boolean
+    get() = this is AnalyzeDocumentUiState.Loading || this is AnalyzeDocumentUiState.Downloading
