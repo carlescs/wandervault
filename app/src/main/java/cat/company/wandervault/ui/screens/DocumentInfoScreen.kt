@@ -8,6 +8,7 @@ import android.graphics.pdf.PdfRenderer
 import android.net.Uri
 import android.os.ParcelFileDescriptor
 import android.util.Log
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.rememberTransformableState
@@ -27,6 +28,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.FindInPage
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -37,12 +39,14 @@ import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.QuestionAnswer
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.BottomSheetScaffold
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.FilledTonalIconButton
@@ -120,8 +124,8 @@ fun DocumentInfoScreen(
         onNavigateUp = onNavigateUp,
         onOpenDocument = { document -> openTripDocument(context, document) },
         onAnalyzeDocument = viewModel::analyzeDocument,
+        onDeleteAiDescription = viewModel::deleteAiDescription,
         onNavigateToChat = onNavigateToChat,
-        onAnalyzeApplyChanges = viewModel::applyAnalysisChanges,
         onAnalyzeFlightLegSelected = viewModel::onFlightLegSelected,
         onAnalyzeFlightConfirmed = viewModel::onFlightConfirmed,
         onAnalyzeFlightTransportSelected = viewModel::onFlightTransportSelected,
@@ -145,8 +149,8 @@ internal fun DocumentInfoContent(
     onNavigateUp: () -> Unit,
     onOpenDocument: (TripDocument) -> Unit = {},
     onAnalyzeDocument: () -> Unit = {},
+    onDeleteAiDescription: () -> Unit = {},
     onNavigateToChat: () -> Unit = {},
-    onAnalyzeApplyChanges: () -> Unit = {},
     onAnalyzeFlightLegSelected: (TransportLeg) -> Unit = {},
     onAnalyzeFlightConfirmed: () -> Unit = {},
     onAnalyzeFlightTransportSelected: (Destination) -> Unit = {},
@@ -191,12 +195,6 @@ internal fun DocumentInfoContent(
                                     contentDescription = stringResource(R.string.document_info_ask_action),
                                 )
                             }
-                            IconButton(onClick = onAnalyzeDocument) {
-                                Icon(
-                                    imageVector = Icons.Default.FindInPage,
-                                    contentDescription = stringResource(R.string.documents_analyze_action),
-                                )
-                            }
                         }
                         IconButton(onClick = { onOpenDocument(uiState.document) }) {
                             Icon(
@@ -236,6 +234,8 @@ internal fun DocumentInfoContent(
                 DocumentInfoSuccessContent(
                     uiState = uiState,
                     innerPadding = innerPadding,
+                    onAnalyzeDocument = onAnalyzeDocument,
+                    onDeleteAiDescription = onDeleteAiDescription,
                 )
             }
         }
@@ -248,7 +248,6 @@ internal fun DocumentInfoContent(
     if (analyzeState != null) {
         AnalyzeDocumentDialog(
             analyzeState = analyzeState,
-            onApplyChanges = onAnalyzeApplyChanges,
             onFlightLegSelected = onAnalyzeFlightLegSelected,
             onFlightConfirmed = onAnalyzeFlightConfirmed,
             onFlightTransportSelected = onAnalyzeFlightTransportSelected,
@@ -267,6 +266,8 @@ internal fun DocumentInfoContent(
 private fun DocumentInfoSuccessContent(
     uiState: DocumentInfoUiState.Success,
     innerPadding: PaddingValues,
+    onAnalyzeDocument: () -> Unit,
+    onDeleteAiDescription: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val scaffoldState = rememberBottomSheetScaffoldState(
@@ -287,7 +288,11 @@ private fun DocumentInfoSuccessContent(
         BottomSheetScaffold(
             scaffoldState = scaffoldState,
             sheetContent = {
-                DocumentInfoSheetContent(uiState = uiState)
+                DocumentInfoSheetContent(
+                    uiState = uiState,
+                    onAnalyzeDocument = onAnalyzeDocument,
+                    onDeleteAiDescription = onDeleteAiDescription,
+                )
             },
             sheetDragHandle = {
                 Row(
@@ -336,6 +341,8 @@ private fun DocumentInfoSuccessContent(
 @Composable
 private fun DocumentInfoSheetContent(
     uiState: DocumentInfoUiState.Success,
+    onAnalyzeDocument: () -> Unit,
+    onDeleteAiDescription: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -395,11 +402,56 @@ private fun DocumentInfoSheetContent(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontStyle = FontStyle.Italic,
             )
+            if (!uiState.isAiAvailable) {
+                Text(
+                    text = stringResource(R.string.document_info_ai_unavailable),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         } else {
             Text(
                 text = summary,
                 style = MaterialTheme.typography.bodyMedium,
             )
+        }
+
+        val showGenerateButton = uiState.isAiAvailable && summary.isNullOrBlank()
+        val showDeleteButton = !summary.isNullOrBlank()
+
+        if (showGenerateButton || showDeleteButton) {
+            Spacer(modifier = Modifier.height(8.dp))
+
+            if (showGenerateButton) {
+                OutlinedButton(
+                    onClick = onAnalyzeDocument,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.FindInPage,
+                        contentDescription = null,
+                        modifier = Modifier.padding(end = 8.dp),
+                    )
+                    Text(stringResource(R.string.document_info_generate_ai_description))
+                }
+            }
+            if (showDeleteButton) {
+                OutlinedButton(
+                    onClick = onDeleteAiDescription,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error,
+                    ),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.error),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = null,
+                        modifier = Modifier.padding(end = 8.dp),
+                    )
+                    Text(stringResource(R.string.document_info_delete_ai_description))
+                }
+            }
         }
 
         Spacer(modifier = Modifier.height(16.dp))

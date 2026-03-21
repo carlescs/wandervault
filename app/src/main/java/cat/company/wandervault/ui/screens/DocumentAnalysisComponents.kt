@@ -4,9 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -35,7 +33,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import cat.company.wandervault.R
 import cat.company.wandervault.domain.model.Destination
-import cat.company.wandervault.domain.model.DocumentExtractionResult
 import cat.company.wandervault.domain.model.FlightInfo
 import cat.company.wandervault.domain.model.HotelInfo
 import cat.company.wandervault.domain.model.TransportLeg
@@ -49,14 +46,12 @@ import java.time.format.FormatStyle
  * composables per state) prevents a subtle Android bug: removing a Compose [AlertDialog] from the
  * composition calls [android.app.Dialog.dismiss] on the underlying window, which asynchronously
  * fires the [android.content.DialogInterface.OnDismissListener] and therefore also invokes
- * [onDismissRequest]. If a separate dialog were used for each state the transition
- * Result → FlightConfirm / HotelConfirm / TripInfoConfirm would silently invoke [onDismiss],
- * clearing the current [AnalyzeDocumentUiState] and preventing the confirmation dialog from being
- * displayed.
+ * [onDismissRequest]. If a separate dialog were used for each state, transitions between
+ * confirmation states would silently invoke [onDismiss], clearing the current
+ * [AnalyzeDocumentUiState] and preventing the confirmation dialog from being displayed.
  *
  * The dialog title, body, confirm button and dismiss button all adapt to [analyzeState]:
  * - [AnalyzeDocumentUiState.Loading] / [AnalyzeDocumentUiState.Downloading]: progress indicator.
- * - [AnalyzeDocumentUiState.Result]: summary + optional "Apply Changes" button.
  * - [AnalyzeDocumentUiState.Unavailable] / [AnalyzeDocumentUiState.Error]: status message.
  * - [AnalyzeDocumentUiState.FlightConfirm] / [AnalyzeDocumentUiState.HotelConfirm]: extracted
  *   info alongside the matched leg / destination; "Confirm" button applies the changes.
@@ -70,7 +65,8 @@ import java.time.format.FormatStyle
  *   [AnalyzeDocumentUiState.FlightAddLegConfirm].
  *
  * @param onDismiss Called to cancel and close the entire dialog (back button, outside tap, or
- *   "Cancel" from the initial [AnalyzeDocumentUiState.Result] state).
+ *   "Cancel" during [AnalyzeDocumentUiState.Loading], [AnalyzeDocumentUiState.Downloading],
+ *   [AnalyzeDocumentUiState.Error], or [AnalyzeDocumentUiState.Unavailable]).
  * @param onSkipItem Called when the user taps "Skip" or "Cancel" during a per-item step
  *   ([AnalyzeDocumentUiState.FlightLegSelection], [AnalyzeDocumentUiState.FlightTransportSelection],
  *   [AnalyzeDocumentUiState.HotelDestinationSelection], [AnalyzeDocumentUiState.FlightConfirm],
@@ -80,7 +76,6 @@ import java.time.format.FormatStyle
 @Composable
 internal fun AnalyzeDocumentDialog(
     analyzeState: AnalyzeDocumentUiState,
-    onApplyChanges: () -> Unit,
     onFlightLegSelected: (TransportLeg) -> Unit,
     onFlightConfirmed: () -> Unit,
     onFlightTransportSelected: (Destination) -> Unit,
@@ -173,64 +168,6 @@ internal fun AnalyzeDocumentDialog(
                                     text = errorDetail,
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.error,
-                                )
-                            }
-                        }
-                    }
-
-                    is AnalyzeDocumentUiState.Result -> {
-                        val extraction = analyzeState.extractionResult
-                        // Summary section
-                        Text(
-                            text = stringResource(R.string.documents_analyze_summary_label),
-                            style = MaterialTheme.typography.labelLarge,
-                        )
-                        Text(
-                            text = extraction.summary.ifBlank {
-                                stringResource(R.string.documents_analyze_no_summary)
-                            },
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                        // Proposed changes section
-                        val hasChanges = extraction.hasProposedChanges()
-                        if (hasChanges) {
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = stringResource(R.string.documents_analyze_proposed_changes_label),
-                                style = MaterialTheme.typography.labelLarge,
-                            )
-                            extraction.flightInfoList.forEach { flight ->
-                                AnalyzeInfoSection(
-                                    label = stringResource(R.string.documents_analyze_flight_info_label),
-                                    info = buildFlightInfoText(
-                                        flight = flight,
-                                        formattedFrom = flight.departurePlace?.let {
-                                            stringResource(R.string.documents_analyze_from, it)
-                                        },
-                                        formattedTo = flight.arrivalPlace?.let {
-                                            stringResource(R.string.documents_analyze_to, it)
-                                        },
-                                        formattedRef = flight.bookingReference?.let {
-                                            stringResource(R.string.documents_analyze_ref, it)
-                                        },
-                                    ),
-                                )
-                            }
-                            extraction.hotelInfoList.forEach { hotel ->
-                                AnalyzeInfoSection(
-                                    label = stringResource(R.string.documents_analyze_hotel_info_label),
-                                    info = buildHotelInfoText(
-                                        hotel = hotel,
-                                        formattedRef = hotel.bookingReference?.let {
-                                            stringResource(R.string.documents_analyze_ref, it)
-                                        },
-                                    ),
-                                )
-                            }
-                            extraction.relevantTripInfo?.let { tripInfo ->
-                                AnalyzeInfoSection(
-                                    label = stringResource(R.string.documents_analyze_trip_info_label),
-                                    info = tripInfo,
                                 )
                             }
                         }
@@ -474,12 +411,6 @@ internal fun AnalyzeDocumentDialog(
         },
         confirmButton = {
             when {
-                analyzeState is AnalyzeDocumentUiState.Result &&
-                    analyzeState.extractionResult.hasProposedChanges() -> {
-                    TextButton(onClick = onApplyChanges) {
-                        Text(stringResource(R.string.documents_analyze_apply_changes))
-                    }
-                }
                 analyzeState is AnalyzeDocumentUiState.FlightConfirm -> {
                     TextButton(onClick = onFlightConfirmed) {
                         Text(stringResource(R.string.documents_analyze_confirm_apply))
@@ -588,20 +519,6 @@ internal fun AnalyzeHotelInfoSummary(hotelInfo: HotelInfo, modifier: Modifier = 
     }
 }
 
-@Composable
-internal fun AnalyzeInfoSection(label: String, info: String) {
-    Text(
-        text = label,
-        style = MaterialTheme.typography.labelMedium,
-        color = MaterialTheme.colorScheme.primary,
-    )
-    Text(
-        text = info,
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-}
-
 /**
  * A single destination row rendered inside a selection or confirmation dialog.
  *
@@ -659,28 +576,3 @@ internal fun DestinationListItem(
         }
     }
 }
-
-internal fun buildFlightInfoText(
-    flight: FlightInfo,
-    formattedFrom: String?,
-    formattedTo: String?,
-    formattedRef: String?,
-): String =
-    listOfNotNull(
-        flight.airline,
-        flight.flightNumber,
-        formattedFrom,
-        formattedTo,
-        formattedRef,
-    ).joinToString(" · ")
-
-internal fun buildHotelInfoText(hotel: HotelInfo, formattedRef: String?): String =
-    listOfNotNull(
-        hotel.name,
-        hotel.address,
-        formattedRef,
-    ).joinToString(" · ")
-
-internal fun DocumentExtractionResult.hasProposedChanges(): Boolean =
-    flightInfoList.isNotEmpty() || hotelInfoList.isNotEmpty() || relevantTripInfo != null
-

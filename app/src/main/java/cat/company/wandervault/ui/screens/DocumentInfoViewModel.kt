@@ -100,14 +100,14 @@ class DocumentInfoViewModel(
 
     /**
      * Queue of flight infos extracted from the current document that have not yet been processed.
-     * Populated by [applyAnalysisChanges] and consumed one item at a time by
+     * Populated by [analyzeDocument] and consumed one item at a time by
      * [processNextExtractedInfo].
      */
     private val remainingFlightInfos = ArrayDeque<FlightInfo>()
 
     /**
      * Queue of hotel infos extracted from the current document that have not yet been processed.
-     * Populated by [applyAnalysisChanges] and consumed one item at a time by
+     * Populated by [analyzeDocument] and consumed one item at a time by
      * [processNextExtractedInfo].
      */
     private val remainingHotelInfos = ArrayDeque<HotelInfo>()
@@ -191,17 +191,17 @@ class DocumentInfoViewModel(
      * Sets [AnalyzeDocumentUiState.Loading] immediately while the document is being read.
      * If the Gemini Nano model needs to be downloaded first, transitions to
      * [AnalyzeDocumentUiState.Downloading] with live byte-count updates.
-     * On success sets [AnalyzeDocumentUiState.Result] with the extraction result.
+     * On success persists the summary to the DB (the bottom sheet already shows it) and
+     * directly begins processing proposed trip changes without showing an intermediate result
+     * dialog.
      * On permanent unavailability sets [AnalyzeDocumentUiState.Unavailable].
      * On transient failure sets [AnalyzeDocumentUiState.Error].
      *
-     * Also updates the document's stored summary if a new one is extracted (best-effort:
-     * a DB failure persisting the summary does not affect the displayed result).
-     *
-     * No-op when the document is not yet loaded.
+     * No-op when the document is not yet loaded or already has an AI description.
      */
     fun analyzeDocument() {
         val document = (uiState.value as? DocumentInfoUiState.Success)?.document ?: return
+        if (!document.summary.isNullOrBlank()) return
         val tripId = document.tripId
         analyzeJob?.cancel()
         _analyzeState.value = AnalyzeDocumentUiState.Loading
@@ -216,8 +216,6 @@ class DocumentInfoViewModel(
                     _analyzeState.value = AnalyzeDocumentUiState.Unavailable
                     return@launch
                 }
-                // Set the result immediately so the UI shows the analysis without waiting for DB.
-                _analyzeState.value = AnalyzeDocumentUiState.Result(document, analysisResult)
                 analysisResult
             } catch (e: Exception) {
                 Log.w(TAG, "Document analysis failed for ${document.name}", e)
@@ -234,43 +232,37 @@ class DocumentInfoViewModel(
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to persist refreshed summary for ${document.name}", e)
+                _analyzeState.value = AnalyzeDocumentUiState.Error(e.message ?: e.toString())
+                return@launch
             }
+
+            // Directly process any proposed trip changes; the summary is already visible in the
+            // bottom sheet so there is no need for an intermediate result dialog.
+            pendingAnalysisTripId = tripId
+            pendingAnalysisDocumentName = document.name
+            pendingRelevantTripInfo = result.relevantTripInfo
+            remainingFlightInfos.clear()
+            remainingFlightInfos.addAll(result.flightInfoList)
+            remainingHotelInfos.clear()
+            remainingHotelInfos.addAll(result.hotelInfoList)
+            processNextExtractedInfo()
         }
     }
 
     /**
-     * Processes the trip changes proposed in the current [AnalyzeDocumentUiState.Result].
+     * Deletes the AI description (summary) of the current document.
      *
-     * Populates per-type queues from the extraction result and begins processing the first item
-     * via [processNextExtractedInfo]. Each confirmed or skipped item advances to the next until
-     * all items are handled, after which the dialog is dismissed.
-     *
-     * For each flight item: checks for a confident match first. If found, transitions to
-     * [AnalyzeDocumentUiState.FlightConfirm]. If no confident match but flight legs exist,
-     * transitions to [AnalyzeDocumentUiState.FlightLegSelection] (candidates sorted by relevance).
-     * If no flight legs at all but destinations with transports exist, transitions to
-     * [AnalyzeDocumentUiState.FlightTransportSelection] so the user can add a new leg.
-     *
-     * For each hotel item: a confident match (by booking reference or hotel name) is checked first.
-     * If found, transitions to [AnalyzeDocumentUiState.HotelConfirm]. If no confident match,
-     * transitions to [AnalyzeDocumentUiState.HotelDestinationSelection].
-     *
-     * For general trip info (only present when no flight/hotel lines were found), transitions to
-     * [AnalyzeDocumentUiState.TripInfoConfirm]. Dismisses immediately when no relevant info exists.
-     *
-     * No-op when the analyze state is not [AnalyzeDocumentUiState.Result].
+     * No-op when the document is not yet loaded.
      */
-    fun applyAnalysisChanges() {
-        val analyzeResult = _analyzeState.value as? AnalyzeDocumentUiState.Result ?: return
-        val result = analyzeResult.extractionResult
-        pendingAnalysisTripId = analyzeResult.document.tripId
-        pendingAnalysisDocumentName = analyzeResult.document.name
-        pendingRelevantTripInfo = result.relevantTripInfo
-        remainingFlightInfos.clear()
-        remainingFlightInfos.addAll(result.flightInfoList)
-        remainingHotelInfos.clear()
-        remainingHotelInfos.addAll(result.hotelInfoList)
-        processNextExtractedInfo()
+    fun deleteAiDescription() {
+        viewModelScope.launch {
+            try {
+                val latestDocument = getDocumentById(documentId).first() ?: return@launch
+                updateDocument(latestDocument.copy(summary = null))
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to delete AI description for document $documentId", e)
+            }
+        }
     }
 
     /**

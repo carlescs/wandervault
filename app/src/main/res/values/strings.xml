@@ -328,13 +328,16 @@
     <string name="document_info_size">Size</string>
     <string name="document_info_folder">Folder</string>
     <string name="document_info_folder_root">Root (no folder)</string>
-    <string name="document_info_no_ai_description">No AI description yet. Use the Analyze action to generate one.</string>
+    <string name="document_info_no_ai_description">No AI description yet.</string>
+    <string name="document_info_ai_unavailable">AI is not available on this device.</string>
     <string name="document_info_preview_content_desc">Preview of %s</string>
     <string name="document_info_hide_sheet">Hide document info</string>
     <string name="document_info_show_sheet">Show document info</string>
     <string name="document_info_pdf_prev_page">Previous page</string>
     <string name="document_info_pdf_next_page">Next page</string>
     <string name="document_info_pdf_page_indicator">Page %1$d of %2$d</string>
+    <string name="document_info_generate_ai_description">Generate AI description</string>
+    <string name="document_info_delete_ai_description">Delete AI description</string>
     <string name="documents_info_action">Info</string>
     <string name="documents_view_info_content_desc">View info: %s</string>
     <string name="document_info_ask_action">Ask a question</string>
