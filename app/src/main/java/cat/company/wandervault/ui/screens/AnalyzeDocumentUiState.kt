@@ -1,12 +1,10 @@
 package cat.company.wandervault.ui.screens
 
 import cat.company.wandervault.domain.model.Destination
-import cat.company.wandervault.domain.model.DocumentExtractionResult
 import cat.company.wandervault.domain.model.FlightInfo
 import cat.company.wandervault.domain.model.Hotel
 import cat.company.wandervault.domain.model.HotelInfo
 import cat.company.wandervault.domain.model.TransportLeg
-import cat.company.wandervault.domain.model.TripDocument
 
 /**
  * State of an in-progress or completed document analysis, shown in the document analysis dialog.
@@ -21,17 +19,6 @@ sealed class AnalyzeDocumentUiState {
      * @param bytesDownloaded Total bytes of model data downloaded so far.
      */
     data class Downloading(val bytesDownloaded: Long) : AnalyzeDocumentUiState()
-
-    /**
-     * Analysis completed successfully.
-     *
-     * @param document The document that was analyzed.
-     * @param extractionResult The full extraction result from ML Kit.
-     */
-    data class Result(
-        val document: TripDocument,
-        val extractionResult: DocumentExtractionResult,
-    ) : AnalyzeDocumentUiState()
 
     /**
      * AI analysis is not available on this device or the document content could not be read.
