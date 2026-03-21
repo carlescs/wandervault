@@ -377,6 +377,10 @@ internal fun AnalyzeDocumentDialog(
                             style = MaterialTheme.typography.bodyMedium,
                         )
                     }
+
+                    is AnalyzeDocumentUiState.Downloading,
+                    is AnalyzeDocumentUiState.Loading,
+                    -> Unit
                 }
             }
         },
