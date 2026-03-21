@@ -402,6 +402,13 @@ private fun DocumentInfoSheetContent(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontStyle = FontStyle.Italic,
             )
+            if (!uiState.isAiAvailable) {
+                Text(
+                    text = stringResource(R.string.document_info_ai_unavailable),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         } else {
             Text(
                 text = summary,
@@ -409,36 +416,41 @@ private fun DocumentInfoSheetContent(
             )
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        val showGenerateButton = uiState.isAiAvailable && summary.isNullOrBlank()
+        val showDeleteButton = !summary.isNullOrBlank()
 
-        if (uiState.isAiAvailable && summary.isNullOrBlank()) {
-            OutlinedButton(
-                onClick = onAnalyzeDocument,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Icon(
-                    imageVector = Icons.Default.FindInPage,
-                    contentDescription = null,
-                    modifier = Modifier.padding(end = 8.dp),
-                )
-                Text(stringResource(R.string.document_info_generate_ai_description))
+        if (showGenerateButton || showDeleteButton) {
+            Spacer(modifier = Modifier.height(8.dp))
+
+            if (showGenerateButton) {
+                OutlinedButton(
+                    onClick = onAnalyzeDocument,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.FindInPage,
+                        contentDescription = null,
+                        modifier = Modifier.padding(end = 8.dp),
+                    )
+                    Text(stringResource(R.string.document_info_generate_ai_description))
+                }
             }
-        }
-        if (!summary.isNullOrBlank()) {
-            OutlinedButton(
-                onClick = onDeleteAiDescription,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = MaterialTheme.colorScheme.error,
-                ),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.error),
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = null,
-                    modifier = Modifier.padding(end = 8.dp),
-                )
-                Text(stringResource(R.string.document_info_delete_ai_description))
+            if (showDeleteButton) {
+                OutlinedButton(
+                    onClick = onDeleteAiDescription,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error,
+                    ),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.error),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = null,
+                        modifier = Modifier.padding(end = 8.dp),
+                    )
+                    Text(stringResource(R.string.document_info_delete_ai_description))
+                }
             }
         }
 

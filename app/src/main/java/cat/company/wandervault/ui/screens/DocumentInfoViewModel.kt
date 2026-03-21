@@ -232,6 +232,8 @@ class DocumentInfoViewModel(
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to persist refreshed summary for ${document.name}", e)
+                _analyzeState.value = AnalyzeDocumentUiState.Error(e.message ?: e.toString())
+                return@launch
             }
 
             // Directly process any proposed trip changes; the summary is already visible in the

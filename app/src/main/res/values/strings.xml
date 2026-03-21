@@ -329,6 +329,7 @@
     <string name="document_info_folder">Folder</string>
     <string name="document_info_folder_root">Root (no folder)</string>
     <string name="document_info_no_ai_description">No AI description yet.</string>
+    <string name="document_info_ai_unavailable">AI is not available on this device.</string>
     <string name="document_info_preview_content_desc">Preview of %s</string>
     <string name="document_info_hide_sheet">Hide document info</string>
     <string name="document_info_show_sheet">Show document info</string>
