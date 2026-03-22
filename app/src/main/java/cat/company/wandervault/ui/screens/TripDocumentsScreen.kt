@@ -67,6 +67,7 @@ import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -654,6 +655,8 @@ private fun SpeedDialItem(
 /**
  * A single unified dialog for the auto-organize flow, adapting its content to [state]:
  * - [AutoOrganizeUiState.Loading] / [AutoOrganizeUiState.Downloading]: progress indicator.
+ *   Back-press and outside-tap are disabled while work is in progress; an explicit Cancel
+ *   button is shown to allow the user to abort.
  * - [AutoOrganizeUiState.ReadyToConfirm]: scrollable preview of the proposed folder structure.
  * - [AutoOrganizeUiState.Unavailable] / [AutoOrganizeUiState.Error]: status message.
  *
@@ -670,9 +673,14 @@ private fun AutoOrganizeDialog(
         is AutoOrganizeUiState.ReadyToConfirm -> R.string.documents_auto_organize_confirm_title
         else -> R.string.documents_auto_organize
     }
+    val isInProgress = state is AutoOrganizeUiState.Loading || state is AutoOrganizeUiState.Downloading
 
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { if (!isInProgress) onDismiss() },
+        properties = DialogProperties(
+            dismissOnBackPress = !isInProgress,
+            dismissOnClickOutside = !isInProgress,
+        ),
         title = { Text(stringResource(titleRes)) },
         text = {
             when (state) {
@@ -706,7 +714,17 @@ private fun AutoOrganizeDialog(
                     Text(stringResource(R.string.documents_auto_organize_unavailable))
                 }
                 is AutoOrganizeUiState.Error -> {
-                    Text(stringResource(R.string.documents_auto_organize_error))
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(stringResource(R.string.documents_auto_organize_error))
+                        val message = state.message
+                        if (!message.isNullOrBlank()) {
+                            Text(
+                                text = message,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
                 }
             }
         },
@@ -718,12 +736,8 @@ private fun AutoOrganizeDialog(
             }
         },
         dismissButton = {
-            val isInProgress = state is AutoOrganizeUiState.Loading ||
-                state is AutoOrganizeUiState.Downloading
-            if (!isInProgress) {
-                TextButton(onClick = onDismiss) {
-                    Text(stringResource(R.string.dialog_cancel))
-                }
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.dialog_cancel))
             }
         },
     )

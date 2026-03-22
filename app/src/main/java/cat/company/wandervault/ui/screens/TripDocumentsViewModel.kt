@@ -294,16 +294,19 @@ class TripDocumentsViewModel(
      * Applies the given [plan] by creating the suggested folders (deduplicating names) and
      * moving documents into them.
      *
-     * Clears the auto-organize state when complete (or on failure).
+     * The auto-organize state is cleared immediately so the dialog closes while the background
+     * work runs. Any failures are surfaced via [DocumentsWriteError.Generic].
      */
     fun applyOrganization(plan: OrganizationPlan) {
         _autoOrganizeState.value = null
         val parentFolderId = _folderStack.value.lastOrNull()?.id
         viewModelScope.launch {
-            // Snapshot existing folder names upfront; track created names as we go
-            // so that duplicate AI-suggested names get unique suffixes (e.g. "Flights 2").
+            // Snapshot existing folder names under the current parent only; track created names
+            // as we go so that duplicate AI-suggested names get unique suffixes (e.g. "Flights 2").
+            // Name uniqueness is scoped to parentFolderId, so folders in other parents are excluded.
             val occupiedNames = getAllFoldersForTrip(tripId)
                 .first()
+                .filter { it.parentFolderId == parentFolderId }
                 .map { it.name }
                 .toMutableSet()
             val failedItems = mutableListOf<String>()

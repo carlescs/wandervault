@@ -180,6 +180,7 @@ internal fun parseOrganizationResponse(
                 val validIndices = trimmed.substring(DOC_MARKER.length)
                     .split(",")
                     .mapNotNull { it.trim().toIntOrNull() }
+                    .distinct()
                     .filter { it in 1..documents.size && it !in assignedDocIndices }
                 assignedDocIndices += validIndices
                 val docs = validIndices.map { documents[it - 1] }

@@ -8,7 +8,6 @@ import android.net.Uri
 import android.os.ParcelFileDescriptor
 import android.util.Log
 import cat.company.wandervault.domain.model.DocumentExtractionResult
-import cat.company.wandervault.domain.model.FolderAssignment
 import cat.company.wandervault.domain.model.OrganizationPlan
 import cat.company.wandervault.domain.model.TripDocument
 import cat.company.wandervault.domain.repository.AppPreferencesRepository

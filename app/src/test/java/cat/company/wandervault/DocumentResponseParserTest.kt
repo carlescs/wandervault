@@ -558,4 +558,14 @@ class DocumentResponseParserTest {
         assertEquals("Hotels", result.folderAssignments[0].folderName)
         assertEquals(listOf(docB), result.folderAssignments[0].documents)
     }
+
+    @Test
+    fun `parseOrganizationResponse deduplicates repeated indices within the same DOC line`() {
+        val raw = "FOLDER:Flights\nDOC:1,1,2"
+        val result = parseOrganizationResponse(raw, listOf(docA, docB))
+
+        // docA must appear only once even though its index was repeated
+        assertEquals(1, result.folderAssignments.size)
+        assertEquals(listOf(docA, docB), result.folderAssignments[0].documents)
+    }
 }
