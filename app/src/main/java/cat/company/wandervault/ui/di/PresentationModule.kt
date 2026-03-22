@@ -96,6 +96,7 @@ val presentationModule = module {
             copyDocumentToInternalStorage = get(),
             getAllFoldersForTrip = get(),
             suggestDocumentName = get(),
+            autoOrganizeDocuments = get(),
         )
     }
     viewModel { params ->

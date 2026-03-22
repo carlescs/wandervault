@@ -1,8 +1,11 @@
 package cat.company.wandervault.data.mlkit
 
 import cat.company.wandervault.domain.model.DocumentExtractionResult
+import cat.company.wandervault.domain.model.FolderAssignment
 import cat.company.wandervault.domain.model.FlightInfo
 import cat.company.wandervault.domain.model.HotelInfo
+import cat.company.wandervault.domain.model.OrganizationPlan
+import cat.company.wandervault.domain.model.TripDocument
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
 
@@ -135,4 +138,58 @@ internal fun normalizeSuggestedFilename(raw: String): String? {
     // Collapse consecutive whitespace and trim
     val collapsed = sanitized.replace(Regex("\\s+"), " ").trim()
     return collapsed.takeIf { it.isNotBlank() }
+}
+
+private const val FOLDER_MARKER = "FOLDER:"
+private const val DOC_MARKER = "DOC:"
+
+/**
+ * Parses the Gemini Nano auto-organize response into an [OrganizationPlan].
+ *
+ * Expected format (one or more folder blocks):
+ * ```
+ * FOLDER:<folder name>
+ * DOC:<comma-separated 1-based document numbers>
+ * ```
+ *
+ * - Folder names and document assignments are accumulated in the order they appear.
+ * - If the model emits the same folder name twice, documents from both blocks are merged.
+ * - Document indices that are out of range or already assigned are silently skipped.
+ * - Lines not matching the expected format are ignored gracefully.
+ *
+ * @param raw Raw text produced by Gemini Nano.
+ * @param documents The ordered list of documents that were passed to the model (1-based index).
+ */
+internal fun parseOrganizationResponse(
+    raw: String,
+    documents: List<TripDocument>,
+): OrganizationPlan {
+    // LinkedHashMap to accumulate docs per folder name while preserving insertion order.
+    val folderDocs = linkedMapOf<String, MutableList<TripDocument>>()
+    var currentFolderName: String? = null
+    val assignedDocIndices = mutableSetOf<Int>()
+
+    for (line in raw.lines()) {
+        val trimmed = line.trim()
+        when {
+            trimmed.startsWith(FOLDER_MARKER, ignoreCase = true) -> {
+                currentFolderName = trimmed.substring(FOLDER_MARKER.length).trim().ifBlank { null }
+            }
+            trimmed.startsWith(DOC_MARKER, ignoreCase = true) -> {
+                val folderName = currentFolderName ?: continue
+                val docs = trimmed.substring(DOC_MARKER.length)
+                    .split(",")
+                    .mapNotNull { it.trim().toIntOrNull() }
+                    .filter { it in 1..documents.size && it !in assignedDocIndices }
+                    .also { assignedDocIndices += it }
+                    .map { documents[it - 1] }
+                if (docs.isNotEmpty()) {
+                    folderDocs.getOrPut(folderName) { mutableListOf() }.addAll(docs)
+                }
+            }
+        }
+    }
+
+    val assignments = folderDocs.map { (name, docs) -> FolderAssignment(name, docs) }
+    return OrganizationPlan(folderAssignments = assignments)
 }
