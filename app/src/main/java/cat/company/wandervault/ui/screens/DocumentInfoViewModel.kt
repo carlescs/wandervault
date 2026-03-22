@@ -266,6 +266,23 @@ class DocumentInfoViewModel(
     }
 
     /**
+     * Saves [description] as the user-provided description of this document.
+     * Pass `null` to clear the description.
+     *
+     * No-op when the document is not yet loaded.
+     */
+    fun saveDescription(description: String?) {
+        viewModelScope.launch {
+            try {
+                val latestDocument = getDocumentById(documentId).first() ?: return@launch
+                updateDocument(latestDocument.copy(description = description?.ifBlank { null }))
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to save description for document $documentId", e)
+            }
+        }
+    }
+
+    /**
      * Processes the next pending extracted item (flight or hotel) from the queues.
      *
      * Dequeues the first available [FlightInfo] and runs flight matching/disambiguation,

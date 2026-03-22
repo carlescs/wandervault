@@ -10,6 +10,7 @@ package cat.company.wandervault.domain.model
  * @param uri URI pointing to the file in internal storage.
  * @param mimeType MIME type or simple type tag (e.g. "application/pdf", "image/png").
  * @param summary AI-generated summary of the document content, or `null` if not yet extracted.
+ * @param description User-provided description of the document, or `null` if not set.
  */
 data class TripDocument(
     val id: Int = 0,
@@ -19,4 +20,5 @@ data class TripDocument(
     val uri: String,
     val mimeType: String,
     val summary: String? = null,
+    val description: String? = null,
 )

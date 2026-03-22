@@ -409,6 +409,21 @@ class TripDocumentUseCaseTest {
     }
 
     @Test
+    fun `AutoOrganizeDocumentsUseCase forwards documents with descriptions to repository`() = runTest {
+        val docs = listOf(
+            TripDocument(id = 1, tripId = 1, name = "a.pdf", uri = "uri1", mimeType = "application/pdf", description = "Outbound flight"),
+            TripDocument(id = 2, tripId = 1, name = "b.pdf", uri = "uri2", mimeType = "application/pdf"),
+        )
+        val fakeRepo = FakeDocumentSummaryRepository(null, organizationPlan = OrganizationPlan(emptyList()))
+
+        AutoOrganizeDocumentsUseCase(fakeRepo)(docs)
+
+        assertEquals(docs, fakeRepo.lastOrganizeDocuments)
+        assertEquals("Outbound flight", fakeRepo.lastOrganizeDocuments!![0].description)
+        assertNull(fakeRepo.lastOrganizeDocuments!![1].description)
+    }
+
+    @Test
     fun `AutoOrganizeDocumentsUseCase isAvailable returns true when repository is available`() = runTest {
         val fakeRepo = FakeDocumentSummaryRepository(null, available = true)
         assertTrue(AutoOrganizeDocumentsUseCase(fakeRepo).isAvailable())

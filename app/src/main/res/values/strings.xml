@@ -338,6 +338,12 @@
     <string name="document_info_pdf_page_indicator">Page %1$d of %2$d</string>
     <string name="document_info_generate_ai_description">Generate AI description</string>
     <string name="document_info_delete_ai_description">Delete AI description</string>
+    <string name="document_info_section_description">Description</string>
+    <string name="document_info_no_description">No description yet. Add one to help with auto-classification.</string>
+    <string name="document_info_edit_description">Edit description</string>
+    <string name="document_info_delete_description">Delete description</string>
+    <string name="document_info_description_dialog_title">Edit Description</string>
+    <string name="document_info_description_label">Description</string>
     <string name="documents_info_action">Info</string>
     <string name="documents_view_info_content_desc">View info: %s</string>
     <string name="document_info_ask_action">Ask a question</string>

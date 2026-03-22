@@ -18,7 +18,7 @@ import java.time.ZoneId
         TripDocumentFolderEntity::class,
         TripDocumentEntity::class,
     ],
-    version = 19,
+    version = 20,
 )
 @TypeConverters(DateConverters::class)
 abstract class WanderVaultDatabase : RoomDatabase() {
@@ -429,6 +429,12 @@ abstract class WanderVaultDatabase : RoomDatabase() {
                 migrateColumn("destinations", "id", "departureDateTime")
                 migrateColumn("transport_legs", "id", "departureDateTime")
                 migrateColumn("transport_legs", "id", "arrivalDateTime")
+            }
+        }
+        val MIGRATION_19_20 = object : Migration(19, 20) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Adds user-provided description to trip documents.
+                db.execSQL("ALTER TABLE `trip_documents` ADD COLUMN `description` TEXT")
             }
         }
     }

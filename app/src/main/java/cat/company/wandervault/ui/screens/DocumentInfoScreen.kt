@@ -30,6 +30,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FindInPage
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
@@ -39,6 +40,7 @@ import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.QuestionAnswer
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.BottomSheetScaffold
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -47,6 +49,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.FilledTonalIconButton
@@ -127,6 +130,7 @@ fun DocumentInfoScreen(
         onOpenDocument = { document -> openTripDocument(context, document) },
         onAnalyzeDocument = viewModel::analyzeDocument,
         onDeleteAiDescription = viewModel::deleteAiDescription,
+        onSaveDescription = viewModel::saveDescription,
         onNavigateToChat = onNavigateToChat,
         onAnalyzeFlightLegSelected = viewModel::onFlightLegSelected,
         onAnalyzeFlightConfirmed = viewModel::onFlightConfirmed,
@@ -152,6 +156,7 @@ internal fun DocumentInfoContent(
     onOpenDocument: (TripDocument) -> Unit = {},
     onAnalyzeDocument: () -> Unit = {},
     onDeleteAiDescription: () -> Unit = {},
+    onSaveDescription: (String?) -> Unit = {},
     onNavigateToChat: () -> Unit = {},
     onAnalyzeFlightLegSelected: (TransportLeg) -> Unit = {},
     onAnalyzeFlightConfirmed: () -> Unit = {},
@@ -238,6 +243,7 @@ internal fun DocumentInfoContent(
                     innerPadding = innerPadding,
                     onAnalyzeDocument = onAnalyzeDocument,
                     onDeleteAiDescription = onDeleteAiDescription,
+                    onSaveDescription = onSaveDescription,
                     onAnalyzeDismiss = onAnalyzeDismiss,
                 )
             }
@@ -272,6 +278,7 @@ private fun DocumentInfoSuccessContent(
     innerPadding: PaddingValues,
     onAnalyzeDocument: () -> Unit,
     onDeleteAiDescription: () -> Unit,
+    onSaveDescription: (String?) -> Unit,
     onAnalyzeDismiss: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -297,6 +304,7 @@ private fun DocumentInfoSuccessContent(
                     uiState = uiState,
                     onAnalyzeDocument = onAnalyzeDocument,
                     onDeleteAiDescription = onDeleteAiDescription,
+                    onSaveDescription = onSaveDescription,
                     onAnalyzeDismiss = onAnalyzeDismiss,
                 )
             },
@@ -349,6 +357,7 @@ private fun DocumentInfoSheetContent(
     uiState: DocumentInfoUiState.Success,
     onAnalyzeDocument: () -> Unit,
     onDeleteAiDescription: () -> Unit,
+    onSaveDescription: (String?) -> Unit,
     onAnalyzeDismiss: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -390,6 +399,64 @@ private fun DocumentInfoSheetContent(
                     stringResource(android.R.string.unknownName)
                 },
         )
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+        // ── Description ───────────────────────────────────────────────────────
+
+        var showDescriptionDialog by remember { mutableStateOf(false) }
+        val description = uiState.document.description
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = stringResource(R.string.document_info_section_description),
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.weight(1f),
+            )
+            IconButton(onClick = { showDescriptionDialog = true }) {
+                Icon(
+                    imageVector = Icons.Default.Edit,
+                    contentDescription = stringResource(R.string.document_info_edit_description),
+                )
+            }
+            if (!description.isNullOrBlank()) {
+                IconButton(onClick = { onSaveDescription(null) }) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = stringResource(R.string.document_info_delete_description),
+                        tint = MaterialTheme.colorScheme.error,
+                    )
+                }
+            }
+        }
+        if (description.isNullOrBlank()) {
+            Text(
+                text = stringResource(R.string.document_info_no_description),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontStyle = FontStyle.Italic,
+            )
+        } else {
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+
+        if (showDescriptionDialog) {
+            DescriptionInputDialog(
+                initialDescription = description.orEmpty(),
+                onConfirm = { newDescription ->
+                    onSaveDescription(newDescription.ifBlank { null })
+                    showDescriptionDialog = false
+                },
+                onDismiss = { showDescriptionDialog = false },
+            )
+        }
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
@@ -499,6 +566,42 @@ private fun DocumentInfoSheetContent(
 
         Spacer(modifier = Modifier.height(16.dp))
     }
+}
+
+/**
+ * A multi-line text dialog for entering or editing a document description.
+ */
+@Composable
+private fun DescriptionInputDialog(
+    initialDescription: String,
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var text by remember(initialDescription) { mutableStateOf(initialDescription) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.document_info_description_dialog_title)) },
+        text = {
+            OutlinedTextField(
+                value = text,
+                onValueChange = { text = it },
+                label = { Text(stringResource(R.string.document_info_description_label)) },
+                minLines = 3,
+                maxLines = 6,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(text) }) {
+                Text(stringResource(R.string.dialog_save))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.dialog_cancel))
+            }
+        },
+    )
 }
 
 /**

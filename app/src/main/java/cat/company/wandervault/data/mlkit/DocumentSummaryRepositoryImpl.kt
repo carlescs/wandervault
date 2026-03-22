@@ -380,8 +380,10 @@ class DocumentSummaryRepositoryImpl(
         appendLine("Documents:")
         documents.forEachIndexed { index, doc ->
             val summary = doc.summary
-            if (summary != null) {
-                appendLine("${index + 1}. ${doc.name} — $summary")
+            val description = doc.description
+            val extra = listOfNotNull(description, summary).joinToString("; ")
+            if (extra.isNotEmpty()) {
+                appendLine("${index + 1}. ${doc.name} — $extra")
             } else {
                 appendLine("${index + 1}. ${doc.name}")
             }

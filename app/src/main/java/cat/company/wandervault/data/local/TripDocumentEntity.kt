@@ -46,4 +46,6 @@ data class TripDocumentEntity(
     val mimeType: String,
     /** AI-generated summary of the document content, or `null` if not yet extracted. */
     val summary: String? = null,
+    /** User-provided description of the document, or `null` if not set. */
+    val description: String? = null,
 )
