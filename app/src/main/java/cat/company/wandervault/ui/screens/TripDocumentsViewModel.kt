@@ -245,7 +245,7 @@ class TripDocumentsViewModel(
 
     /**
      * Starts an AI analysis of the documents in the current level to produce a suggested folder
-     * organisation plan.
+     * organization plan.
      *
      * Progress is exposed via [TripDocumentsUiState.Success.autoOrganizeState]:
      * - [AutoOrganizeUiState.Loading] while the request is running.

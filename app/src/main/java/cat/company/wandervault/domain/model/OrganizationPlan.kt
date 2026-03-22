@@ -1,7 +1,7 @@
 package cat.company.wandervault.domain.model
 
 /**
- * An AI-suggested folder organisation for a set of trip documents.
+ * An AI-suggested folder organization for a set of trip documents.
  *
  * @param folderAssignments Folders to create and the documents to place in each.
  *   Documents that the AI did not assign to any folder are not included.

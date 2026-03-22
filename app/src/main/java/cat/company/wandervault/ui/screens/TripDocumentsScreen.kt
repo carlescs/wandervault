@@ -739,8 +739,8 @@ private fun AutoOrganizePlanPreview(plan: OrganizationPlan) {
         return
     }
     LazyColumn(modifier = Modifier.heightIn(max = 300.dp)) {
-        plan.folderAssignments.forEach { assignment ->
-            item {
+        plan.folderAssignments.forEachIndexed { folderIndex, assignment ->
+            item(key = "folder-header-$folderIndex") {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.padding(top = 8.dp),
@@ -759,7 +759,10 @@ private fun AutoOrganizePlanPreview(plan: OrganizationPlan) {
                     )
                 }
             }
-            items(assignment.documents) { document ->
+            items(
+                items = assignment.documents,
+                key = { document -> "folder-$folderIndex-doc-${document.id}" },
+            ) { document ->
                 Text(
                     text = "  • ${document.name}",
                     style = MaterialTheme.typography.bodySmall,

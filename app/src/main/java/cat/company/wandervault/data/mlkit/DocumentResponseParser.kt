@@ -177,12 +177,12 @@ internal fun parseOrganizationResponse(
             }
             trimmed.startsWith(DOC_MARKER, ignoreCase = true) -> {
                 val folderName = currentFolderName ?: continue
-                val docs = trimmed.substring(DOC_MARKER.length)
+                val validIndices = trimmed.substring(DOC_MARKER.length)
                     .split(",")
                     .mapNotNull { it.trim().toIntOrNull() }
                     .filter { it in 1..documents.size && it !in assignedDocIndices }
-                    .also { assignedDocIndices += it }
-                    .map { documents[it - 1] }
+                assignedDocIndices += validIndices
+                val docs = validIndices.map { documents[it - 1] }
                 if (docs.isNotEmpty()) {
                     folderDocs.getOrPut(folderName) { mutableListOf() }.addAll(docs)
                 }

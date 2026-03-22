@@ -5,7 +5,7 @@ import cat.company.wandervault.domain.model.TripDocument
 import cat.company.wandervault.domain.repository.DocumentSummaryRepository
 
 /**
- * Use-case that uses on-device ML Kit to suggest an automated folder organisation for a list
+ * Use-case that uses on-device ML Kit to suggest an automated folder organization for a list
  * of travel documents.
  */
 class AutoOrganizeDocumentsUseCase(private val repository: DocumentSummaryRepository) {
