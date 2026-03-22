@@ -403,8 +403,8 @@ class DocumentSummaryRepositoryImpl(
         /** Maximum tokens Gemini Nano may generate for a free-form question answer. */
         private const val QUESTION_MAX_OUTPUT_TOKENS = 256
 
-        /** Maximum tokens Gemini Nano may generate for the auto-organize response. */
-        private const val AUTO_ORGANIZE_MAX_TOKENS = 512
+        /** Maximum tokens Gemini Nano may generate for the auto-organize response (hard limit: 256). */
+        private const val AUTO_ORGANIZE_MAX_TOKENS = 256
 
         /** Maximum number of PDF pages to process (avoids excessive OCR time on large documents). */
         private const val MAX_PDF_PAGES = 10
