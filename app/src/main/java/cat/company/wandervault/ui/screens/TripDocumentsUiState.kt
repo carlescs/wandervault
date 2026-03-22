@@ -46,5 +46,10 @@ sealed class TripDocumentsUiState {
         val selectedDocumentIds: Set<Int> = emptySet(),
         /** Whether on-device AI is supported on this device. */
         val isAiAvailable: Boolean = true,
+        /**
+         * Current state of an in-flight or completed auto-organize request, or `null` when no
+         * auto-organize is active. Call [TripDocumentsViewModel.cancelAutoOrganize] to dismiss.
+         */
+        val autoOrganizeState: AutoOrganizeUiState? = null,
     ) : TripDocumentsUiState()
 }

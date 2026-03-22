@@ -8,6 +8,8 @@ import android.net.Uri
 import android.os.ParcelFileDescriptor
 import android.util.Log
 import cat.company.wandervault.domain.model.DocumentExtractionResult
+import cat.company.wandervault.domain.model.OrganizationPlan
+import cat.company.wandervault.domain.model.TripDocument
 import cat.company.wandervault.domain.repository.AppPreferencesRepository
 import cat.company.wandervault.domain.repository.DocumentSummaryRepository
 import com.google.mlkit.genai.common.DownloadStatus
@@ -343,6 +345,49 @@ class DocumentSummaryRepositoryImpl(
         response.candidates.firstOrNull()?.text?.trim()?.ifBlank { null }
     }
 
+    override suspend fun suggestOrganization(
+        documents: List<TripDocument>,
+        onDownloadProgress: ((bytesDownloaded: Long) -> Unit)?,
+    ): OrganizationPlan? = withContext(Dispatchers.IO) {
+        if (documents.isEmpty()) return@withContext OrganizationPlan(emptyList())
+        when (generationClient.checkStatus()) {
+            FeatureStatus.UNAVAILABLE -> return@withContext null
+            FeatureStatus.DOWNLOADABLE -> awaitDownload(onDownloadProgress)
+            FeatureStatus.AVAILABLE -> Unit
+        }
+        val prompt = buildOrganizationPrompt(documents)
+        val request = generateContentRequest(TextPart(prompt)) {
+            maxOutputTokens = AUTO_ORGANIZE_MAX_TOKENS
+        }
+        val response = generationClient.generateContent(request)
+        val rawOutput = response.candidates.firstOrNull()?.text?.trim()
+            ?: return@withContext OrganizationPlan(emptyList())
+        parseOrganizationResponse(rawOutput, documents)
+    }
+
+    private fun buildOrganizationPrompt(documents: List<TripDocument>): String = buildString {
+        appendLine(
+            "You are organizing travel documents into folders. Group related documents together " +
+                "(e.g. flights, hotels, insurance, visas). " +
+                "Respond in ${appPreferences.resolvedAiLanguageName()}.",
+        )
+        appendLine(
+            "Use this exact format — no other text:",
+        )
+        appendLine("FOLDER:<folder name>")
+        appendLine("DOC:<comma-separated document numbers>")
+        appendLine()
+        appendLine("Documents:")
+        documents.forEachIndexed { index, doc ->
+            val summary = doc.summary
+            if (summary != null) {
+                appendLine("${index + 1}. ${doc.name} — $summary")
+            } else {
+                appendLine("${index + 1}. ${doc.name}")
+            }
+        }
+    }
+
     companion object {
         private const val TAG = "DocumentSummaryRepo"
 
@@ -357,6 +402,9 @@ class DocumentSummaryRepositoryImpl(
 
         /** Maximum tokens Gemini Nano may generate for a free-form question answer. */
         private const val QUESTION_MAX_OUTPUT_TOKENS = 256
+
+        /** Maximum tokens Gemini Nano may generate for the auto-organize response. */
+        private const val AUTO_ORGANIZE_MAX_TOKENS = 512
 
         /** Maximum number of PDF pages to process (avoids excessive OCR time on large documents). */
         private const val MAX_PDF_PAGES = 10

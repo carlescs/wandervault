@@ -1,11 +1,14 @@
 package cat.company.wandervault
 
 import cat.company.wandervault.domain.model.DocumentExtractionResult
+import cat.company.wandervault.domain.model.FolderAssignment
+import cat.company.wandervault.domain.model.OrganizationPlan
 import cat.company.wandervault.domain.model.TripDocument
 import cat.company.wandervault.domain.model.TripDocumentFolder
 import cat.company.wandervault.domain.repository.DocumentSummaryRepository
 import cat.company.wandervault.domain.repository.TripDocumentRepository
 import cat.company.wandervault.domain.usecase.AskDocumentQuestionUseCase
+import cat.company.wandervault.domain.usecase.AutoOrganizeDocumentsUseCase
 import cat.company.wandervault.domain.usecase.CopyDocumentToInternalStorageUseCase
 import cat.company.wandervault.domain.usecase.DeleteDocumentUseCase
 import cat.company.wandervault.domain.usecase.DeleteFolderUseCase
@@ -361,6 +364,61 @@ class TripDocumentUseCaseTest {
         val fakeRepo = FakeDocumentSummaryRepository(null, available = false)
         assertFalse(AskDocumentQuestionUseCase(fakeRepo).isAvailable())
     }
+
+    // ── AutoOrganizeDocumentsUseCase ──────────────────────────────────────────
+
+    @Test
+    fun `AutoOrganizeDocumentsUseCase returns plan from repository`() = runTest {
+        val doc1 = TripDocument(id = 1, tripId = 1, name = "flight.pdf", uri = "uri1", mimeType = "application/pdf")
+        val doc2 = TripDocument(id = 2, tripId = 1, name = "hotel.pdf", uri = "uri2", mimeType = "application/pdf")
+        val plan = OrganizationPlan(
+            listOf(
+                FolderAssignment("Flights", listOf(doc1)),
+                FolderAssignment("Hotels", listOf(doc2)),
+            ),
+        )
+        val fakeRepo = FakeDocumentSummaryRepository(null, organizationPlan = plan)
+
+        val result = AutoOrganizeDocumentsUseCase(fakeRepo)(listOf(doc1, doc2))
+
+        assertEquals(plan, result)
+    }
+
+    @Test
+    fun `AutoOrganizeDocumentsUseCase returns null when repository returns null`() = runTest {
+        val fakeRepo = FakeDocumentSummaryRepository(null, organizationPlan = null)
+
+        val result = AutoOrganizeDocumentsUseCase(fakeRepo)(
+            listOf(TripDocument(id = 1, tripId = 1, name = "doc.pdf", uri = "uri", mimeType = "application/pdf")),
+        )
+
+        assertNull(result)
+    }
+
+    @Test
+    fun `AutoOrganizeDocumentsUseCase forwards documents to repository`() = runTest {
+        val docs = listOf(
+            TripDocument(id = 1, tripId = 1, name = "a.pdf", uri = "uri1", mimeType = "application/pdf"),
+            TripDocument(id = 2, tripId = 1, name = "b.pdf", uri = "uri2", mimeType = "application/pdf"),
+        )
+        val fakeRepo = FakeDocumentSummaryRepository(null, organizationPlan = OrganizationPlan(emptyList()))
+
+        AutoOrganizeDocumentsUseCase(fakeRepo)(docs)
+
+        assertEquals(docs, fakeRepo.lastOrganizeDocuments)
+    }
+
+    @Test
+    fun `AutoOrganizeDocumentsUseCase isAvailable returns true when repository is available`() = runTest {
+        val fakeRepo = FakeDocumentSummaryRepository(null, available = true)
+        assertTrue(AutoOrganizeDocumentsUseCase(fakeRepo).isAvailable())
+    }
+
+    @Test
+    fun `AutoOrganizeDocumentsUseCase isAvailable returns false when repository is unavailable`() = runTest {
+        val fakeRepo = FakeDocumentSummaryRepository(null, available = false)
+        assertFalse(AutoOrganizeDocumentsUseCase(fakeRepo).isAvailable())
+    }
 }
 
 private class FakeTripDocumentRepository : TripDocumentRepository {
@@ -438,9 +496,11 @@ private class FakeDocumentSummaryRepository(
     private val suggestedName: String? = null,
     private val questionAnswer: String? = null,
     private val available: Boolean = true,
+    private val organizationPlan: OrganizationPlan? = OrganizationPlan(emptyList()),
 ) : DocumentSummaryRepository {
     var lastTripYear: Int? = null
     var lastQuestion: String? = null
+    var lastOrganizeDocuments: List<TripDocument>? = null
 
     override suspend fun isAvailable(): Boolean = available
 
@@ -468,5 +528,13 @@ private class FakeDocumentSummaryRepository(
     ): String? {
         lastQuestion = question
         return questionAnswer
+    }
+
+    override suspend fun suggestOrganization(
+        documents: List<TripDocument>,
+        onDownloadProgress: ((bytesDownloaded: Long) -> Unit)?,
+    ): OrganizationPlan? {
+        lastOrganizeDocuments = documents
+        return organizationPlan
     }
 }

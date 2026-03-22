@@ -2,7 +2,9 @@ package cat.company.wandervault
 
 import cat.company.wandervault.data.mlkit.normalizeSuggestedFilename
 import cat.company.wandervault.data.mlkit.parseDocumentResponse
+import cat.company.wandervault.data.mlkit.parseOrganizationResponse
 import cat.company.wandervault.domain.model.DocumentExtractionResult
+import cat.company.wandervault.domain.model.TripDocument
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -462,5 +464,108 @@ class DocumentResponseParserTest {
     @Test
     fun `normalizeSuggestedFilename returns null when only invalid chars remain`() {
         assertNull(normalizeSuggestedFilename("///"))
+    }
+
+    // ── parseOrganizationResponse ─────────────────────────────────────────────
+
+    private val docA = TripDocument(id = 1, tripId = 1, name = "flight.pdf", uri = "u1", mimeType = "application/pdf")
+    private val docB = TripDocument(id = 2, tripId = 1, name = "hotel.pdf", uri = "u2", mimeType = "application/pdf")
+    private val docC = TripDocument(id = 3, tripId = 1, name = "insurance.pdf", uri = "u3", mimeType = "application/pdf")
+
+    @Test
+    fun `parseOrganizationResponse parses single folder with one document`() {
+        val raw = "FOLDER:Flights\nDOC:1"
+        val result = parseOrganizationResponse(raw, listOf(docA, docB, docC))
+
+        assertEquals(1, result.folderAssignments.size)
+        assertEquals("Flights", result.folderAssignments[0].folderName)
+        assertEquals(listOf(docA), result.folderAssignments[0].documents)
+    }
+
+    @Test
+    fun `parseOrganizationResponse parses multiple folders`() {
+        val raw = "FOLDER:Flights\nDOC:1\nFOLDER:Hotels\nDOC:2"
+        val result = parseOrganizationResponse(raw, listOf(docA, docB, docC))
+
+        assertEquals(2, result.folderAssignments.size)
+        assertEquals("Flights", result.folderAssignments[0].folderName)
+        assertEquals(listOf(docA), result.folderAssignments[0].documents)
+        assertEquals("Hotels", result.folderAssignments[1].folderName)
+        assertEquals(listOf(docB), result.folderAssignments[1].documents)
+    }
+
+    @Test
+    fun `parseOrganizationResponse parses multiple documents in one folder`() {
+        val raw = "FOLDER:Travel Docs\nDOC:1,2,3"
+        val result = parseOrganizationResponse(raw, listOf(docA, docB, docC))
+
+        assertEquals(1, result.folderAssignments.size)
+        assertEquals(listOf(docA, docB, docC), result.folderAssignments[0].documents)
+    }
+
+    @Test
+    fun `parseOrganizationResponse returns empty plan for empty response`() {
+        val result = parseOrganizationResponse("", listOf(docA, docB))
+
+        assertEquals(0, result.folderAssignments.size)
+    }
+
+    @Test
+    fun `parseOrganizationResponse ignores out-of-range document indices`() {
+        val raw = "FOLDER:Flights\nDOC:1,99"
+        val result = parseOrganizationResponse(raw, listOf(docA))
+
+        assertEquals(1, result.folderAssignments.size)
+        assertEquals(listOf(docA), result.folderAssignments[0].documents)
+    }
+
+    @Test
+    fun `parseOrganizationResponse ignores duplicate document indices`() {
+        val raw = "FOLDER:Flights\nDOC:1\nFOLDER:Hotels\nDOC:1,2"
+        val result = parseOrganizationResponse(raw, listOf(docA, docB))
+
+        // docA assigned to Flights first; duplicate in Hotels is skipped
+        assertEquals(2, result.folderAssignments.size)
+        assertEquals(listOf(docA), result.folderAssignments[0].documents)
+        assertEquals(listOf(docB), result.folderAssignments[1].documents)
+    }
+
+    @Test
+    fun `parseOrganizationResponse merges duplicate folder names`() {
+        val raw = "FOLDER:Flights\nDOC:1\nFOLDER:Flights\nDOC:2"
+        val result = parseOrganizationResponse(raw, listOf(docA, docB))
+
+        assertEquals(1, result.folderAssignments.size)
+        assertEquals("Flights", result.folderAssignments[0].folderName)
+        assertEquals(listOf(docA, docB), result.folderAssignments[0].documents)
+    }
+
+    @Test
+    fun `parseOrganizationResponse is case-insensitive for markers`() {
+        val raw = "folder:Flights\ndoc:1"
+        val result = parseOrganizationResponse(raw, listOf(docA))
+
+        assertEquals(1, result.folderAssignments.size)
+        assertEquals("Flights", result.folderAssignments[0].folderName)
+    }
+
+    @Test
+    fun `parseOrganizationResponse skips DOC line with no preceding FOLDER`() {
+        val raw = "DOC:1\nFOLDER:Hotels\nDOC:2"
+        val result = parseOrganizationResponse(raw, listOf(docA, docB))
+
+        assertEquals(1, result.folderAssignments.size)
+        assertEquals("Hotels", result.folderAssignments[0].folderName)
+        assertEquals(listOf(docB), result.folderAssignments[0].documents)
+    }
+
+    @Test
+    fun `parseOrganizationResponse deduplicates repeated indices within the same DOC line`() {
+        val raw = "FOLDER:Flights\nDOC:1,1,2"
+        val result = parseOrganizationResponse(raw, listOf(docA, docB))
+
+        // docA must appear only once even though its index was repeated
+        assertEquals(1, result.folderAssignments.size)
+        assertEquals(listOf(docA, docB), result.folderAssignments[0].documents)
     }
 }

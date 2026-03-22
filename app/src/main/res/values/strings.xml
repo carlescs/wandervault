@@ -351,4 +351,12 @@
     <string name="document_chat_error_unavailable">AI is not available on this device.</string>
     <string name="document_chat_error_generic">Could not get an answer. Please try again.</string>
     <string name="document_chat_downloading">Downloading AI model… %s</string>
+    <string name="documents_auto_organize">Auto-organize</string>
+    <string name="documents_auto_organize_loading">Analyzing documents…</string>
+    <string name="documents_auto_organize_downloading">Downloading AI model… %s</string>
+    <string name="documents_auto_organize_unavailable">Auto-organize is not available on this device.</string>
+    <string name="documents_auto_organize_error">Could not analyze documents. Please try again.</string>
+    <string name="documents_auto_organize_confirm_title">Suggested organization</string>
+    <string name="documents_auto_organize_apply">Apply</string>
+    <string name="documents_auto_organize_no_suggestion">No organization suggestion available.</string>
 </resources>

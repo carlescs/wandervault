@@ -6,7 +6,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import cat.company.wandervault.domain.model.TripDocument
 import cat.company.wandervault.domain.model.TripDocumentFolder
+import cat.company.wandervault.domain.model.OrganizationPlan
 import cat.company.wandervault.domain.usecase.CopyDocumentToInternalStorageUseCase
+import cat.company.wandervault.domain.usecase.AutoOrganizeDocumentsUseCase
 import cat.company.wandervault.domain.usecase.DeleteDocumentUseCase
 import cat.company.wandervault.domain.usecase.DeleteFolderUseCase
 import cat.company.wandervault.domain.usecase.GetAllFoldersForTripUseCase
@@ -27,6 +29,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.launch
 
@@ -57,6 +60,7 @@ class TripDocumentsViewModel(
     private val copyDocumentToInternalStorage: CopyDocumentToInternalStorageUseCase,
     private val getAllFoldersForTrip: GetAllFoldersForTripUseCase,
     private val suggestDocumentName: SuggestDocumentNameUseCase,
+    private val autoOrganizeDocuments: AutoOrganizeDocumentsUseCase,
 ) : ViewModel() {
 
     /** Stack of folders the user has navigated into; empty = at root. */
@@ -81,6 +85,15 @@ class TripDocumentsViewModel(
 
     /** Tracks the running suggestion job so it can be cancelled on demand. */
     private var suggestNameJob: Job? = null
+
+    /** Tracks the running auto-organize job so it can be cancelled on demand. */
+    private var autoOrganizeJob: Job? = null
+
+    /**
+     * Current state of an in-flight or completed auto-organize request, or `null` when no
+     * auto-organize is active.
+     */
+    private val _autoOrganizeState = MutableStateFlow<AutoOrganizeUiState?>(null)
 
     /**
      * Tracks on-device AI availability.
@@ -133,10 +146,15 @@ class TripDocumentsViewModel(
                         )
                     }
                 }
-            // Merge selection and AI availability state separately to preserve them across
-            // DB-driven updates.
-            combine(contentFlow, _selectedDocumentIds, _isAiAvailable) { state, selectedIds, aiAvailable ->
-                state.copy(selectedDocumentIds = selectedIds, isAiAvailable = aiAvailable)
+            // Merge selection, AI availability, and auto-organize state separately to preserve
+            // them across DB-driven updates.
+            combine(contentFlow, _selectedDocumentIds, _isAiAvailable, _autoOrganizeState) {
+                    state, selectedIds, aiAvailable, autoOrganize ->
+                state.copy(
+                    selectedDocumentIds = selectedIds,
+                    isAiAvailable = aiAvailable,
+                    autoOrganizeState = autoOrganize,
+                )
             }.collect { state ->
                 _uiState.value = state
             }
@@ -221,6 +239,121 @@ class TripDocumentsViewModel(
         suggestNameJob?.cancel()
         suggestNameJob = null
         _suggestNameState.value = null
+    }
+
+    // ── Auto-organize operations ──────────────────────────────────────────────
+
+    /**
+     * Starts an AI analysis of the documents in the current level to produce a suggested folder
+     * organization plan.
+     *
+     * Progress is exposed via [TripDocumentsUiState.Success.autoOrganizeState]:
+     * - [AutoOrganizeUiState.Loading] while the request is running.
+     * - [AutoOrganizeUiState.Downloading] while the Gemini Nano model is being downloaded.
+     * - [AutoOrganizeUiState.ReadyToConfirm] when a plan is produced (user must confirm).
+     * - [AutoOrganizeUiState.Unavailable] if the on-device AI is permanently unavailable.
+     * - [AutoOrganizeUiState.Error] for transient failures.
+     *
+     * Any previous in-flight request is cancelled before a new one starts.
+     */
+    fun requestAutoOrganize() {
+        val documents = (_uiState.value as? TripDocumentsUiState.Success)?.documents
+            ?: return
+        autoOrganizeJob?.cancel()
+        autoOrganizeJob = viewModelScope.launch {
+            _autoOrganizeState.value = AutoOrganizeUiState.Loading
+            try {
+                val plan = autoOrganizeDocuments(
+                    documents = documents,
+                    onDownloadProgress = { bytes ->
+                        _autoOrganizeState.value = AutoOrganizeUiState.Downloading(bytes)
+                    },
+                )
+                _autoOrganizeState.value = if (plan != null) {
+                    AutoOrganizeUiState.ReadyToConfirm(plan)
+                } else {
+                    AutoOrganizeUiState.Unavailable
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "Auto-organize failed", e)
+                _autoOrganizeState.value = AutoOrganizeUiState.Error(e.message)
+            }
+        }
+    }
+
+    /** Cancels any in-flight auto-organize request and clears the state. */
+    fun cancelAutoOrganize() {
+        autoOrganizeJob?.cancel()
+        autoOrganizeJob = null
+        _autoOrganizeState.value = null
+    }
+
+    /**
+     * Applies the given [plan] by creating the suggested folders (deduplicating names) and
+     * moving documents into them.
+     *
+     * The auto-organize state is cleared immediately so the dialog closes while the background
+     * work runs. Any failures are surfaced via [DocumentsWriteError.Generic].
+     */
+    fun applyOrganization(plan: OrganizationPlan) {
+        _autoOrganizeState.value = null
+        val parentFolderId = _folderStack.value.lastOrNull()?.id
+        viewModelScope.launch {
+            // Snapshot existing folder names under the current parent only; track created names
+            // as we go so that duplicate AI-suggested names get unique suffixes (e.g. "Flights 2").
+            // Name uniqueness is scoped to parentFolderId, so folders in other parents are excluded.
+            val occupiedNames = getAllFoldersForTrip(tripId)
+                .first()
+                .filter { it.parentFolderId == parentFolderId }
+                .map { it.name }
+                .toMutableSet()
+            val failedItems = mutableListOf<String>()
+            for (assignment in plan.folderAssignments) {
+                try {
+                    val folderName = makeUniqueFolderName(assignment.folderName.trim(), occupiedNames)
+                    occupiedNames.add(folderName)
+                    saveFolder(
+                        TripDocumentFolder(
+                            tripId = tripId,
+                            name = folderName,
+                            parentFolderId = parentFolderId,
+                        ),
+                    )
+                    // Wait for Room to emit the updated folder list that contains the new folder,
+                    // then retrieve the generated ID.
+                    val newFolder = getAllFoldersForTrip(tripId)
+                        .first { folders ->
+                            folders.any { it.name == folderName && it.parentFolderId == parentFolderId }
+                        }
+                        .firstOrNull { it.name == folderName && it.parentFolderId == parentFolderId }
+                    if (newFolder == null) {
+                        Log.e(TAG, "Could not find newly created folder '$folderName'")
+                        failedItems.add(assignment.folderName)
+                        continue
+                    }
+                    for (document in assignment.documents) {
+                        try {
+                            updateDocument(document.copy(folderId = newFolder.id))
+                        } catch (e: Exception) {
+                            Log.e(
+                                TAG,
+                                "Failed to move document ${document.id} to folder ${newFolder.id}",
+                                e,
+                            )
+                            failedItems.add(document.name)
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to create folder '${assignment.folderName}'", e)
+                    failedItems.add(assignment.folderName)
+                }
+            }
+            if (failedItems.isNotEmpty()) {
+                setWriteError(DocumentsWriteError.Generic)
+            }
+        }
     }
 
     /** Creates a new folder with [name] at the current navigation level. */
@@ -411,6 +544,19 @@ class TripDocumentsViewModel(
  * it returns "Paris Flight 3", and so on.
  */
 internal fun makeUniqueDocumentName(candidate: String, existingNames: Set<String>): String {
+    if (candidate !in existingNames) return candidate
+    var counter = 2
+    while ("$candidate $counter" in existingNames) counter++
+    return "$candidate $counter"
+}
+
+/**
+ * Returns [candidate] if it is not present in [existingNames], or appends an incrementing
+ * counter suffix (" 2", " 3", …) until a unique name is found.
+ *
+ * Used when creating folders during auto-organization to avoid duplicate folder names.
+ */
+internal fun makeUniqueFolderName(candidate: String, existingNames: Set<String>): String {
     if (candidate !in existingNames) return candidate
     var counter = 2
     while ("$candidate $counter" in existingNames) counter++

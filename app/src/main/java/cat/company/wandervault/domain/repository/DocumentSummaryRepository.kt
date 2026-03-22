@@ -1,6 +1,8 @@
 package cat.company.wandervault.domain.repository
 
 import cat.company.wandervault.domain.model.DocumentExtractionResult
+import cat.company.wandervault.domain.model.OrganizationPlan
+import cat.company.wandervault.domain.model.TripDocument
 
 /**
  * Repository that uses ML Kit to extract information from travel documents.
@@ -77,4 +79,22 @@ interface DocumentSummaryRepository {
         question: String,
         onDownloadProgress: ((bytesDownloaded: Long) -> Unit)? = null,
     ): String?
+
+    /**
+     * Analyses the names and existing summaries of [documents] and uses on-device AI to suggest
+     * how they should be grouped into named folders.
+     *
+     * @param documents The documents to organise. Must not be empty; passing an empty list returns
+     *   an [OrganizationPlan] with no folder assignments immediately without querying the model.
+     * @param onDownloadProgress Optional callback invoked with the number of bytes downloaded
+     *   so far while the Gemini Nano model is being downloaded to the device.
+     * @return An [OrganizationPlan] describing which folders to create and which documents to
+     *   place in each, or `null` if on-device AI is permanently unavailable on this device.
+     * @throws Exception for transient failures so callers can distinguish permanent
+     *   unavailability (null) from retriable errors.
+     */
+    suspend fun suggestOrganization(
+        documents: List<TripDocument>,
+        onDownloadProgress: ((bytesDownloaded: Long) -> Unit)? = null,
+    ): OrganizationPlan?
 }

@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -66,6 +67,7 @@ import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -90,6 +92,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cat.company.wandervault.R
+import cat.company.wandervault.domain.model.OrganizationPlan
 import cat.company.wandervault.domain.model.TripDocument
 import cat.company.wandervault.domain.model.TripDocumentFolder
 import cat.company.wandervault.ui.theme.WanderVaultTheme
@@ -204,6 +207,9 @@ internal fun TripDocumentsTabContent(
         suggestNameState = suggestNameState,
         onRequestSuggestName = viewModel::requestSuggestName,
         onClearSuggestName = viewModel::clearSuggestName,
+        onAutoOrganize = viewModel::requestAutoOrganize,
+        onConfirmAutoOrganize = viewModel::applyOrganization,
+        onCancelAutoOrganize = viewModel::cancelAutoOrganize,
     )
 }
 
@@ -219,6 +225,9 @@ internal fun TripDocumentsTabContent(
  *
  * [suggestNameState], [onRequestSuggestName], and [onClearSuggestName] drive the AI name
  * suggestion feature inside the rename-document dialog.
+ *
+ * [onAutoOrganize] triggers the AI auto-organize flow. [onConfirmAutoOrganize] applies the
+ * suggested plan; [onCancelAutoOrganize] dismisses the dialog without making any changes.
  */
 @Composable
 internal fun TripDocumentsContent(
@@ -243,6 +252,9 @@ internal fun TripDocumentsContent(
     suggestNameState: SuggestNameUiState? = null,
     onRequestSuggestName: (fileUri: String, mimeType: String, excludeName: String?) -> Unit = { _, _, _ -> },
     onClearSuggestName: () -> Unit = {},
+    onAutoOrganize: () -> Unit = {},
+    onConfirmAutoOrganize: (OrganizationPlan) -> Unit = {},
+    onCancelAutoOrganize: () -> Unit = {},
 ) {
     var isFabExpanded by rememberSaveable { mutableStateOf(false) }
     var showCreateFolderDialog by rememberSaveable { mutableStateOf(false) }
@@ -254,7 +266,10 @@ internal fun TripDocumentsContent(
     var showDeleteSelectedDialog by rememberSaveable { mutableStateOf(false) }
     var showMoveSelectedDialog by rememberSaveable { mutableStateOf(false) }
 
-    val isAiAvailable = (uiState as? TripDocumentsUiState.Success)?.isAiAvailable ?: false
+    val successState = uiState as? TripDocumentsUiState.Success
+    val isAiAvailable = successState?.isAiAvailable ?: false
+    val autoOrganizeState = successState?.autoOrganizeState
+    val hasDocuments = (successState?.documents?.size ?: 0) >= 2
 
     Box(modifier = Modifier.fillMaxSize()) {
         when (uiState) {
@@ -426,6 +441,21 @@ internal fun TripDocumentsContent(
                                         showCreateFolderDialog = true
                                     },
                                 )
+                                if (isAiAvailable && hasDocuments) {
+                                    SpeedDialItem(
+                                        label = stringResource(R.string.documents_auto_organize),
+                                        icon = {
+                                            Icon(
+                                                imageVector = Icons.Default.AutoAwesome,
+                                                contentDescription = stringResource(R.string.documents_auto_organize),
+                                            )
+                                        },
+                                        onClick = {
+                                            isFabExpanded = false
+                                            onAutoOrganize()
+                                        },
+                                    )
+                                }
                             }
                         }
                         FloatingActionButton(
@@ -575,6 +605,17 @@ internal fun TripDocumentsContent(
             },
         )
     }
+
+    // Auto-organize: single dialog covering all states (loading/downloading/result/error).
+    // A single persistent dialog is used to avoid the onDismissRequest bug that fires when
+    // an AlertDialog is removed from composition (see DocumentAnalysisComponents for details).
+    if (autoOrganizeState != null) {
+        AutoOrganizeDialog(
+            state = autoOrganizeState,
+            onConfirm = onConfirmAutoOrganize,
+            onDismiss = onCancelAutoOrganize,
+        )
+    }
 }
 
 // ── Speed dial helper ─────────────────────────────────────────────────────────
@@ -607,6 +648,152 @@ private fun SpeedDialItem(
             icon()
         }
     }
+}
+
+// ── Auto-organize dialog ──────────────────────────────────────────────────────
+
+/**
+ * A single unified dialog for the auto-organize flow, adapting its content to [state]:
+ * - [AutoOrganizeUiState.Loading] / [AutoOrganizeUiState.Downloading]: progress indicator.
+ *   Back-press and outside-tap are disabled while work is in progress; an explicit Cancel
+ *   button is shown to allow the user to abort.
+ * - [AutoOrganizeUiState.ReadyToConfirm]: scrollable preview of the proposed folder structure.
+ * - [AutoOrganizeUiState.Unavailable] / [AutoOrganizeUiState.Error]: status message.
+ *
+ * [onConfirm] is only called when [state] is [AutoOrganizeUiState.ReadyToConfirm].
+ * [onDismiss] is called to cancel or close the dialog from any state.
+ */
+@Composable
+private fun AutoOrganizeDialog(
+    state: AutoOrganizeUiState,
+    onConfirm: (OrganizationPlan) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val titleRes = when (state) {
+        is AutoOrganizeUiState.ReadyToConfirm -> R.string.documents_auto_organize_confirm_title
+        else -> R.string.documents_auto_organize
+    }
+    val isInProgress = state is AutoOrganizeUiState.Loading || state is AutoOrganizeUiState.Downloading
+
+    AlertDialog(
+        onDismissRequest = { if (!isInProgress) onDismiss() },
+        properties = DialogProperties(
+            dismissOnBackPress = !isInProgress,
+            dismissOnClickOutside = !isInProgress,
+        ),
+        title = { Text(stringResource(titleRes)) },
+        text = {
+            when (state) {
+                is AutoOrganizeUiState.Loading -> {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                        Text(stringResource(R.string.documents_auto_organize_loading))
+                    }
+                }
+                is AutoOrganizeUiState.Downloading -> {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                        Text(
+                            stringResource(
+                                R.string.documents_auto_organize_downloading,
+                                formatBytes(state.bytesDownloaded),
+                            ),
+                        )
+                    }
+                }
+                is AutoOrganizeUiState.ReadyToConfirm -> {
+                    AutoOrganizePlanPreview(plan = state.plan)
+                }
+                is AutoOrganizeUiState.Unavailable -> {
+                    Text(stringResource(R.string.documents_auto_organize_unavailable))
+                }
+                is AutoOrganizeUiState.Error -> {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(stringResource(R.string.documents_auto_organize_error))
+                        val message = state.message
+                        if (!message.isNullOrBlank()) {
+                            Text(
+                                text = message,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            if (state is AutoOrganizeUiState.ReadyToConfirm) {
+                TextButton(onClick = { onConfirm(state.plan) }) {
+                    Text(stringResource(R.string.documents_auto_organize_apply))
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.dialog_cancel))
+            }
+        },
+    )
+}
+
+/**
+ * Scrollable preview of the proposed [OrganizationPlan], listing each folder and its documents.
+ */
+@Composable
+private fun AutoOrganizePlanPreview(plan: OrganizationPlan) {
+    if (plan.folderAssignments.isEmpty()) {
+        Text(stringResource(R.string.documents_auto_organize_no_suggestion))
+        return
+    }
+    LazyColumn(modifier = Modifier.heightIn(max = 300.dp)) {
+        plan.folderAssignments.forEachIndexed { folderIndex, assignment ->
+            item(key = "folder-header-$folderIndex") {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(top = 8.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Folder,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = assignment.folderName,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            }
+            items(
+                items = assignment.documents,
+                key = { document -> "folder-$folderIndex-doc-${document.id}" },
+            ) { document ->
+                Text(
+                    text = "  • ${document.name}",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(start = 24.dp, top = 2.dp),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
+/** Formats a byte count as a human-readable string (e.g. "1.2 MB"). */
+private fun formatBytes(bytes: Long): String = when {
+    bytes >= 1_048_576 -> "%.1f MB".format(bytes / 1_048_576.0)
+    bytes >= 1_024 -> "%.0f KB".format(bytes / 1_024.0)
+    else -> "$bytes B"
 }
 
 // ── Rows ──────────────────────────────────────────────────────────────────────
