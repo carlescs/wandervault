@@ -119,9 +119,14 @@ class TripDocumentsViewModel(
         }
 
         viewModelScope.launch {
-            // allFoldersFlow is independent of navigation level, so it is hoisted outside
-            // flatMapLatest to avoid creating a new Room observer on every folder navigation.
+            // Trip-wide flows have a single Room observer each for the lifetime of the ViewModel;
+            // they are combined with the navigation-scoped content flow outside flatMapLatest so
+            // that folder navigation never creates new subscriptions for them.
             val allFoldersFlow = getAllFoldersForTrip(tripId)
+            val allDocumentsFlow = getAllDocumentsForTrip(tripId)
+
+            // Navigation-scoped flow: only the folders and documents for the current level.
+            // allFolders/allDocuments are intentionally excluded here and merged below.
             val contentFlow: Flow<TripDocumentsUiState.Success> =
                 _folderStack.flatMapLatest { stack ->
                     val currentFolder = stack.lastOrNull()
@@ -135,28 +140,35 @@ class TripDocumentsViewModel(
                     } else {
                         getDocumentsInFolder(currentFolder.id)
                     }
-                    combine(foldersFlow, documentsFlow, allFoldersFlow) {
-                            folders, documents, allFolders ->
+                    combine(foldersFlow, documentsFlow) { folders, documents ->
                         TripDocumentsUiState.Success(
                             folders = folders,
                             documents = documents,
                             currentFolder = currentFolder,
                             folderStack = stack,
-                            allFolders = allFolders,
                             // writeError is not preserved across data refreshes: a successful write
                             // triggers a new DB emission which clears any prior error naturally.
                         )
                     }
                 }
-            // Merge selection, AI availability, and auto-organize state separately to preserve
-            // them across DB-driven updates.
-            combine(contentFlow, _selectedDocumentIds, _isAiAvailable, _autoOrganizeState) {
-                    state, selectedIds, aiAvailable, autoOrganize ->
+            // Merge trip-wide flows, selection, AI availability, and auto-organize state outside
+            // flatMapLatest so each has exactly one Room/StateFlow observer for the ViewModel's
+            // lifetime, regardless of folder navigation.
+            combine(
+                contentFlow,
+                allFoldersFlow,
+                allDocumentsFlow,
+                _selectedDocumentIds,
+                _isAiAvailable,
+            ) { state, allFolders, allDocuments, selectedIds, aiAvailable ->
                 state.copy(
+                    allFolders = allFolders,
+                    allDocuments = allDocuments,
                     selectedDocumentIds = selectedIds,
                     isAiAvailable = aiAvailable,
-                    autoOrganizeState = autoOrganize,
                 )
+            }.combine(_autoOrganizeState) { state, autoOrganize ->
+                state.copy(autoOrganizeState = autoOrganize)
             }.collect { state ->
                 _uiState.value = state
             }
