@@ -144,6 +144,13 @@ private const val FOLDER_MARKER = "FOLDER:"
 private const val DOC_MARKER = "DOC:"
 
 /**
+ * Matches a run of one or more digits at the start of a string.
+ * Used to extract document indices robustly — the model sometimes appends punctuation
+ * or short annotations after a number (e.g. "1." or "2 (note)").
+ */
+private val LEADING_INT_RE = Regex("^\\d+")
+
+/**
  * Parses the Gemini Nano auto-organize response into an [OrganizationPlan].
  *
  * Expected format (one or more folder blocks):
@@ -179,7 +186,11 @@ internal fun parseOrganizationResponse(
                 val folderName = currentFolderName ?: continue
                 val validIndices = trimmed.substring(DOC_MARKER.length)
                     .split(",")
-                    .mapNotNull { it.trim().toIntOrNull() }
+                    .mapNotNull { token ->
+                        // Extract the leading integer, ignoring any trailing punctuation or
+                        // annotation the model may append (e.g. "1." or "2 (note)").
+                        LEADING_INT_RE.find(token.trim())?.value?.toIntOrNull()
+                    }
                     .distinct()
                     .filter { it in 1..documents.size && it !in assignedDocIndices }
                 assignedDocIndices += validIndices

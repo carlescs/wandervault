@@ -372,8 +372,7 @@ class DocumentSummaryRepositoryImpl(
     ): String = buildString {
         appendLine(
             "You are organizing travel documents into folders. Group related documents together " +
-                "(e.g. flights, hotels, insurance, visas). " +
-                "Respond in ${appPreferences.resolvedAiLanguageName()}.",
+                "(e.g. flights, hotels, insurance, visas).",
         )
         if (existingFolderNames.isNotEmpty()) {
             appendLine(
@@ -384,8 +383,14 @@ class DocumentSummaryRepositoryImpl(
             appendLine()
         }
         appendLine(
-            "Use this exact format — no other text:",
+            "Every document must be assigned to exactly one folder. " +
+                "All numbers from 1 to ${documents.size} must appear in the output.",
         )
+        appendLine(
+            "Use ${appPreferences.resolvedAiLanguageName()} for folder names. " +
+                "The keywords FOLDER: and DOC: must appear exactly as shown — do not translate them.",
+        )
+        appendLine("Output ONLY lines in this format — no preamble, no explanation, no other text:")
         appendLine("FOLDER:<folder name>")
         appendLine("DOC:<comma-separated document numbers>")
         appendLine()
