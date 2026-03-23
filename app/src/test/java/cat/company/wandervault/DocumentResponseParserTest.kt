@@ -568,4 +568,22 @@ class DocumentResponseParserTest {
         assertEquals(1, result.folderAssignments.size)
         assertEquals(listOf(docA, docB), result.folderAssignments[0].documents)
     }
+
+    @Test
+    fun `parseOrganizationResponse handles DOC indices with trailing period`() {
+        val raw = "FOLDER:Flights\nDOC:1.,2."
+        val result = parseOrganizationResponse(raw, listOf(docA, docB))
+
+        assertEquals(1, result.folderAssignments.size)
+        assertEquals(listOf(docA, docB), result.folderAssignments[0].documents)
+    }
+
+    @Test
+    fun `parseOrganizationResponse handles DOC indices with trailing annotation`() {
+        val raw = "FOLDER:Flights\nDOC:1 (outbound),2 (return)"
+        val result = parseOrganizationResponse(raw, listOf(docA, docB))
+
+        assertEquals(1, result.folderAssignments.size)
+        assertEquals(listOf(docA, docB), result.folderAssignments[0].documents)
+    }
 }
