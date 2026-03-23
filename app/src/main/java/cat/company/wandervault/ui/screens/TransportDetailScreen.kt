@@ -352,9 +352,11 @@ private fun TransportDetailsTabContent(
 /**
  * Renders the full journey chain: origin → leg1 type → leg1 stop → … → final destination.
  *
- * Each leg is represented by its transport type icon and label.  The stop name (where that leg
- * ends) is shown after each leg arrow when [TransportLegEditState.stopName] is set.  The final
- * destination ([nextDestinationName]) is always shown at the bottom of the chain when available.
+ * Each leg is represented by its transport type icon and label.  For non-last legs the stop name
+ * (where that leg ends) is shown after the leg arrow when [TransportLegEditState.stopName] is set.
+ * The last leg never shows an intermediate stop; it ends at [nextDestinationName], which is always
+ * shown at the bottom of the chain when available.  This mirrors the Legs editing tab, which also
+ * only displays intermediate stops between legs (never below the final leg).
  */
 @Composable
 private fun TransportJourneySummary(
@@ -408,10 +410,12 @@ private fun TransportJourneySummary(
                 }
             }
 
-            // Intermediate stop where this leg ends (only shown when stopName is set and
-            // it is not the last leg, or when it differs from nextDestinationName).
-            if (leg.stopName.isNotBlank() && (index < legs.lastIndex || leg.stopName != nextDestinationName)) {
-                JourneyStop(name = leg.stopName, isOrigin = false)
+            // Intermediate stop and layover are only shown for non-last legs, consistent with
+            // the Legs editing tab which never shows a stop entry below the final leg.
+            if (index < legs.lastIndex) {
+                if (leg.stopName.isNotBlank()) {
+                    JourneyStop(name = leg.stopName, isOrigin = false)
+                }
                 // Show layover duration below the stop: time between this leg's arrival and the
                 // next leg's departure, accounting for timezone differences.
                 val nextLeg = legs.getOrNull(index + 1)
