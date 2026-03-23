@@ -246,10 +246,14 @@ class TripDocumentsViewModel(
     // ── Auto-organize operations ──────────────────────────────────────────────
 
     /**
-     * Starts an AI analysis of **all** documents for the trip to produce a suggested folder
-     * organization plan. Documents that are already inside folders are included so the AI has
-     * the full picture and can avoid creating duplicate folders that are synonyms or translations
-     * of existing ones. Folders are created (or reused) at the current navigation level only.
+     * Starts an AI analysis to produce a suggested folder organization plan.
+     *
+     * When at the trip root, **all** documents (including those already in folders) are analyzed
+     * so the AI has the full picture and can avoid duplicate folder names that are synonyms or
+     * translations of existing ones. When inside a subfolder, only the documents in that folder
+     * are analyzed to avoid inadvertently reorganizing the rest of the trip.
+     *
+     * Folders are created (or reused) at the current navigation level only.
      *
      * Progress is exposed via [TripDocumentsUiState.Success.autoOrganizeState]:
      * - [AutoOrganizeUiState.Loading] while the request is running.
@@ -265,21 +269,27 @@ class TripDocumentsViewModel(
         autoOrganizeJob = viewModelScope.launch {
             _autoOrganizeState.value = AutoOrganizeUiState.Loading
             try {
-                // Collect all documents for the trip (including those already in folders) so
-                // the AI can suggest a complete reorganization and avoid creating duplicate
-                // folder names that are synonyms or translations of existing ones.
-                val allDocuments = getAllDocumentsForTrip(tripId).first()
-                if (allDocuments.isEmpty()) {
+                val currentFolder = _folderStack.value.lastOrNull()
+                val parentFolderId = currentFolder?.id
+                // At root: analyze all trip documents (including those already in folders) to
+                // give the AI complete context and prevent synonym/translation folder duplicates.
+                // Inside a subfolder: scope to that folder's documents only to avoid unexpectedly
+                // reorganizing documents that belong to other parts of the trip.
+                val documents = if (currentFolder == null) {
+                    getAllDocumentsForTrip(tripId).first()
+                } else {
+                    getDocumentsInFolder(currentFolder.id).first()
+                }
+                if (documents.isEmpty()) {
                     _autoOrganizeState.value = null
                     return@launch
                 }
-                val parentFolderId = _folderStack.value.lastOrNull()?.id
                 val existingFolderNames = getAllFoldersForTrip(tripId)
                     .first()
                     .filter { it.parentFolderId == parentFolderId }
                     .map { it.name }
                 val plan = autoOrganizeDocuments(
-                    documents = allDocuments,
+                    documents = documents,
                     existingFolderNames = existingFolderNames,
                     onDownloadProgress = { bytes ->
                         _autoOrganizeState.value = AutoOrganizeUiState.Downloading(bytes)
@@ -327,7 +337,7 @@ class TripDocumentsViewModel(
             val existingFolders = allFolders.filter { it.parentFolderId == parentFolderId }
             val occupiedNames = existingFolders.map { it.name }.toMutableSet()
             val failedItems = mutableListOf<String>()
-            for (assignment in plan.folderAssignments) {
+            assignments@ for (assignment in plan.folderAssignments) {
                 try {
                     val suggestedName = assignment.folderName.trim()
                     // Reuse an existing folder whose name matches case-insensitively to avoid
@@ -349,16 +359,17 @@ class TripDocumentsViewModel(
                         )
                         // Wait for Room to emit the updated folder list that contains the new folder,
                         // then retrieve the generated ID.
-                        getAllFoldersForTrip(tripId)
+                        val newFolder = getAllFoldersForTrip(tripId)
                             .first { folders ->
                                 folders.any { it.name == folderName && it.parentFolderId == parentFolderId }
                             }
                             .firstOrNull { it.name == folderName && it.parentFolderId == parentFolderId }
-                            ?: run {
-                                Log.e(TAG, "Could not find newly created folder '$folderName'")
-                                failedItems.add(assignment.folderName)
-                                return@for
-                            }
+                        if (newFolder == null) {
+                            Log.e(TAG, "Could not find newly created folder '$folderName'")
+                            failedItems.add(assignment.folderName)
+                            continue@assignments
+                        }
+                        newFolder
                     }
                     for (document in assignment.documents) {
                         try {
