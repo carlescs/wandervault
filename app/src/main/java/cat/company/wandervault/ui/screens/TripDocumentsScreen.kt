@@ -269,7 +269,13 @@ internal fun TripDocumentsContent(
     val successState = uiState as? TripDocumentsUiState.Success
     val isAiAvailable = successState?.isAiAvailable ?: false
     val autoOrganizeState = successState?.autoOrganizeState
-    val hasDocuments = (successState?.documents?.size ?: 0) >= 2
+    // At root level the AI analyzes all trip documents (including those inside folders), so
+    // check the full-trip count; inside a folder only that folder's documents are organized.
+    val hasDocuments = if (successState?.currentFolder == null) {
+        (successState?.allDocuments?.size ?: 0) >= 2
+    } else {
+        (successState.documents.size) >= 2
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         when (uiState) {

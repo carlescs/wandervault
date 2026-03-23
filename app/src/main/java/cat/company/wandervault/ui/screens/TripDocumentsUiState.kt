@@ -31,6 +31,8 @@ sealed class TripDocumentsUiState {
      * @param currentFolder The folder currently being viewed, or `null` when at the root level.
      * @param folderStack Navigation path of folders from the root to the current folder (last element = current folder).
      * @param allFolders All folders in the trip regardless of depth, used for the move-document picker.
+     * @param allDocuments All documents in the trip regardless of folder, used to decide whether
+     *   auto-organize is available (the AI analyzes all documents when at root level).
      * @param writeError A one-off error from a failed write operation (create/rename/delete),
      *   or `null` when there is no pending error. Call [TripDocumentsViewModel.clearError] to dismiss.
      * @param selectedDocumentIds IDs of documents currently selected in multi-select mode.
@@ -42,6 +44,7 @@ sealed class TripDocumentsUiState {
         val currentFolder: TripDocumentFolder? = null,
         val folderStack: List<TripDocumentFolder> = emptyList(),
         val allFolders: List<TripDocumentFolder> = emptyList(),
+        val allDocuments: List<TripDocument> = emptyList(),
         val writeError: DocumentsWriteError? = null,
         val selectedDocumentIds: Set<Int> = emptySet(),
         /** Whether on-device AI is supported on this device. */

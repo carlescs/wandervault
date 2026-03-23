@@ -119,9 +119,11 @@ class TripDocumentsViewModel(
         }
 
         viewModelScope.launch {
-            // allFoldersFlow is independent of navigation level, so it is hoisted outside
-            // flatMapLatest to avoid creating a new Room observer on every folder navigation.
+            // allFoldersFlow and allDocumentsFlow are independent of navigation level, so they
+            // are hoisted outside flatMapLatest to avoid creating new Room observers on every
+            // folder navigation.
             val allFoldersFlow = getAllFoldersForTrip(tripId)
+            val allDocumentsFlow = getAllDocumentsForTrip(tripId)
             val contentFlow: Flow<TripDocumentsUiState.Success> =
                 _folderStack.flatMapLatest { stack ->
                     val currentFolder = stack.lastOrNull()
@@ -135,14 +137,15 @@ class TripDocumentsViewModel(
                     } else {
                         getDocumentsInFolder(currentFolder.id)
                     }
-                    combine(foldersFlow, documentsFlow, allFoldersFlow) {
-                            folders, documents, allFolders ->
+                    combine(foldersFlow, documentsFlow, allFoldersFlow, allDocumentsFlow) {
+                            folders, documents, allFolders, allDocuments ->
                         TripDocumentsUiState.Success(
                             folders = folders,
                             documents = documents,
                             currentFolder = currentFolder,
                             folderStack = stack,
                             allFolders = allFolders,
+                            allDocuments = allDocuments,
                             // writeError is not preserved across data refreshes: a successful write
                             // triggers a new DB emission which clears any prior error naturally.
                         )
