@@ -12,6 +12,7 @@ class AutoOrganizeDocumentsUseCase(private val repository: DocumentSummaryReposi
     suspend fun isAvailable(): Boolean = repository.isAvailable()
     suspend operator fun invoke(
         documents: List<TripDocument>,
+        existingFolderNames: List<String> = emptyList(),
         onDownloadProgress: ((bytesDownloaded: Long) -> Unit)? = null,
-    ): OrganizationPlan? = repository.suggestOrganization(documents, onDownloadProgress)
+    ): OrganizationPlan? = repository.suggestOrganization(documents, existingFolderNames, onDownloadProgress)
 }

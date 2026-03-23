@@ -86,6 +86,9 @@ interface DocumentSummaryRepository {
      *
      * @param documents The documents to organise. Must not be empty; passing an empty list returns
      *   an [OrganizationPlan] with no folder assignments immediately without querying the model.
+     * @param existingFolderNames Names of folders that already exist at the target level. The AI
+     *   is instructed to reuse these names (which prevents creating duplicate folders that are
+     *   synonyms or translations of an existing folder, e.g. "Flights" vs "Vuelos").
      * @param onDownloadProgress Optional callback invoked with the number of bytes downloaded
      *   so far while the Gemini Nano model is being downloaded to the device.
      * @return An [OrganizationPlan] describing which folders to create and which documents to
@@ -95,6 +98,7 @@ interface DocumentSummaryRepository {
      */
     suspend fun suggestOrganization(
         documents: List<TripDocument>,
+        existingFolderNames: List<String> = emptyList(),
         onDownloadProgress: ((bytesDownloaded: Long) -> Unit)? = null,
     ): OrganizationPlan?
 }

@@ -12,6 +12,7 @@ import cat.company.wandervault.domain.usecase.AutoOrganizeDocumentsUseCase
 import cat.company.wandervault.domain.usecase.CopyDocumentToInternalStorageUseCase
 import cat.company.wandervault.domain.usecase.DeleteDocumentUseCase
 import cat.company.wandervault.domain.usecase.DeleteFolderUseCase
+import cat.company.wandervault.domain.usecase.GetAllDocumentsForTripUseCase
 import cat.company.wandervault.domain.usecase.GetDocumentByIdUseCase
 import cat.company.wandervault.domain.usecase.GetDocumentsInFolderUseCase
 import cat.company.wandervault.domain.usecase.GetRootDocumentsUseCase
@@ -107,6 +108,19 @@ class TripDocumentUseCaseTest {
         val result = GetRootDocumentsUseCase(repository)(7).first()
 
         assertEquals(listOf(doc), result)
+    }
+
+    // ── GetAllDocumentsForTripUseCase ─────────────────────────────────────────
+
+    @Test
+    fun `GetAllDocumentsForTripUseCase returns all documents including those in folders`() = runTest {
+        val rootDoc = TripDocument(id = 1, tripId = 5, name = "passport.pdf", uri = "u1", mimeType = "application/pdf")
+        val folderDoc = TripDocument(id = 2, tripId = 5, folderId = 10, name = "boarding.pdf", uri = "u2", mimeType = "application/pdf")
+        repository.allDocuments[5] = mutableListOf(rootDoc, folderDoc)
+
+        val result = GetAllDocumentsForTripUseCase(repository)(5).first()
+
+        assertEquals(listOf(rootDoc, folderDoc), result)
     }
 
     // ── SaveFolderUseCase ─────────────────────────────────────────────────────
@@ -409,6 +423,19 @@ class TripDocumentUseCaseTest {
     }
 
     @Test
+    fun `AutoOrganizeDocumentsUseCase forwards existing folder names to repository`() = runTest {
+        val docs = listOf(
+            TripDocument(id = 1, tripId = 1, name = "a.pdf", uri = "uri1", mimeType = "application/pdf"),
+        )
+        val folderNames = listOf("Flights", "Hotels")
+        val fakeRepo = FakeDocumentSummaryRepository(null, organizationPlan = OrganizationPlan(emptyList()))
+
+        AutoOrganizeDocumentsUseCase(fakeRepo)(docs, existingFolderNames = folderNames)
+
+        assertEquals(folderNames, fakeRepo.lastExistingFolderNames)
+    }
+
+    @Test
     fun `AutoOrganizeDocumentsUseCase isAvailable returns true when repository is available`() = runTest {
         val fakeRepo = FakeDocumentSummaryRepository(null, available = true)
         assertTrue(AutoOrganizeDocumentsUseCase(fakeRepo).isAvailable())
@@ -426,6 +453,7 @@ private class FakeTripDocumentRepository : TripDocumentRepository {
     val subFolders: MutableMap<Int, MutableList<TripDocumentFolder>> = mutableMapOf()
     val documents: MutableMap<Int, MutableList<TripDocument>> = mutableMapOf()
     val rootDocuments: MutableMap<Int, MutableList<TripDocument>> = mutableMapOf()
+    val allDocuments: MutableMap<Int, MutableList<TripDocument>> = mutableMapOf()
 
     val savedFolders = mutableListOf<TripDocumentFolder>()
     val updatedFolders = mutableListOf<TripDocumentFolder>()
@@ -454,6 +482,9 @@ private class FakeTripDocumentRepository : TripDocumentRepository {
 
     override fun getAllFoldersForTrip(tripId: Int): Flow<List<TripDocumentFolder>> =
         flowOf(emptyList())
+
+    override fun getAllDocumentsForTrip(tripId: Int): Flow<List<TripDocument>> =
+        flowOf(allDocuments[tripId] ?: emptyList())
 
     override suspend fun saveFolder(folder: TripDocumentFolder) {
         savedFolders.add(folder)
@@ -501,6 +532,7 @@ private class FakeDocumentSummaryRepository(
     var lastTripYear: Int? = null
     var lastQuestion: String? = null
     var lastOrganizeDocuments: List<TripDocument>? = null
+    var lastExistingFolderNames: List<String>? = null
 
     override suspend fun isAvailable(): Boolean = available
 
@@ -532,9 +564,11 @@ private class FakeDocumentSummaryRepository(
 
     override suspend fun suggestOrganization(
         documents: List<TripDocument>,
+        existingFolderNames: List<String>,
         onDownloadProgress: ((bytesDownloaded: Long) -> Unit)?,
     ): OrganizationPlan? {
         lastOrganizeDocuments = documents
+        lastExistingFolderNames = existingFolderNames
         return organizationPlan
     }
 }
