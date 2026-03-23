@@ -95,6 +95,7 @@ val presentationModule = module {
             deleteDocument = get(),
             copyDocumentToInternalStorage = get(),
             getAllFoldersForTrip = get(),
+            getAllDocumentsForTrip = get(),
             suggestDocumentName = get(),
             autoOrganizeDocuments = get(),
         )

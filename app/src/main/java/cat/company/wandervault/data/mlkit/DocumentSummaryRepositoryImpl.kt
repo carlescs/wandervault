@@ -347,6 +347,7 @@ class DocumentSummaryRepositoryImpl(
 
     override suspend fun suggestOrganization(
         documents: List<TripDocument>,
+        existingFolderNames: List<String>,
         onDownloadProgress: ((bytesDownloaded: Long) -> Unit)?,
     ): OrganizationPlan? = withContext(Dispatchers.IO) {
         if (documents.isEmpty()) return@withContext OrganizationPlan(emptyList())
@@ -355,7 +356,7 @@ class DocumentSummaryRepositoryImpl(
             FeatureStatus.DOWNLOADABLE -> awaitDownload(onDownloadProgress)
             FeatureStatus.AVAILABLE -> Unit
         }
-        val prompt = buildOrganizationPrompt(documents)
+        val prompt = buildOrganizationPrompt(documents, existingFolderNames)
         val request = generateContentRequest(TextPart(prompt)) {
             maxOutputTokens = AUTO_ORGANIZE_MAX_TOKENS
         }
@@ -365,12 +366,23 @@ class DocumentSummaryRepositoryImpl(
         parseOrganizationResponse(rawOutput, documents)
     }
 
-    private fun buildOrganizationPrompt(documents: List<TripDocument>): String = buildString {
+    private fun buildOrganizationPrompt(
+        documents: List<TripDocument>,
+        existingFolderNames: List<String> = emptyList(),
+    ): String = buildString {
         appendLine(
             "You are organizing travel documents into folders. Group related documents together " +
                 "(e.g. flights, hotels, insurance, visas). " +
                 "Respond in ${appPreferences.resolvedAiLanguageName()}.",
         )
+        if (existingFolderNames.isNotEmpty()) {
+            appendLine(
+                "The following folders already exist. Prefer reusing these exact names over " +
+                    "creating new ones with the same meaning (including synonyms or translations):",
+            )
+            existingFolderNames.forEach { appendLine("- $it") }
+            appendLine()
+        }
         appendLine(
             "Use this exact format — no other text:",
         )

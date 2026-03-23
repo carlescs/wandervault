@@ -54,6 +54,10 @@ interface TripDocumentDao {
     )
     suspend fun getDocumentUrisInFolderTree(rootFolderId: Int): List<String>
 
+    /** Returns all documents belonging to [tripId] (all folders + root), ordered by name. */
+    @Query("SELECT * FROM trip_documents WHERE tripId = :tripId ORDER BY name ASC")
+    fun getAllByTripId(tripId: Int): Flow<List<TripDocumentEntity>>
+
     /** Returns the [uri] strings for every document belonging to [tripId] (all folders + root). */
     @Query("SELECT uri FROM trip_documents WHERE tripId = :tripId")
     suspend fun getAllDocumentUrisByTripId(tripId: Int): List<String>
