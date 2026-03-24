@@ -596,6 +596,7 @@ internal fun TripDocumentsContent(
     if (showMoveSelectedDialog) {
         val successState = uiState as? TripDocumentsUiState.Success
         val allFolders = successState?.allFolders ?: emptyList()
+        val selectedFolderIds = successState?.selectedFolderIds ?: emptySet()
         MoveFolderPickerDialog(
             allFolders = allFolders,
             onMove = { targetFolderId ->
@@ -603,7 +604,7 @@ internal fun TripDocumentsContent(
                 onMoveSelectedItems(targetFolderId)
             },
             onDismiss = { showMoveSelectedDialog = false },
-            excludedFolderIds = successState?.selectedFolderIds ?: emptySet(),
+            excludedFolderIds = collectFolderSubtreeIds(selectedFolderIds, allFolders),
         )
     }
 
@@ -1321,10 +1322,11 @@ private fun ConfirmDeleteDialog(
  * A dialog that lets the user pick a destination folder when moving a document or folder.
  *
  * Shows a "Root (no folder)" option followed by all folders in the trip, minus any listed in
- * [excludedFolderIds] (used to prevent moving a folder into itself). Each folder is labelled
- * with its full ancestor path (e.g. "Travel / Documents") to disambiguate folders that share the
- * same name under different parents. Tapping an option immediately calls [onMove] with the
- * selected folder ID (or `null` for root) and dismisses the dialog.
+ * [excludedFolderIds] (used to prevent moving a folder into itself or one of its descendants —
+ * callers should pass the entire subtree of selected folders). Each folder is labelled with its
+ * full ancestor path (e.g. "Travel / Documents") to disambiguate folders that share the same name
+ * under different parents. Tapping an option immediately calls [onMove] with the selected folder
+ * ID (or `null` for root) and dismisses the dialog.
  */
 @Composable
 private fun MoveFolderPickerDialog(
@@ -1415,6 +1417,33 @@ private fun buildFolderPath(
     }
     parts.reverse()
     return parts.joinToString(" / ")
+}
+
+/**
+ * Returns the IDs of all folders in [rootIds] and all their descendants within [allFolders].
+ * Tracks visited IDs to guard against cycles in case of data corruption.
+ */
+private fun collectFolderSubtreeIds(
+    rootIds: Set<Int>,
+    allFolders: List<TripDocumentFolder>,
+): Set<Int> {
+    if (rootIds.isEmpty()) return emptySet()
+    val childrenMap = buildMap<Int, MutableList<Int>> {
+        allFolders.forEach { folder ->
+            folder.parentFolderId?.let { parentId ->
+                getOrPut(parentId) { mutableListOf() }.add(folder.id)
+            }
+        }
+    }
+    val result = mutableSetOf<Int>()
+    val queue = ArrayDeque(rootIds.toList())
+    while (queue.isNotEmpty()) {
+        val id = queue.removeFirst()
+        if (result.add(id)) {
+            childrenMap[id]?.forEach { childId -> queue.addLast(childId) }
+        }
+    }
+    return result
 }
 
 /**
