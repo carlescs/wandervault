@@ -548,22 +548,24 @@ class TripDocumentsViewModel(
     }
 
     /**
-     * Moves all currently selected documents to [targetFolderId], or to the trip root when `null`.
-     * The selection is cleared immediately before the write operations begin.
+     * Moves all currently selected documents and folders to [targetFolderId], or to the trip root
+     * when `null`. The selection is cleared immediately before the write operations begin.
      *
-     * Each document is moved independently; a failure for one item (e.g. a name conflict in the
-     * target folder) is logged and recorded, but the remaining documents are still processed.
+     * Each item is moved independently; a failure for one item (e.g. a name conflict in the
+     * target folder) is logged and recorded, but the remaining items are still processed.
      * If any moves fail, a [DocumentsWriteError.Generic] error is surfaced after the loop.
      */
-    fun moveSelectedDocuments(targetFolderId: Int?) {
+    fun moveSelectedItems(targetFolderId: Int?) {
         val current = _uiState.value as? TripDocumentsUiState.Success ?: return
-        val selectedIds = _selectedDocumentIds.value
-        if (selectedIds.isEmpty()) return
-        val documentsToMove = current.documents.filter { it.id in selectedIds }
+        val selectedDocIds = _selectedDocumentIds.value
+        val selectedFolderIds = _selectedFolderIds.value
+        if (selectedDocIds.isEmpty() && selectedFolderIds.isEmpty()) return
+        val documentsToMove = current.documents.filter { it.id in selectedDocIds }
+        val foldersToMove = current.folders.filter { it.id in selectedFolderIds }
         _selectedDocumentIds.value = emptySet()
         _selectedFolderIds.value = emptySet()
         viewModelScope.launch {
-            val failedMoves = mutableListOf<TripDocument>()
+            var anyFailed = false
             documentsToMove.forEach { document ->
                 try {
                     updateDocument(document.copy(folderId = targetFolderId))
@@ -573,10 +575,22 @@ class TripDocumentsViewModel(
                         "Failed to move document ${document.id} ('${document.name}') to folder $targetFolderId",
                         e,
                     )
-                    failedMoves.add(document)
+                    anyFailed = true
                 }
             }
-            if (failedMoves.isNotEmpty()) {
+            foldersToMove.forEach { folder ->
+                try {
+                    updateFolder(folder.copy(parentFolderId = targetFolderId))
+                } catch (e: Exception) {
+                    Log.e(
+                        TAG,
+                        "Failed to move folder ${folder.id} ('${folder.name}') to folder $targetFolderId",
+                        e,
+                    )
+                    anyFailed = true
+                }
+            }
+            if (anyFailed) {
                 setWriteError(DocumentsWriteError.Generic)
             }
         }
