@@ -206,7 +206,7 @@ internal fun TripDocumentsTabContent(
         onSelectAll = viewModel::selectAll,
         onClearSelection = viewModel::clearSelection,
         onDeleteSelectedDocuments = viewModel::deleteSelectedDocuments,
-        onMoveSelectedDocuments = viewModel::moveSelectedDocuments,
+        onMoveSelectedItems = viewModel::moveSelectedItems,
         suggestNameState = suggestNameState,
         onRequestSuggestName = viewModel::requestSuggestName,
         onClearSuggestName = viewModel::clearSuggestName,
@@ -224,7 +224,8 @@ internal fun TripDocumentsTabContent(
  * [onErrorDismiss] is called when the user acknowledges a transient writing error.
  * Multi-select mode is entered by long-pressing a document or folder row;
  * [onToggleDocumentSelection], [onToggleFolderSelection], [onSelectAll], [onClearSelection],
- * [onDeleteSelectedDocuments], and [onMoveSelectedDocuments] handle the bulk-operation actions.
+ * [onDeleteSelectedDocuments], and [onMoveSelectedItems] handle the bulk-operation actions.
+ * [onMoveSelectedItems] moves all selected documents **and** folders to the chosen target.
  *
  * [suggestNameState], [onRequestSuggestName], and [onClearSuggestName] drive the AI name
  * suggestion feature inside the rename-document dialog.
@@ -252,7 +253,7 @@ internal fun TripDocumentsContent(
     onSelectAll: () -> Unit = {},
     onClearSelection: () -> Unit = {},
     onDeleteSelectedDocuments: () -> Unit = {},
-    onMoveSelectedDocuments: (targetFolderId: Int?) -> Unit = {},
+    onMoveSelectedItems: (targetFolderId: Int?) -> Unit = {},
     suggestNameState: SuggestNameUiState? = null,
     onRequestSuggestName: (fileUri: String, mimeType: String, excludeName: String?) -> Unit = { _, _, _ -> },
     onClearSuggestName: () -> Unit = {},
@@ -408,7 +409,6 @@ internal fun TripDocumentsContent(
                         MultiSelectActionBar(
                             onDeleteSelected = { showDeleteSelectedDialog = true },
                             onMoveSelected = { showMoveSelectedDialog = true },
-                            showMoveAction = uiState.selectedFolderIds.isEmpty(),
                         )
                     }
                 }
@@ -592,16 +592,19 @@ internal fun TripDocumentsContent(
         )
     }
 
-    // Multi-select: move all selected documents to a chosen folder
+    // Multi-select: move all selected documents and folders to a chosen folder
     if (showMoveSelectedDialog) {
-        val allFolders = (uiState as? TripDocumentsUiState.Success)?.allFolders ?: emptyList()
+        val successState = uiState as? TripDocumentsUiState.Success
+        val allFolders = successState?.allFolders ?: emptyList()
+        val selectedFolderIds = successState?.selectedFolderIds ?: emptySet()
         MoveFolderPickerDialog(
             allFolders = allFolders,
             onMove = { targetFolderId ->
                 showMoveSelectedDialog = false
-                onMoveSelectedDocuments(targetFolderId)
+                onMoveSelectedItems(targetFolderId)
             },
             onDismiss = { showMoveSelectedDialog = false },
+            excludedFolderIds = collectFolderSubtreeIds(selectedFolderIds, allFolders),
         )
     }
 
@@ -868,17 +871,12 @@ private fun SelectionBar(
 
 /**
  * Persistent bottom action bar shown when multi-select mode is active.
- * Provides bulk Delete for the selected items (documents and folders) and bulk Move for
- * the selected documents only.
- * [showMoveAction] controls whether the Move button is visible; it is typically enabled
- * only when no folders are selected, since moving folders is not supported via the
- * bulk-move flow.
+ * Provides bulk Delete and bulk Move for the selected items (documents and folders).
  */
 @Composable
 private fun MultiSelectActionBar(
     onDeleteSelected: () -> Unit,
     onMoveSelected: () -> Unit,
-    showMoveAction: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     Surface(
@@ -899,15 +897,13 @@ private fun MultiSelectActionBar(
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(stringResource(R.string.documents_delete_action))
             }
-            if (showMoveAction) {
-                TextButton(onClick = onMoveSelected) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.DriveFileMove,
-                        contentDescription = null,
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(stringResource(R.string.documents_move_action))
-                }
+            TextButton(onClick = onMoveSelected) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.DriveFileMove,
+                    contentDescription = null,
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(stringResource(R.string.documents_move_action))
             }
         }
     }
@@ -1323,19 +1319,25 @@ private fun ConfirmDeleteDialog(
 }
 
 /**
- * A dialog that lets the user pick a destination folder when moving a document.
+ * A dialog that lets the user pick a destination folder when moving a document or folder.
  *
- * Shows a "Root (no folder)" option followed by all folders in the trip. Each folder is labelled
- * with its full ancestor path (e.g. "Travel / Documents") to disambiguate folders that share the
- * same name under different parents. Tapping an option immediately calls [onMove] with the
- * selected folder ID (or `null` for root) and dismisses the dialog.
+ * Shows a "Root (no folder)" option followed by all folders in the trip, minus any listed in
+ * [excludedFolderIds] (used to prevent moving a folder into itself or one of its descendants —
+ * callers should pass the entire subtree of selected folders). Each folder is labelled with its
+ * full ancestor path (e.g. "Travel / Documents") to disambiguate folders that share the same name
+ * under different parents. Tapping an option immediately calls [onMove] with the selected folder
+ * ID (or `null` for root) and dismisses the dialog.
  */
 @Composable
 private fun MoveFolderPickerDialog(
     allFolders: List<TripDocumentFolder>,
     onMove: (targetFolderId: Int?) -> Unit,
     onDismiss: () -> Unit,
+    excludedFolderIds: Set<Int> = emptySet(),
 ) {
+    val selectableFolders = remember(allFolders, excludedFolderIds) {
+        allFolders.filter { it.id !in excludedFolderIds }
+    }
     val folderMap = remember(allFolders) { allFolders.associateBy { it.id } }
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1361,7 +1363,7 @@ private fun MoveFolderPickerDialog(
                         style = MaterialTheme.typography.bodyLarge,
                     )
                 }
-                allFolders.forEach { folder ->
+                selectableFolders.forEach { folder ->
                     HorizontalDivider()
                     Row(
                         modifier = Modifier
@@ -1415,6 +1417,33 @@ private fun buildFolderPath(
     }
     parts.reverse()
     return parts.joinToString(" / ")
+}
+
+/**
+ * Returns the IDs of all folders in [rootIds] and all their descendants within [allFolders].
+ * Tracks visited IDs to guard against cycles in case of data corruption.
+ */
+private fun collectFolderSubtreeIds(
+    rootIds: Set<Int>,
+    allFolders: List<TripDocumentFolder>,
+): Set<Int> {
+    if (rootIds.isEmpty()) return emptySet()
+    val childrenMap = buildMap<Int, MutableList<Int>> {
+        allFolders.forEach { folder ->
+            folder.parentFolderId?.let { parentId ->
+                getOrPut(parentId) { mutableListOf() }.add(folder.id)
+            }
+        }
+    }
+    val result = mutableSetOf<Int>()
+    val queue = ArrayDeque(rootIds.toList())
+    while (queue.isNotEmpty()) {
+        val id = queue.removeFirst()
+        if (result.add(id)) {
+            childrenMap[id]?.forEach { childId -> queue.addLast(childId) }
+        }
+    }
+    return result
 }
 
 /**

@@ -548,22 +548,28 @@ class TripDocumentsViewModel(
     }
 
     /**
-     * Moves all currently selected documents to [targetFolderId], or to the trip root when `null`.
-     * The selection is cleared immediately before the write operations begin.
+     * Moves all currently selected documents and folders to [targetFolderId], or to the trip root
+     * when `null`. The selection is cleared immediately before the write operations begin.
      *
-     * Each document is moved independently; a failure for one item (e.g. a name conflict in the
-     * target folder) is logged and recorded, but the remaining documents are still processed.
+     * Each item is moved independently; a failure for one item (e.g. a name conflict in the
+     * target folder) is logged and recorded, but the remaining items are still processed.
      * If any moves fail, a [DocumentsWriteError.Generic] error is surfaced after the loop.
+     *
+     * A folder is skipped (and counted as a failure) if [targetFolderId] is within that folder's
+     * own subtree (i.e. moving it into itself or one of its descendants), which would create a
+     * cycle in the folder hierarchy.
      */
-    fun moveSelectedDocuments(targetFolderId: Int?) {
+    fun moveSelectedItems(targetFolderId: Int?) {
         val current = _uiState.value as? TripDocumentsUiState.Success ?: return
-        val selectedIds = _selectedDocumentIds.value
-        if (selectedIds.isEmpty()) return
-        val documentsToMove = current.documents.filter { it.id in selectedIds }
+        val selectedDocIds = _selectedDocumentIds.value
+        val selectedFolderIds = _selectedFolderIds.value
+        if (selectedDocIds.isEmpty() && selectedFolderIds.isEmpty()) return
+        val documentsToMove = current.documents.filter { it.id in selectedDocIds }
+        val foldersToMove = current.folders.filter { it.id in selectedFolderIds }
         _selectedDocumentIds.value = emptySet()
         _selectedFolderIds.value = emptySet()
         viewModelScope.launch {
-            val failedMoves = mutableListOf<TripDocument>()
+            var anyFailed = false
             documentsToMove.forEach { document ->
                 try {
                     updateDocument(document.copy(folderId = targetFolderId))
@@ -573,13 +579,63 @@ class TripDocumentsViewModel(
                         "Failed to move document ${document.id} ('${document.name}') to folder $targetFolderId",
                         e,
                     )
-                    failedMoves.add(document)
+                    anyFailed = true
                 }
             }
-            if (failedMoves.isNotEmpty()) {
+            foldersToMove.forEach { folder ->
+                // Guard against cycles: refuse to move a folder into its own subtree.
+                if (targetFolderId != null) {
+                    val subtree = collectSubtreeIds(setOf(folder.id), current.allFolders)
+                    if (targetFolderId in subtree) {
+                        Log.e(
+                            TAG,
+                            "Refusing to move folder ${folder.id} ('${folder.name}') into its own subtree (targetFolderId=$targetFolderId)",
+                        )
+                        anyFailed = true
+                        return@forEach
+                    }
+                }
+                try {
+                    updateFolder(folder.copy(parentFolderId = targetFolderId))
+                } catch (e: Exception) {
+                    Log.e(
+                        TAG,
+                        "Failed to move folder ${folder.id} ('${folder.name}') to folder $targetFolderId",
+                        e,
+                    )
+                    anyFailed = true
+                }
+            }
+            if (anyFailed) {
                 setWriteError(DocumentsWriteError.Generic)
             }
         }
+    }
+
+    /**
+     * Returns the IDs of all folders in [rootIds] and all their descendants within [allFolders].
+     * Tracks visited IDs to guard against cycles in case of data corruption.
+     */
+    private fun collectSubtreeIds(
+        rootIds: Set<Int>,
+        allFolders: List<TripDocumentFolder>,
+    ): Set<Int> {
+        val childrenMap = buildMap<Int, MutableList<Int>> {
+            allFolders.forEach { folder ->
+                folder.parentFolderId?.let { parentId ->
+                    getOrPut(parentId) { mutableListOf() }.add(folder.id)
+                }
+            }
+        }
+        val result = mutableSetOf<Int>()
+        val queue = ArrayDeque(rootIds.toList())
+        while (queue.isNotEmpty()) {
+            val id = queue.removeFirst()
+            if (result.add(id)) {
+                childrenMap[id]?.forEach { childId -> queue.addLast(childId) }
+            }
+        }
+        return result
     }
 
     /**
