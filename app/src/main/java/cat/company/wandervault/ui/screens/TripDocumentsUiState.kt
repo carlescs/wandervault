@@ -37,6 +37,8 @@ sealed class TripDocumentsUiState {
      *   or `null` when there is no pending error. Call [TripDocumentsViewModel.clearError] to dismiss.
      * @param selectedDocumentIds IDs of documents currently selected in multi-select mode.
      *   Empty when no selection is active. Call [TripDocumentsViewModel.clearSelection] to exit selection mode.
+     * @param selectedFolderIds IDs of folders currently selected in multi-select mode.
+     *   Empty when no folder selection is active. Call [TripDocumentsViewModel.clearSelection] to exit selection mode.
      */
     data class Success(
         val folders: List<TripDocumentFolder> = emptyList(),
@@ -47,6 +49,7 @@ sealed class TripDocumentsUiState {
         val allDocuments: List<TripDocument> = emptyList(),
         val writeError: DocumentsWriteError? = null,
         val selectedDocumentIds: Set<Int> = emptySet(),
+        val selectedFolderIds: Set<Int> = emptySet(),
         /** Whether on-device AI is supported on this device. */
         val isAiAvailable: Boolean = true,
         /**

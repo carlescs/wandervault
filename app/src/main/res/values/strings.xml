@@ -310,10 +310,10 @@
     </plurals>
     <string name="documents_selection_clear">Clear selection</string>
     <string name="documents_select_all">Select all</string>
-    <string name="documents_delete_selected_title">Delete documents?</string>
+    <string name="documents_delete_selected_title">Delete selected?</string>
     <plurals name="documents_delete_selected_message">
-        <item quantity="one">%d document will be permanently deleted.</item>
-        <item quantity="other">%d documents will be permanently deleted.</item>
+        <item quantity="one">%d item will be permanently deleted.</item>
+        <item quantity="other">%d items will be permanently deleted.</item>
     </plurals>
 
     <!-- Document info screen -->

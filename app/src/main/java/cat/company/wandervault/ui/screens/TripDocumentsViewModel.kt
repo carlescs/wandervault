@@ -75,6 +75,13 @@ class TripDocumentsViewModel(
      */
     private val _selectedDocumentIds = MutableStateFlow<Set<Int>>(emptySet())
 
+    /**
+     * IDs of folders currently selected in multi-select mode.
+     * Kept separate from the DB-driven flow so that navigation events (folder changes) can
+     * clear the selection explicitly without a full state rebuild.
+     */
+    private val _selectedFolderIds = MutableStateFlow<Set<Int>>(emptySet())
+
     private val _uiState = MutableStateFlow<TripDocumentsUiState>(TripDocumentsUiState.Loading)
     val uiState: StateFlow<TripDocumentsUiState> = _uiState.asStateFlow()
 
@@ -167,6 +174,8 @@ class TripDocumentsViewModel(
                     selectedDocumentIds = selectedIds,
                     isAiAvailable = aiAvailable,
                 )
+            }.combine(_selectedFolderIds) { state, selectedFolderIds ->
+                state.copy(selectedFolderIds = selectedFolderIds)
             }.combine(_autoOrganizeState) { state, autoOrganize ->
                 state.copy(autoOrganizeState = autoOrganize)
             }.collect { state ->
@@ -178,6 +187,7 @@ class TripDocumentsViewModel(
     /** Navigates into [folder], pushing it onto the folder stack. */
     fun openFolder(folder: TripDocumentFolder) {
         _selectedDocumentIds.value = emptySet()
+        _selectedFolderIds.value = emptySet()
         _folderStack.value = _folderStack.value + folder
     }
 
@@ -189,6 +199,7 @@ class TripDocumentsViewModel(
         val stack = _folderStack.value
         if (stack.isNotEmpty()) {
             _selectedDocumentIds.value = emptySet()
+            _selectedFolderIds.value = emptySet()
             _folderStack.value = stack.dropLast(1)
         }
     }
@@ -488,31 +499,51 @@ class TripDocumentsViewModel(
     }
 
     /**
-     * Selects all documents visible in the current folder.
-     * No-op when no documents are present.
+     * Toggles the selection state of [folder].
+     * If the folder is not yet selected it is added to the selection (entering selection mode
+     * if this is the first selected item). If it is already selected it is removed.
      */
-    fun selectAllDocuments() {
+    fun toggleFolderSelection(folder: TripDocumentFolder) {
+        val current = _selectedFolderIds.value
+        _selectedFolderIds.value = if (folder.id in current) {
+            current - folder.id
+        } else {
+            current + folder.id
+        }
+    }
+
+    /**
+     * Selects all folders and documents visible in the current folder.
+     * No-op when no items are present.
+     */
+    fun selectAll() {
         val current = _uiState.value as? TripDocumentsUiState.Success ?: return
         _selectedDocumentIds.value = current.documents.map { it.id }.toSet()
+        _selectedFolderIds.value = current.folders.map { it.id }.toSet()
     }
 
     /** Clears the current selection, exiting multi-select mode. */
     fun clearSelection() {
         _selectedDocumentIds.value = emptySet()
+        _selectedFolderIds.value = emptySet()
     }
 
     /**
-     * Permanently deletes all currently selected documents.
+     * Permanently deletes all currently selected documents and folders.
      * The selection is cleared immediately before the write operations begin.
      */
     fun deleteSelectedDocuments() {
         val current = _uiState.value as? TripDocumentsUiState.Success ?: return
-        val selectedIds = _selectedDocumentIds.value
-        if (selectedIds.isEmpty()) return
-        val documentsToDelete = current.documents.filter { it.id in selectedIds }
+        val selectedDocIds = _selectedDocumentIds.value
+        val selectedFolderIds = _selectedFolderIds.value
+        if (selectedDocIds.isEmpty() && selectedFolderIds.isEmpty()) return
+        val documentsToDelete = current.documents.filter { it.id in selectedDocIds }
+        val foldersToDelete = current.folders.filter { it.id in selectedFolderIds }
         _selectedDocumentIds.value = emptySet()
+        _selectedFolderIds.value = emptySet()
         launchWrite {
             documentsToDelete.forEach { deleteDocument(it) }
+            foldersToDelete.forEach { deleteFolder(it) }
         }
     }
 
@@ -530,6 +561,7 @@ class TripDocumentsViewModel(
         if (selectedIds.isEmpty()) return
         val documentsToMove = current.documents.filter { it.id in selectedIds }
         _selectedDocumentIds.value = emptySet()
+        _selectedFolderIds.value = emptySet()
         viewModelScope.launch {
             val failedMoves = mutableListOf<TripDocument>()
             documentsToMove.forEach { document ->

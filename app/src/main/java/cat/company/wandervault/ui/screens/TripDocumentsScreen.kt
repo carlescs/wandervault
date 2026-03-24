@@ -121,7 +121,9 @@ internal fun TripDocumentsTabContent(
     val context = LocalContext.current
 
     // Exit selection mode on back press when selection is active.
-    val isSelectionMode = (uiState as? TripDocumentsUiState.Success)?.selectedDocumentIds?.isNotEmpty() == true
+    val isSelectionMode = (uiState as? TripDocumentsUiState.Success)?.let {
+        it.selectedDocumentIds.isNotEmpty() || it.selectedFolderIds.isNotEmpty()
+    } == true
     BackHandler(enabled = isSelectionMode) {
         viewModel.clearSelection()
     }
@@ -200,7 +202,8 @@ internal fun TripDocumentsTabContent(
         onViewDocumentInfo = onNavigateToDocument,
         onErrorDismiss = viewModel::clearError,
         onToggleDocumentSelection = viewModel::toggleDocumentSelection,
-        onSelectAllDocuments = viewModel::selectAllDocuments,
+        onToggleFolderSelection = viewModel::toggleFolderSelection,
+        onSelectAll = viewModel::selectAll,
         onClearSelection = viewModel::clearSelection,
         onDeleteSelectedDocuments = viewModel::deleteSelectedDocuments,
         onMoveSelectedDocuments = viewModel::moveSelectedDocuments,
@@ -219,9 +222,9 @@ internal fun TripDocumentsTabContent(
  * Supports folder navigation, create/rename/delete dialogs, document rename/delete/move,
  * file upload (via [onUploadFile]).
  * [onErrorDismiss] is called when the user acknowledges a transient writing error.
- * Multi-select mode is entered by long-pressing a document row; [onToggleDocumentSelection],
- * [onSelectAllDocuments], [onClearSelection], [onDeleteSelectedDocuments], and
- * [onMoveSelectedDocuments] handle the bulk-operation actions.
+ * Multi-select mode is entered by long-pressing a document or folder row;
+ * [onToggleDocumentSelection], [onToggleFolderSelection], [onSelectAll], [onClearSelection],
+ * [onDeleteSelectedDocuments], and [onMoveSelectedDocuments] handle the bulk-operation actions.
  *
  * [suggestNameState], [onRequestSuggestName], and [onClearSuggestName] drive the AI name
  * suggestion feature inside the rename-document dialog.
@@ -245,7 +248,8 @@ internal fun TripDocumentsContent(
     onViewDocumentInfo: (Int) -> Unit = {},
     onErrorDismiss: () -> Unit = {},
     onToggleDocumentSelection: (TripDocument) -> Unit = {},
-    onSelectAllDocuments: () -> Unit = {},
+    onToggleFolderSelection: (TripDocumentFolder) -> Unit = {},
+    onSelectAll: () -> Unit = {},
     onClearSelection: () -> Unit = {},
     onDeleteSelectedDocuments: () -> Unit = {},
     onMoveSelectedDocuments: (targetFolderId: Int?) -> Unit = {},
@@ -284,7 +288,7 @@ internal fun TripDocumentsContent(
             }
 
             is TripDocumentsUiState.Success -> {
-                val isSelectionMode = uiState.selectedDocumentIds.isNotEmpty()
+                val isSelectionMode = uiState.selectedDocumentIds.isNotEmpty() || uiState.selectedFolderIds.isNotEmpty()
 
                 Column(
                     modifier = Modifier
@@ -295,10 +299,10 @@ internal fun TripDocumentsContent(
                         // Selection mode: show contextual action bar instead of breadcrumb
                         isSelectionMode -> {
                             SelectionBar(
-                                selectedCount = uiState.selectedDocumentIds.size,
-                                totalCount = uiState.documents.size,
+                                selectedCount = uiState.selectedDocumentIds.size + uiState.selectedFolderIds.size,
+                                totalCount = uiState.documents.size + uiState.folders.size,
                                 onClearSelection = onClearSelection,
-                                onSelectAll = onSelectAllDocuments,
+                                onSelectAll = onSelectAll,
                             )
                             HorizontalDivider()
                         }
@@ -370,7 +374,13 @@ internal fun TripDocumentsContent(
                             items(uiState.folders, key = { "folder-${it.id}" }) { folder ->
                                 FolderRow(
                                     folder = folder,
-                                    onClick = { if (!isSelectionMode) onOpenFolder(folder) },
+                                    isSelected = folder.id in uiState.selectedFolderIds,
+                                    isSelectionMode = isSelectionMode,
+                                    onClick = {
+                                        if (isSelectionMode) onToggleFolderSelection(folder)
+                                        else onOpenFolder(folder)
+                                    },
+                                    onLongClick = { onToggleFolderSelection(folder) },
                                     onRename = { folderToRename = folder },
                                     onDelete = { folderToDelete = folder },
                                 )
@@ -398,6 +408,7 @@ internal fun TripDocumentsContent(
                         MultiSelectActionBar(
                             onDeleteSelected = { showDeleteSelectedDialog = true },
                             onMoveSelected = { showMoveSelectedDialog = true },
+                            showMoveAction = uiState.selectedFolderIds.isEmpty(),
                         )
                     }
                 }
@@ -568,7 +579,8 @@ internal fun TripDocumentsContent(
 
     // Multi-select: confirm bulk delete
     if (showDeleteSelectedDialog) {
-        val count = (uiState as? TripDocumentsUiState.Success)?.selectedDocumentIds?.size ?: 0
+        val successState = uiState as? TripDocumentsUiState.Success
+        val count = (successState?.selectedDocumentIds?.size ?: 0) + (successState?.selectedFolderIds?.size ?: 0)
         ConfirmDeleteDialog(
             title = stringResource(R.string.documents_delete_selected_title),
             message = pluralStringResource(R.plurals.documents_delete_selected_message, count, count),
@@ -856,12 +868,17 @@ private fun SelectionBar(
 
 /**
  * Persistent bottom action bar shown when multi-select mode is active.
- * Provides bulk Delete and Move actions for the selected documents.
+ * Provides bulk Delete for the selected items (documents and folders) and bulk Move for
+ * the selected documents only.
+ * [showMoveAction] controls whether the Move button is visible; it is typically enabled
+ * only when no folders are selected, since moving folders is not supported via the
+ * bulk-move flow.
  */
 @Composable
 private fun MultiSelectActionBar(
     onDeleteSelected: () -> Unit,
     onMoveSelected: () -> Unit,
+    showMoveAction: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     Surface(
@@ -882,39 +899,86 @@ private fun MultiSelectActionBar(
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(stringResource(R.string.documents_delete_action))
             }
-            TextButton(onClick = onMoveSelected) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.DriveFileMove,
-                    contentDescription = null,
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(stringResource(R.string.documents_move_action))
+            if (showMoveAction) {
+                TextButton(onClick = onMoveSelected) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.DriveFileMove,
+                        contentDescription = null,
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(stringResource(R.string.documents_move_action))
+                }
             }
         }
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun FolderRow(
     folder: TripDocumentFolder,
     onClick: () -> Unit,
+    onLongClick: () -> Unit = {},
     onRename: () -> Unit,
     onDelete: () -> Unit,
+    isSelected: Boolean = false,
+    isSelectionMode: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
+    LaunchedEffect(isSelectionMode) {
+        if (isSelectionMode) menuExpanded = false
+    }
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .then(
+                if (isSelected) {
+                    Modifier.background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f))
+                } else {
+                    Modifier
+                },
+            )
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick,
+            )
+            .then(
+                if (isSelectionMode) {
+                    Modifier.semantics(mergeDescendants = true) {
+                        selected = isSelected
+                        role = Role.Checkbox
+                    }
+                } else {
+                    Modifier
+                },
+            )
             .padding(horizontal = 16.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconButton(onClick = onClick) {
-            Icon(
-                imageVector = Icons.Default.Folder,
-                contentDescription = stringResource(R.string.documents_folder_content_desc, folder.name),
-                tint = MaterialTheme.colorScheme.primary,
-            )
+        if (isSelectionMode) {
+            Box(
+                modifier = Modifier.size(48.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = if (isSelected) Icons.Default.CheckBox else Icons.Default.CheckBoxOutlineBlank,
+                    contentDescription = null,
+                    tint = if (isSelected) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                )
+            }
+        } else {
+            IconButton(onClick = onClick) {
+                Icon(
+                    imageVector = Icons.Default.Folder,
+                    contentDescription = stringResource(R.string.documents_folder_content_desc, folder.name),
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            }
         }
         Text(
             text = folder.name,
@@ -925,33 +989,35 @@ private fun FolderRow(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
-        Box {
-            IconButton(onClick = { menuExpanded = true }) {
-                Icon(
-                    imageVector = Icons.Default.MoreVert,
-                    contentDescription = stringResource(R.string.documents_more_options),
-                )
-            }
-            DropdownMenu(
-                expanded = menuExpanded,
-                onDismissRequest = { menuExpanded = false },
-            ) {
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.documents_rename_action)) },
-                    onClick = {
-                        menuExpanded = false
-                        onRename()
-                    },
-                    leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
-                )
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.documents_delete_action)) },
-                    onClick = {
-                        menuExpanded = false
-                        onDelete()
-                    },
-                    leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
-                )
+        if (!isSelectionMode) {
+            Box {
+                IconButton(onClick = { menuExpanded = true }) {
+                    Icon(
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = stringResource(R.string.documents_more_options),
+                    )
+                }
+                DropdownMenu(
+                    expanded = menuExpanded,
+                    onDismissRequest = { menuExpanded = false },
+                ) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.documents_rename_action)) },
+                        onClick = {
+                            menuExpanded = false
+                            onRename()
+                        },
+                        leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.documents_delete_action)) },
+                        onClick = {
+                            menuExpanded = false
+                            onDelete()
+                        },
+                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
+                    )
+                }
             }
         }
     }
@@ -971,6 +1037,9 @@ private fun DocumentRow(
     modifier: Modifier = Modifier,
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
+    LaunchedEffect(isSelectionMode) {
+        if (isSelectionMode) menuExpanded = false
+    }
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -1476,3 +1545,25 @@ private fun TripDocumentsSelectionModePreview() {
     }
 }
 
+@Preview(showBackground = true)
+@Composable
+private fun TripDocumentsFolderSelectionModePreview() {
+    val folders = listOf(
+        TripDocumentFolder(id = 1, tripId = 1, name = "Flight Tickets"),
+        TripDocumentFolder(id = 2, tripId = 1, name = "Hotel Bookings"),
+        TripDocumentFolder(id = 3, tripId = 1, name = "Insurance"),
+    )
+    val documents = listOf(
+        TripDocument(id = 1, tripId = 1, name = "passport_scan.pdf", uri = "", mimeType = "application/pdf"),
+    )
+    WanderVaultTheme {
+        TripDocumentsContent(
+            uiState = TripDocumentsUiState.Success(
+                folders = folders,
+                documents = documents,
+                selectedFolderIds = setOf(1, 3),
+            ),
+            innerPadding = PaddingValues(0.dp),
+        )
+    }
+}
