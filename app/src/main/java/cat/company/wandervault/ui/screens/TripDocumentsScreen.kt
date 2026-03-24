@@ -868,9 +868,11 @@ private fun SelectionBar(
 
 /**
  * Persistent bottom action bar shown when multi-select mode is active.
- * Provides bulk Delete and Move actions for the selected documents.
- * [showMoveAction] controls whether the Move button is visible; it is hidden when folders
- * are selected since moving folders is not supported via the bulk-move flow.
+ * Provides bulk Delete for the selected items (documents and folders) and bulk Move for
+ * the selected documents only.
+ * [showMoveAction] controls whether the Move button is visible; it is typically enabled
+ * only when no folders are selected, since moving folders is not supported via the
+ * bulk-move flow.
  */
 @Composable
 private fun MultiSelectActionBar(
@@ -924,6 +926,9 @@ private fun FolderRow(
     modifier: Modifier = Modifier,
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
+    LaunchedEffect(isSelectionMode) {
+        if (isSelectionMode) menuExpanded = false
+    }
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -1032,6 +1037,9 @@ private fun DocumentRow(
     modifier: Modifier = Modifier,
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
+    LaunchedEffect(isSelectionMode) {
+        if (isSelectionMode) menuExpanded = false
+    }
     Row(
         modifier = modifier
             .fillMaxWidth()
