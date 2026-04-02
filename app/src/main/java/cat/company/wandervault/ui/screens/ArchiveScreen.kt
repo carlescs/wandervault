@@ -40,7 +40,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -191,14 +190,14 @@ private fun SwipeToUnarchiveBackground(swipeState: SwipeToDismissBoxState) {
     val containerColor by animateColorAsState(
         when {
             isActive -> MaterialTheme.colorScheme.primaryContainer
-            isSwiping -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-            else -> Color.Transparent
+            isSwiping -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = SWIPE_HINT_BG_ALPHA)
+            else -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0f)
         },
         label = "unarchive_swipe_bg",
     )
     val iconTint by animateColorAsState(
         if (isActive) MaterialTheme.colorScheme.onPrimaryContainer
-        else MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
+        else MaterialTheme.colorScheme.primary.copy(alpha = SWIPE_HINT_ICON_ALPHA),
         label = "unarchive_icon_tint",
     )
     Box(

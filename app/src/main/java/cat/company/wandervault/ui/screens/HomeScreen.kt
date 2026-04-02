@@ -311,14 +311,14 @@ private fun SwipeToArchiveBackground(swipeState: SwipeToDismissBoxState) {
     val containerColor by animateColorAsState(
         when {
             isActive -> MaterialTheme.colorScheme.secondaryContainer
-            isSwiping -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.3f)
-            else -> Color.Transparent
+            isSwiping -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = SWIPE_HINT_BG_ALPHA)
+            else -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0f)
         },
         label = "archive_swipe_bg",
     )
     val iconTint by animateColorAsState(
         if (isActive) MaterialTheme.colorScheme.onSecondaryContainer
-        else MaterialTheme.colorScheme.secondary.copy(alpha = 0.6f),
+        else MaterialTheme.colorScheme.secondary.copy(alpha = SWIPE_HINT_ICON_ALPHA),
         label = "archive_icon_tint",
     )
     Box(
