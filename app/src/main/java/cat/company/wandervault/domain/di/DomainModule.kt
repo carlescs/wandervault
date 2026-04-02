@@ -1,9 +1,11 @@
 package cat.company.wandervault.domain.di
 
 import cat.company.wandervault.domain.usecase.AskDocumentQuestionUseCase
+import cat.company.wandervault.domain.usecase.ArchiveTripUseCase
 import cat.company.wandervault.domain.usecase.AutoOrganizeDocumentsUseCase
 import cat.company.wandervault.domain.usecase.CopyDocumentToInternalStorageUseCase
 import cat.company.wandervault.domain.usecase.GenerateWhatsNextUseCase
+import cat.company.wandervault.domain.usecase.GetArchivedTripsUseCase
 import cat.company.wandervault.domain.usecase.GetFavoriteTripsUseCase
 import cat.company.wandervault.domain.usecase.ToggleFavoriteTripUseCase
 import cat.company.wandervault.domain.usecase.CopyImageToInternalStorageUseCase
@@ -49,13 +51,17 @@ import cat.company.wandervault.domain.usecase.UpdateDocumentUseCase
 import cat.company.wandervault.domain.usecase.UpdateFolderUseCase
 import cat.company.wandervault.domain.usecase.UpdateTransportLegUseCase
 import cat.company.wandervault.domain.usecase.UpdateTripUseCase
+import cat.company.wandervault.domain.usecase.UnarchiveTripUseCase
 import org.koin.dsl.module
 
 val domainModule = module {
     factory { GetTripUseCase(get()) }
     factory { GetTripsUseCase(get()) }
     factory { GetFavoriteTripsUseCase(get()) }
+    factory { GetArchivedTripsUseCase(get()) }
     factory { ToggleFavoriteTripUseCase(get()) }
+    factory { ArchiveTripUseCase(get()) }
+    factory { UnarchiveTripUseCase(get()) }
     factory { SaveTripUseCase(get()) }
     factory { UpdateTripUseCase(get()) }
     factory { GenerateTripDescriptionUseCase(get()) }

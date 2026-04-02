@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBox
+import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material3.Icon
@@ -152,5 +153,6 @@ enum class TopLevelDestination(
 ) {
     HOME(AppRoutes.HOME, R.string.nav_home, R.string.nav_home_desc, Icons.Default.Home),
     FAVORITES(AppRoutes.FAVORITES, R.string.nav_favorites, R.string.nav_favorites_desc, Icons.Default.Favorite),
+    ARCHIVE(AppRoutes.ARCHIVE, R.string.nav_archive, R.string.nav_archive_desc, Icons.Default.Archive),
     PROFILE(AppRoutes.PROFILE, R.string.nav_profile, R.string.nav_profile_desc, Icons.Default.AccountBox),
 }

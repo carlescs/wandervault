@@ -7,6 +7,7 @@ import cat.company.wandervault.domain.model.Trip
 import cat.company.wandervault.domain.usecase.CopyImageToInternalStorageUseCase
 import cat.company.wandervault.domain.usecase.DeleteImageUseCase
 import cat.company.wandervault.domain.usecase.DeleteTripUseCase
+import cat.company.wandervault.domain.usecase.ArchiveTripUseCase
 import cat.company.wandervault.domain.usecase.GetTripsUseCase
 import cat.company.wandervault.domain.usecase.SaveTripUseCase
 import cat.company.wandervault.domain.usecase.ToggleFavoriteTripUseCase
@@ -25,6 +26,7 @@ class HomeViewModel(
     private val deleteImage: DeleteImageUseCase,
     private val deleteTrip: DeleteTripUseCase,
     private val toggleFavorite: ToggleFavoriteTripUseCase,
+    private val archiveTrip: ArchiveTripUseCase,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -170,6 +172,12 @@ class HomeViewModel(
     fun onToggleFavorite(trip: Trip) {
         viewModelScope.launch {
             toggleFavorite(trip.id)
+        }
+    }
+
+    fun onArchiveTrip(trip: Trip) {
+        viewModelScope.launch {
+            archiveTrip(trip.id)
         }
     }
 

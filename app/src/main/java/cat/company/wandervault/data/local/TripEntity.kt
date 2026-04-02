@@ -20,4 +20,6 @@ data class TripEntity(
      * destination event time when [nextStep] is saved.  `null` means the notice never auto-expires.
      */
     val nextStepDeadline: ZonedDateTime? = null,
+    /** Whether this trip has been archived and hidden from the main trip list. */
+    val isArchived: Boolean = false,
 )

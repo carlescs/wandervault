@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
@@ -95,6 +96,7 @@ fun HomeScreen(modifier: Modifier = Modifier, viewModel: HomeViewModel = koinVie
         onConfirmDeleteTrip = viewModel::onConfirmDeleteTrip,
         onDismissDeleteDialog = viewModel::onDismissDeleteTripDialog,
         onFavoriteClick = viewModel::onToggleFavorite,
+        onArchiveClick = viewModel::onArchiveTrip,
         onTripClick = onTripClick,
         modifier = modifier,
     )
@@ -125,6 +127,7 @@ internal fun HomeScreenContent(
     onConfirmDeleteTrip: () -> Unit = {},
     onDismissDeleteDialog: () -> Unit = {},
     onFavoriteClick: (Trip) -> Unit = {},
+    onArchiveClick: (Trip) -> Unit = {},
     onTripClick: (Int) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -143,6 +146,7 @@ internal fun HomeScreenContent(
                         onEditClick = { onEditTripClick(trip) },
                         onDeleteClick = { onDeleteTripClick(trip) },
                         onFavoriteClick = { onFavoriteClick(trip) },
+                        onArchiveClick = { onArchiveClick(trip) },
                         onCardClick = { onTripClick(trip.id) },
                     )
                 }
@@ -197,7 +201,7 @@ internal fun HomeScreenContent(
 }
 
 @Composable
-private fun TripCard(trip: Trip, onEditClick: () -> Unit, onDeleteClick: () -> Unit = {}, onFavoriteClick: () -> Unit = {}, onCardClick: () -> Unit = {}, modifier: Modifier = Modifier) {
+private fun TripCard(trip: Trip, onEditClick: () -> Unit, onDeleteClick: () -> Unit = {}, onFavoriteClick: () -> Unit = {}, onArchiveClick: () -> Unit = {}, onCardClick: () -> Unit = {}, modifier: Modifier = Modifier) {
     val formatter = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
     Card(modifier = modifier.fillMaxWidth(), onClick = onCardClick) {
         if (trip.imageUri != null) {
@@ -250,6 +254,13 @@ private fun TripCard(trip: Trip, onEditClick: () -> Unit, onDeleteClick: () -> U
                 Icon(
                     imageVector = Icons.Default.Edit,
                     contentDescription = stringResource(R.string.edit_trip_content_desc),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            IconButton(onClick = onArchiveClick) {
+                Icon(
+                    imageVector = Icons.Default.Archive,
+                    contentDescription = stringResource(R.string.archive_trip_content_desc),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }

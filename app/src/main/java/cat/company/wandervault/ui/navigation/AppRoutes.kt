@@ -4,6 +4,7 @@ package cat.company.wandervault.ui.navigation
 internal object AppRoutes {
     const val HOME = "home"
     const val FAVORITES = "favorites"
+    const val ARCHIVE = "archive"
     const val PROFILE = "profile"
     const val TRIP_DETAIL = "trip_detail/{tripId}"
     const val LOCATION_DETAIL = "location_detail/{destinationId}"
