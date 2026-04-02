@@ -10,7 +10,8 @@ import java.time.ZonedDateTime
  *
  * @param text The notice text to save, or `null` to clear it.
  * @param deadline The moment after which [text] is considered stale.  Typically set to the
- *   earliest upcoming destination event time.  `null` means the notice never auto-expires.
+ *   earliest upcoming destination event time.  `null` means the notice has no expiry and will
+ *   only be recalculated on itinerary changes or a manual refresh.
  */
 class SaveTripWhatsNextUseCase(private val repository: TripRepository) {
     suspend operator fun invoke(trip: Trip, text: String?, deadline: ZonedDateTime?) =

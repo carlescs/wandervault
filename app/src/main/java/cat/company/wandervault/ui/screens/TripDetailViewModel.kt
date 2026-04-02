@@ -119,10 +119,10 @@ class TripDetailViewModel(
 
                     // Determine the effective persisted state for this emission.
                     val now = ZonedDateTime.now()
-                    val isDeadlineOverdue =
+                    val isDeadlinePassed =
                         trip.nextStepDeadline?.let { !it.isAfter(now) } ?: false
                     val persistedWhatsNext: WhatsNextState = when {
-                        trip.nextStep != null && !isDeadlineOverdue ->
+                        trip.nextStep != null && !isDeadlinePassed ->
                             WhatsNextState.Available(trip.nextStep)
                         else -> WhatsNextState.None
                     }
@@ -303,7 +303,8 @@ class TripDetailViewModel(
     private fun computeNextStepDeadline(destinations: List<Destination>): ZonedDateTime? {
         val now = ZonedDateTime.now()
         return destinations
-            .flatMap { listOfNotNull(it.arrivalDateTime, it.departureDateTime) }
+            .flatMap { listOf(it.arrivalDateTime, it.departureDateTime) }
+            .filterNotNull()
             .filter { it.isAfter(now) }
             .minOrNull()
     }
