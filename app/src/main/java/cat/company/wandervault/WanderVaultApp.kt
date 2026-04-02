@@ -1,6 +1,8 @@
 package cat.company.wandervault
 
 import android.app.Application
+import android.content.pm.PackageManager
+import android.os.Build
 import cat.company.wandervault.data.di.dataModule
 import cat.company.wandervault.data.notification.TripNotificationWorker
 import cat.company.wandervault.domain.di.domainModule
@@ -19,8 +21,20 @@ class WanderVaultApplication : Application() {
         }
         TripNotificationWorker.createNotificationChannel(this)
         val appPreferences: AppPreferencesRepository = get()
-        if (appPreferences.getNotificationsEnabled()) {
+        if (appPreferences.getNotificationsEnabled() && hasNotificationPermission()) {
             TripNotificationWorker.schedule(this)
         }
+    }
+
+    /**
+     * Returns `true` when the app is permitted to post notifications.
+     * On Android < 13 (TIRAMISU) this is always true since no runtime permission is required.
+     */
+    private fun hasNotificationPermission(): Boolean {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            return checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) ==
+                PackageManager.PERMISSION_GRANTED
+        }
+        return true
     }
 }

@@ -439,7 +439,7 @@ private fun NotificationsRow(
         }
         Switch(
             checked = enabled,
-            onCheckedChange = null,
+            onCheckedChange = onEnabledChange,
         )
     }
 }

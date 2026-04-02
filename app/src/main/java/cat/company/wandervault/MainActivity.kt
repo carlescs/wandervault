@@ -63,7 +63,12 @@ class MainActivity : ComponentActivity() {
                         setIntent(Intent(Intent.ACTION_MAIN))
                     },
                     notificationTripId = notificationTripId,
-                    onNotificationTripHandled = { notificationTripId = null },
+                    onNotificationTripHandled = {
+                        notificationTripId = null
+                        // Clear the intent so a configuration change does not re-trigger
+                        // the notification deep-link.
+                        setIntent(Intent(Intent.ACTION_MAIN))
+                    },
                 )
             }
         }
