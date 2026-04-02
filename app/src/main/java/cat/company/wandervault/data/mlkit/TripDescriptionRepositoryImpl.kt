@@ -98,6 +98,8 @@ class TripDescriptionRepositoryImpl(
             appendLine(
                 "Write a short, engaging 2–3 sentence description for the following trip. " +
                     "Focus on the places visited and the overall experience. " +
+                    "Only use the facts provided below. Do not invent or assume any destinations, " +
+                    "activities, or details that are not explicitly listed. " +
                     "Respond in ${appPreferences.resolvedAiLanguageName()}.",
             )
             appendLine()
@@ -151,8 +153,9 @@ class TripDescriptionRepositoryImpl(
                 "You are a helpful travel assistant. Based on the traveller's current position " +
                     "and itinerary, write a concise 1–2 sentence notice describing what their " +
                     "next step is. Focus on the single most immediate upcoming event (departure, " +
-                    "arrival, or transport leg). Be specific about times, places, and any " +
-                    "relevant details from the notes. " +
+                    "arrival, or transport leg). Only use the facts provided below. Do not invent " +
+                    "or assume any events, times, places, or details not explicitly present in " +
+                    "the itinerary. " +
                     "Respond in ${appPreferences.resolvedAiLanguageName()}.",
             )
             appendLine()
