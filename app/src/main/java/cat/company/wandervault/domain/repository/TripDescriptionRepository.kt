@@ -2,6 +2,7 @@ package cat.company.wandervault.domain.repository
 
 import cat.company.wandervault.domain.model.Destination
 import cat.company.wandervault.domain.model.Trip
+import java.time.ZonedDateTime
 
 /**
  * Repository that generates a short AI description for a trip using on-device Gemini Nano.
@@ -21,4 +22,18 @@ interface TripDescriptionRepository {
      * @throws Exception if the model is available but generation fails.
      */
     suspend fun generateDescription(trip: Trip, destinations: List<Destination>): String?
+
+    /**
+     * Generates a concise "what's next" notice for the trip, considering [now] as the current
+     * moment and all destination arrival/departure times in their respective timezones.
+     *
+     * @param now The current date and time (timezone-aware) used to determine the next step.
+     * @return The generated notice, or `null` if Gemini Nano is not available on this device.
+     * @throws Exception if the model is available but generation fails.
+     */
+    suspend fun generateWhatsNext(
+        trip: Trip,
+        destinations: List<Destination>,
+        now: ZonedDateTime,
+    ): String?
 }

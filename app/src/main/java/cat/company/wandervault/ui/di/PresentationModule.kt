@@ -19,7 +19,7 @@ import org.koin.dsl.module
 val presentationModule = module {
     viewModel { HomeViewModel(get(), get(), get(), get(), get(), get(), get()) }
     viewModel { SettingsViewModel(get()) }
-    viewModel { params -> TripDetailViewModel(params.get(), get(), get(), get(), get()) }
+    viewModel { params -> TripDetailViewModel(params.get(), get(), get(), get(), get(), get()) }
     viewModel { params ->
         ItineraryViewModel(
             tripId = params.get(),

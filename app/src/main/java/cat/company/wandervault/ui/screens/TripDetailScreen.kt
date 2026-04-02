@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -109,6 +110,7 @@ fun TripDetailScreen(
         onNavigateToDocument = onNavigateToDocument,
         onRegenerateDescription = viewModel::regenerateDescription,
         onDeleteDescription = viewModel::deleteDescription,
+        onRefreshWhatsNext = viewModel::refreshWhatsNext,
         modifier = modifier,
     )
 }
@@ -134,6 +136,7 @@ internal fun TripDetailContent(
     onNavigateToDocument: (Int) -> Unit = {},
     onRegenerateDescription: () -> Unit = {},
     onDeleteDescription: () -> Unit = {},
+    onRefreshWhatsNext: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var selectedTab by rememberSaveable { mutableStateOf(TripDetailTab.DETAILS) }
@@ -209,6 +212,7 @@ internal fun TripDetailContent(
                 isImageCoveringTopBar = isImageCoveringTopBar,
                 onRegenerateDescription = onRegenerateDescription,
                 onDeleteDescription = onDeleteDescription,
+                onRefreshWhatsNext = onRefreshWhatsNext,
             )
             TripDetailTab.ITINERARY -> ItineraryTabContent(
                 tripId = tripId,
@@ -263,6 +267,7 @@ private fun TripDetailsTabContent(
     isImageCoveringTopBar: Boolean = false,
     onRegenerateDescription: () -> Unit = {},
     onDeleteDescription: () -> Unit = {},
+    onRefreshWhatsNext: () -> Unit = {},
 ) {
     when (uiState) {
         is TripDetailUiState.Loading -> {
@@ -343,6 +348,11 @@ private fun TripDetailsTabContent(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
+                            Spacer(modifier = Modifier.height(16.dp))
+                            WhatsNextSection(
+                                whatsNextState = uiState.whatsNextState,
+                                onRefresh = onRefreshWhatsNext,
+                            )
                             if (uiState.descriptionState !is DescriptionState.Unavailable) {
                                 Spacer(modifier = Modifier.height(16.dp))
                                 AiDescriptionSection(
@@ -439,6 +449,80 @@ private fun AiDescriptionSection(
     }
 }
 
+/**
+ * Renders the AI-generated "What's Next" notice section.
+ *
+ * Shows a card with a title ("What's Next") and the current [WhatsNextState]:
+ * a spinner while loading, the generated notice when available, or an error state with a refresh
+ * button. The section is hidden entirely (returns immediately) when [WhatsNextState] is
+ * [WhatsNextState.Unavailable] or [WhatsNextState.None].
+ */
+@Composable
+private fun WhatsNextSection(
+    whatsNextState: WhatsNextState,
+    onRefresh: () -> Unit = {},
+) {
+    // Render nothing for terminal non-display states.
+    if (whatsNextState is WhatsNextState.Unavailable || whatsNextState is WhatsNextState.None) return
+
+    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.trip_detail_whats_next_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                if (whatsNextState is WhatsNextState.Available ||
+                    whatsNextState is WhatsNextState.Error
+                ) {
+                    IconButton(onClick = onRefresh) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = stringResource(
+                                R.string.trip_detail_whats_next_refresh,
+                            ),
+                        )
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            when (whatsNextState) {
+                is WhatsNextState.Loading -> {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = stringResource(R.string.trip_detail_whats_next_generating),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                is WhatsNextState.Available -> {
+                    Text(
+                        text = whatsNextState.text,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+                is WhatsNextState.Error -> {
+                    Text(
+                        text = stringResource(R.string.trip_detail_whats_next_error),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+                is WhatsNextState.Unavailable,
+                is WhatsNextState.None,
+                -> Unit // Already handled by the early return above.
+            }
+        }
+    }
+}
+
 @Preview(showBackground = true)
 @Composable
 private fun TripDetailLoadingPreview() {
@@ -508,6 +592,53 @@ private fun TripDetailAiUnavailablePreview() {
             uiState = TripDetailUiState.Success(
                 trip = trip,
                 descriptionState = DescriptionState.Unavailable,
+            ),
+            tripId = 1,
+            onNavigateUp = {},
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun TripDetailWhatsNextAvailablePreview() {
+    val trip = Trip(
+        id = 1,
+        title = "Tokyo Adventure",
+        startDate = LocalDate.of(2024, 9, 1),
+        endDate = LocalDate.of(2024, 9, 15),
+    )
+    WanderVaultTheme {
+        TripDetailContent(
+            uiState = TripDetailUiState.Success(
+                trip = trip,
+                descriptionState = DescriptionState.Unavailable,
+                whatsNextState = WhatsNextState.Available(
+                    "Your flight to Tokyo departs tomorrow at 10:30 AM JST. Get ready for an " +
+                        "amazing adventure in Japan's vibrant capital!",
+                ),
+            ),
+            tripId = 1,
+            onNavigateUp = {},
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun TripDetailWhatsNextLoadingPreview() {
+    val trip = Trip(
+        id = 1,
+        title = "Tokyo Adventure",
+        startDate = LocalDate.of(2024, 9, 1),
+        endDate = LocalDate.of(2024, 9, 15),
+    )
+    WanderVaultTheme {
+        TripDetailContent(
+            uiState = TripDetailUiState.Success(
+                trip = trip,
+                descriptionState = DescriptionState.Unavailable,
+                whatsNextState = WhatsNextState.Loading,
             ),
             tripId = 1,
             onNavigateUp = {},
