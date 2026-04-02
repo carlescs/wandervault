@@ -11,6 +11,7 @@ import cat.company.wandervault.domain.repository.TripRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import java.time.LocalDate
+import java.time.ZonedDateTime
 
 class TripRepositoryImpl(
     private val tripDao: TripDao,
@@ -54,6 +55,19 @@ class TripRepositoryImpl(
             destinationDao.deleteByTripId(trip.id)
             tripDao.delete(trip.toEntity())
         }
+    }
+
+    override suspend fun updateTripWhatsNext(
+        tripId: Int,
+        nextStep: String?,
+        nextStepDeadline: ZonedDateTime?,
+    ) {
+        // Serialise ZonedDateTime → String using the same format as DateConverters.
+        tripDao.updateWhatsNext(
+            tripId = tripId,
+            nextStep = nextStep,
+            nextStepDeadline = nextStepDeadline?.toString(),
+        )
     }
 }
 

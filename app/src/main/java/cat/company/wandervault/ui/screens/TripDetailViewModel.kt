@@ -143,6 +143,10 @@ class TripDetailViewModel(
 
                     val whatsNextState = when {
                         currentWhatsNext is WhatsNextState.Loading -> currentWhatsNext
+                        // Show a valid persisted notice regardless of AI availability.
+                        // Only mark as Unavailable when there is nothing stored to display.
+                        !aiAvailable && persistedWhatsNext is WhatsNextState.Available ->
+                            persistedWhatsNext
                         !aiAvailable -> WhatsNextState.Unavailable
                         // Preserve in-progress or just-generated state when inputs are unchanged.
                         inputsMatchLastGenerated -> currentWhatsNext ?: persistedWhatsNext
@@ -285,9 +289,11 @@ class TripDetailViewModel(
 
             // Persist the notice along with the deadline so it survives app restarts and
             // auto-expires when the next upcoming itinerary event passes.
+            // Pass tripId (not the captured trip object) so this partial update cannot overwrite
+            // concurrent user edits that occurred during generation.
             val deadline = computeNextStepDeadline(destinations)
             try {
-                saveTripWhatsNextUseCase(trip, text, deadline)
+                saveTripWhatsNextUseCase(trip.id, text, deadline)
             } catch (e: Exception) {
                 Log.e(TAG, "Generated what's next displayed but not saved to database", e)
             }
