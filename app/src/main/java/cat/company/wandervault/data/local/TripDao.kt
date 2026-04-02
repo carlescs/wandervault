@@ -21,6 +21,11 @@ interface TripDao {
     @Query("UPDATE trips SET isFavorite = 1 - isFavorite WHERE id = :tripId")
     suspend fun toggleFavorite(tripId: Int)
 
+    @Query(
+        "UPDATE trips SET nextStep = :nextStep, nextStepDeadline = :nextStepDeadline WHERE id = :tripId",
+    )
+    suspend fun updateWhatsNext(tripId: Int, nextStep: String?, nextStepDeadline: String?)
+
     @Query("SELECT * FROM trips WHERE isFavorite = 1 ORDER BY id ASC")
     fun getFavorites(): Flow<List<TripEntity>>
 

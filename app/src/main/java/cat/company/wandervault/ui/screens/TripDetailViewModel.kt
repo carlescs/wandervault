@@ -10,12 +10,14 @@ import cat.company.wandervault.domain.usecase.GenerateWhatsNextUseCase
 import cat.company.wandervault.domain.usecase.GetDestinationsForTripUseCase
 import cat.company.wandervault.domain.usecase.GetTripUseCase
 import cat.company.wandervault.domain.usecase.SaveTripDescriptionUseCase
+import cat.company.wandervault.domain.usecase.SaveTripWhatsNextUseCase
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+import java.time.ZonedDateTime
 
 /**
  * ViewModel for the Trip Detail screen.
@@ -26,6 +28,7 @@ import kotlinx.coroutines.launch
  * @param generateTripDescriptionUseCase Use-case that generates a short AI description of the trip.
  * @param saveTripDescriptionUseCase Use-case that persists the AI description (or clears it).
  * @param generateWhatsNextUseCase Use-case that generates the "what's next" notice for the trip.
+ * @param saveTripWhatsNextUseCase Use-case that persists the "what's next" notice and its deadline.
  */
 class TripDetailViewModel(
     private val tripId: Int,
@@ -34,6 +37,7 @@ class TripDetailViewModel(
     private val generateTripDescriptionUseCase: GenerateTripDescriptionUseCase,
     private val saveTripDescriptionUseCase: SaveTripDescriptionUseCase,
     private val generateWhatsNextUseCase: GenerateWhatsNextUseCase,
+    private val saveTripWhatsNextUseCase: SaveTripWhatsNextUseCase,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<TripDetailUiState>(TripDetailUiState.Loading)
@@ -53,11 +57,15 @@ class TripDetailViewModel(
     private val _isAiAvailable = MutableStateFlow(false)
 
     /**
-     * The trip and destinations for which the most recent "what's next" generation was started.
-     * `null` until the first generation is triggered.
+     * The itinerary key (trip without nextStep/nextStepDeadline, plus destinations) for which the
+     * most recent "what's next" generation was started, or which was initialised from the persisted
+     * DB value on first load.  `null` until the first generation is triggered or a persisted notice
+     * is loaded.
      *
      * Used to detect when the trip/destinations inputs have changed so that the notice can be
      * invalidated and re-generated automatically, avoiding stale results after itinerary edits.
+     * [nextStep] and [nextStepDeadline] are excluded from the comparison so that saving the
+     * generated notice back to the DB does not falsely trigger re-generation.
      */
     private var whatsNextGeneratedForInputs: Pair<Trip, List<Destination>>? = null
 
@@ -106,18 +114,43 @@ class TripDetailViewModel(
                         persistedDescription
                     }
 
-                    // Preserve the current what's next state only while generation is in progress,
-                    // so it is reset (and re-generated) whenever the trip/destinations inputs change.
                     val currentWhatsNext =
                         (_uiState.value as? TripDetailUiState.Success)?.whatsNextState
+
+                    // Determine the effective persisted state for this emission.
+                    val now = ZonedDateTime.now()
+                    val isDeadlinePassed =
+                        trip.nextStepDeadline?.let { !it.isAfter(now) } ?: false
+                    val persistedWhatsNext: WhatsNextState = when {
+                        trip.nextStep != null && !isDeadlinePassed ->
+                            WhatsNextState.Available(trip.nextStep)
+                        else -> WhatsNextState.None
+                    }
+
+                    // On the very first load, seed the inputs key from the DB so we don't
+                    // immediately re-generate a notice that is still valid.
+                    val itineraryKey = trip.itineraryKey()
+                    if (whatsNextGeneratedForInputs == null &&
+                        persistedWhatsNext is WhatsNextState.Available
+                    ) {
+                        whatsNextGeneratedForInputs = Pair(itineraryKey, destinations)
+                    }
+
                     val inputsMatchLastGenerated =
                         whatsNextGeneratedForInputs?.let { (t, d) ->
-                            t == trip && d == destinations
+                            t == itineraryKey && d == destinations
                         } ?: false
+
                     val whatsNextState = when {
                         currentWhatsNext is WhatsNextState.Loading -> currentWhatsNext
+                        // Show a valid persisted notice regardless of AI availability.
+                        // Only mark as Unavailable when there is nothing stored to display.
+                        !aiAvailable && persistedWhatsNext is WhatsNextState.Available ->
+                            persistedWhatsNext
                         !aiAvailable -> WhatsNextState.Unavailable
-                        inputsMatchLastGenerated -> currentWhatsNext ?: WhatsNextState.None
+                        // Preserve in-progress or just-generated state when inputs are unchanged.
+                        inputsMatchLastGenerated -> currentWhatsNext ?: persistedWhatsNext
+                        // Inputs changed: reset to None so auto-generation is triggered.
                         else -> WhatsNextState.None
                     }
 
@@ -128,7 +161,8 @@ class TripDetailViewModel(
                     )
 
                     // Trigger generation whenever the state is None and AI is available –
-                    // this covers both first load and subsequent input changes.
+                    // this covers first load (no stored notice), overdue deadlines, and
+                    // subsequent input changes.
                     if (aiAvailable && whatsNextState is WhatsNextState.None) {
                         generateWhatsNext(trip, destinations)
                     }
@@ -223,9 +257,9 @@ class TripDetailViewModel(
 
     private fun generateWhatsNext(trip: Trip, destinations: List<Destination>) {
         val current = _uiState.value as? TripDetailUiState.Success ?: return
-        // Record the inputs before launching so stale-check is correct even if the coroutine is
-        // cancelled, and only after confirming this call will actually proceed.
-        whatsNextGeneratedForInputs = Pair(trip, destinations)
+        // Record the itinerary key (excluding nextStep/nextStepDeadline) before launching so the
+        // stale-check is correct even if the coroutine is cancelled.
+        whatsNextGeneratedForInputs = Pair(trip.itineraryKey(), destinations)
         _uiState.value = current.copy(whatsNextState = WhatsNextState.Loading)
         viewModelScope.launch {
             val text = try {
@@ -247,14 +281,48 @@ class TripDetailViewModel(
                 return@launch
             }
 
+            // Show the generated text in the UI immediately, even if the DB save fails.
             val latest = _uiState.value
             if (latest is TripDetailUiState.Success) {
                 _uiState.value = latest.copy(whatsNextState = WhatsNextState.Available(text))
             }
+
+            // Persist the notice along with the deadline so it survives app restarts and
+            // auto-expires when the next upcoming itinerary event passes.
+            // Pass tripId (not the captured trip object) so this partial update cannot overwrite
+            // concurrent user edits that occurred during generation.
+            val deadline = computeNextStepDeadline(destinations)
+            try {
+                saveTripWhatsNextUseCase(trip.id, text, deadline)
+            } catch (e: Exception) {
+                Log.e(TAG, "Generated what's next displayed but not saved to database", e)
+            }
         }
+    }
+
+    /**
+     * Returns the earliest upcoming destination event (arrival or departure) after the current
+     * moment, used as the expiry deadline for the "what's next" notice.
+     *
+     * Returns `null` if there are no future events, which means the notice never auto-expires.
+     */
+    private fun computeNextStepDeadline(destinations: List<Destination>): ZonedDateTime? {
+        val now = ZonedDateTime.now()
+        return destinations
+            .flatMap { listOf(it.arrivalDateTime, it.departureDateTime) }
+            .filterNotNull()
+            .filter { it.isAfter(now) }
+            .minOrNull()
     }
 
     companion object {
         private const val TAG = "TripDetailViewModel"
     }
 }
+
+/**
+ * Returns a copy of this trip with [Trip.nextStep] and [Trip.nextStepDeadline] cleared, used as
+ * a stable key for detecting itinerary changes without being affected by persistence round-trips.
+ */
+private fun Trip.itineraryKey() = copy(nextStep = null, nextStepDeadline = null)
+
