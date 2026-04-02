@@ -155,7 +155,7 @@ class TripDescriptionRepositoryImpl(
                     "next step is. Focus on the single most immediate upcoming event (departure, " +
                     "arrival, or transport leg). Only use the facts provided below. Do not invent " +
                     "or assume any events, times, places, or details not explicitly present in " +
-                    "the itinerary. " +
+                    "the facts provided below. " +
                     "Respond in ${appPreferences.resolvedAiLanguageName()}.",
             )
             appendLine()
