@@ -212,6 +212,9 @@ class TripDescriptionRepositoryImpl(
      */
     internal fun findNextUpcomingEvent(destinations: List<Destination>, now: ZonedDateTime): String? {
         val nowInstant = now.toInstant()
+        // Sort by position so that event descriptions reference stops in itinerary order,
+        // matching the ordering used by describeTravellerPosition. Destinations are not
+        // guaranteed to arrive pre-sorted from callers.
         val sorted = destinations.sortedBy { it.position }
 
         val futureEvents = mutableListOf<ItineraryEvent>()
