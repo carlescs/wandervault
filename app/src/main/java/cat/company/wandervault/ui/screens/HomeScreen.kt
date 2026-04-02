@@ -4,6 +4,8 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,6 +27,7 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -32,13 +35,19 @@ import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxState
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -108,6 +117,7 @@ fun HomeScreen(modifier: Modifier = Modifier, viewModel: HomeViewModel = koinVie
  * Accepts a [HomeUiState] snapshot and event callbacks so it can be reused
  * in `@Preview` functions without a real [HomeViewModel].
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun HomeScreenContent(
     uiState: HomeUiState,
@@ -140,15 +150,27 @@ internal fun HomeScreenContent(
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 88.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                items(uiState.trips) { trip ->
-                    TripCard(
-                        trip = trip,
-                        onEditClick = { onEditTripClick(trip) },
-                        onDeleteClick = { onDeleteTripClick(trip) },
-                        onFavoriteClick = { onFavoriteClick(trip) },
-                        onArchiveClick = { onArchiveClick(trip) },
-                        onCardClick = { onTripClick(trip.id) },
+                items(uiState.trips, key = { it.id }) { trip ->
+                    val swipeState = rememberSwipeToDismissBoxState(
+                        confirmValueChange = { value ->
+                            if (value == SwipeToDismissBoxValue.EndToStart) onArchiveClick(trip)
+                            false
+                        },
                     )
+                    SwipeToDismissBox(
+                        state = swipeState,
+                        enableDismissFromStartToEnd = false,
+                        backgroundContent = { SwipeToArchiveBackground(swipeState) },
+                    ) {
+                        TripCard(
+                            trip = trip,
+                            onEditClick = { onEditTripClick(trip) },
+                            onDeleteClick = { onDeleteTripClick(trip) },
+                            onFavoriteClick = { onFavoriteClick(trip) },
+                            onArchiveClick = { onArchiveClick(trip) },
+                            onCardClick = { onTripClick(trip.id) },
+                        )
+                    }
                 }
             }
         }
@@ -269,6 +291,40 @@ private fun TripCard(trip: Trip, onEditClick: () -> Unit, onDeleteClick: () -> U
                     imageVector = Icons.Default.Delete,
                     contentDescription = stringResource(R.string.delete_trip_content_desc),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SwipeToArchiveBackground(swipeState: SwipeToDismissBoxState) {
+    val isActive = swipeState.targetValue == SwipeToDismissBoxValue.EndToStart
+    val containerColor by animateColorAsState(
+        if (isActive) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
+        label = "archive_swipe_bg",
+    )
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .clip(CardDefaults.shape)
+            .background(containerColor)
+            .padding(end = 20.dp),
+        contentAlignment = Alignment.CenterEnd,
+    ) {
+        if (isActive) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(
+                    imageVector = Icons.Default.Archive,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = stringResource(R.string.archive_trip_content_desc),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
                 )
             }
         }

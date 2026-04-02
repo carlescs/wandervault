@@ -1,6 +1,8 @@
 package cat.company.wandervault.ui.screens
 
 import android.net.Uri
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,16 +18,24 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Unarchive
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxState
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -71,6 +81,7 @@ fun ArchiveScreen(
  * Accepts an [ArchiveUiState] snapshot and event callbacks so it can be reused
  * in `@Preview` functions without a real [ArchiveViewModel].
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun ArchiveContent(
     uiState: ArchiveUiState,
@@ -92,11 +103,23 @@ internal fun ArchiveContent(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(uiState.trips, key = { it.id }) { trip ->
-                    ArchivedTripCard(
-                        trip = trip,
-                        onCardClick = { onTripClick(trip.id) },
-                        onUnarchiveClick = { onUnarchiveClick(trip) },
+                    val swipeState = rememberSwipeToDismissBoxState(
+                        confirmValueChange = { value ->
+                            if (value == SwipeToDismissBoxValue.EndToStart) onUnarchiveClick(trip)
+                            false
+                        },
                     )
+                    SwipeToDismissBox(
+                        state = swipeState,
+                        enableDismissFromStartToEnd = false,
+                        backgroundContent = { SwipeToUnarchiveBackground(swipeState) },
+                    ) {
+                        ArchivedTripCard(
+                            trip = trip,
+                            onCardClick = { onTripClick(trip.id) },
+                            onUnarchiveClick = { onUnarchiveClick(trip) },
+                        )
+                    }
                 }
             }
         }
@@ -148,6 +171,40 @@ private fun ArchivedTripCard(
                     imageVector = Icons.Default.Unarchive,
                     contentDescription = stringResource(R.string.unarchive_trip_content_desc),
                     tint = MaterialTheme.colorScheme.primary,
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SwipeToUnarchiveBackground(swipeState: SwipeToDismissBoxState) {
+    val isActive = swipeState.targetValue == SwipeToDismissBoxValue.EndToStart
+    val containerColor by animateColorAsState(
+        if (isActive) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+        label = "unarchive_swipe_bg",
+    )
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .clip(CardDefaults.shape)
+            .background(containerColor)
+            .padding(end = 20.dp),
+        contentAlignment = Alignment.CenterEnd,
+    ) {
+        if (isActive) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(
+                    imageVector = Icons.Default.Unarchive,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = stringResource(R.string.unarchive_trip_content_desc),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
                 )
             }
         }
