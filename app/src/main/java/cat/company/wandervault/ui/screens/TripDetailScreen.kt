@@ -348,15 +348,11 @@ private fun TripDetailsTabContent(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
-                            if (uiState.whatsNextState !is WhatsNextState.Unavailable &&
-                                uiState.whatsNextState !is WhatsNextState.None
-                            ) {
-                                Spacer(modifier = Modifier.height(16.dp))
-                                WhatsNextSection(
-                                    whatsNextState = uiState.whatsNextState,
-                                    onRefresh = onRefreshWhatsNext,
-                                )
-                            }
+                            Spacer(modifier = Modifier.height(16.dp))
+                            WhatsNextSection(
+                                whatsNextState = uiState.whatsNextState,
+                                onRefresh = onRefreshWhatsNext,
+                            )
                             if (uiState.descriptionState !is DescriptionState.Unavailable) {
                                 Spacer(modifier = Modifier.height(16.dp))
                                 AiDescriptionSection(
@@ -458,14 +454,17 @@ private fun AiDescriptionSection(
  *
  * Shows a card with a title ("What's Next") and the current [WhatsNextState]:
  * a spinner while loading, the generated notice when available, or an error state with a refresh
- * button. The section is hidden entirely when [WhatsNextState] is [WhatsNextState.Unavailable] or
- * [WhatsNextState.None]; callers should guard against those states before calling this composable.
+ * button. The section is hidden entirely (returns immediately) when [WhatsNextState] is
+ * [WhatsNextState.Unavailable] or [WhatsNextState.None].
  */
 @Composable
 private fun WhatsNextSection(
     whatsNextState: WhatsNextState,
     onRefresh: () -> Unit = {},
 ) {
+    // Render nothing for terminal non-display states.
+    if (whatsNextState is WhatsNextState.Unavailable || whatsNextState is WhatsNextState.None) return
+
     ElevatedCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
@@ -518,12 +517,7 @@ private fun WhatsNextSection(
                 }
                 is WhatsNextState.Unavailable,
                 is WhatsNextState.None,
-                -> {
-                    error(
-                        "WhatsNextSection must not be called with Unavailable or None states. " +
-                            "Current state: ${whatsNextState::class.simpleName}.",
-                    )
-                }
+                -> Unit // Already handled by the early return above.
             }
         }
     }

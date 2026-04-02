@@ -200,7 +200,13 @@ class TripDescriptionRepositoryImpl(
         /** Maximum number of tokens the model may generate for a what's next notice. */
         private const val MAX_WHATS_NEXT_TOKENS = 150
 
-        /** Formatter for datetime values included in LLM prompts. */
-        private val PROMPT_DATE_TIME_FORMATTER = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT)
+        /** Formatter for datetime values included in LLM prompts.
+         *
+         * Uses an explicit ISO-style pattern (`yyyy-MM-dd HH:mm`) to produce stable, locale-independent
+         * output (e.g. `2026-04-02 10:30`) that is unambiguous for LLM reasoning.
+         * The timezone zone ID is always appended separately in the prompt text.
+         */
+        private val PROMPT_DATE_TIME_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
     }
 }

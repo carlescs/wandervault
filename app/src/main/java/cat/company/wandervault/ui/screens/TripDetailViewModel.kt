@@ -52,8 +52,14 @@ class TripDetailViewModel(
      */
     private val _isAiAvailable = MutableStateFlow(false)
 
-    /** Guards against starting a second concurrent what's next generation. */
-    private var whatsNextGenerationStarted = false
+    /**
+     * The trip and destinations for which the most recent "what's next" generation was started.
+     * `null` until the first generation is triggered.
+     *
+     * Used to detect when the trip/destinations inputs have changed so that the notice can be
+     * invalidated and re-generated automatically, avoiding stale results after itinerary edits.
+     */
+    private var whatsNextGeneratedForInputs: Pair<Trip, List<Destination>>? = null
 
     init {
         // Check AI availability upfront so the description section is hidden proactively
@@ -100,13 +106,18 @@ class TripDetailViewModel(
                         persistedDescription
                     }
 
-                    // Preserve the current what's next state while generation is in progress.
+                    // Preserve the current what's next state only while generation is in progress,
+                    // so it is reset (and re-generated) whenever the trip/destinations inputs change.
                     val currentWhatsNext =
                         (_uiState.value as? TripDetailUiState.Success)?.whatsNextState
+                    val inputsMatchLastGenerated =
+                        whatsNextGeneratedForInputs?.let { (t, d) ->
+                            t == trip && d == destinations
+                        } ?: false
                     val whatsNextState = when {
                         currentWhatsNext is WhatsNextState.Loading -> currentWhatsNext
                         !aiAvailable -> WhatsNextState.Unavailable
-                        currentWhatsNext != null -> currentWhatsNext
+                        inputsMatchLastGenerated -> currentWhatsNext ?: WhatsNextState.None
                         else -> WhatsNextState.None
                     }
 
@@ -116,9 +127,10 @@ class TripDetailViewModel(
                         whatsNextState = whatsNextState,
                     )
 
-                    // Auto-generate what's next on first load when AI is available.
-                    if (aiAvailable && !whatsNextGenerationStarted) {
-                        whatsNextGenerationStarted = true
+                    // Trigger generation whenever the state is None and AI is available –
+                    // this covers both first load and subsequent input changes.
+                    if (aiAvailable && whatsNextState is WhatsNextState.None) {
+                        whatsNextGeneratedForInputs = Pair(trip, destinations)
                         generateWhatsNext(trip, destinations)
                     }
                 }
