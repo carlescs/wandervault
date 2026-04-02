@@ -158,7 +158,7 @@ class TripDetailViewModel(
                         trip = trip,
                         descriptionState = descriptionState,
                         whatsNextState = whatsNextState,
-                        upcomingEvents = computeUpcomingEvents(destinations),
+                        upcomingEvents = computeUpcomingEvents(destinations, now),
                     )
 
                     // Trigger generation whenever the state is None and AI is available –
@@ -318,10 +318,9 @@ class TripDetailViewModel(
 
     /**
      * Returns the next [MAX_UPCOMING_EVENTS] itinerary events (arrivals and departures) that
-     * occur after the current moment, sorted chronologically.
+     * occur after [now], sorted chronologically.
      */
-    private fun computeUpcomingEvents(destinations: List<Destination>): List<UpcomingEvent> {
-        val now = ZonedDateTime.now()
+    private fun computeUpcomingEvents(destinations: List<Destination>, now: ZonedDateTime): List<UpcomingEvent> {
         return destinations
             .flatMap { dest ->
                 buildList {
