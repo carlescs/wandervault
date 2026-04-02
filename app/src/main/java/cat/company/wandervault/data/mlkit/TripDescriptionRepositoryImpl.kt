@@ -1,6 +1,7 @@
 package cat.company.wandervault.data.mlkit
 
 import cat.company.wandervault.domain.model.Destination
+import cat.company.wandervault.domain.model.TransportType
 import cat.company.wandervault.domain.model.Trip
 import cat.company.wandervault.domain.repository.AppPreferencesRepository
 import cat.company.wandervault.domain.repository.TripDescriptionRepository
@@ -116,10 +117,7 @@ class TripDescriptionRepositoryImpl(
                     if (departure != null) append(", departs $departure")
                     appendLine()
                     dest.transport?.legs?.forEach { leg ->
-                        val typeName = leg.type.name
-                            .lowercase(Locale.ROOT)
-                            .replaceFirstChar { it.titlecase(Locale.ROOT) }
-                        append("     → $typeName")
+                        append("     → ${formatTransportTypeName(leg.type)}")
                         if (!leg.company.isNullOrBlank()) append(" with ${leg.company}")
                         if (!leg.flightNumber.isNullOrBlank()) append(" (${leg.flightNumber})")
                         if (!leg.stopName.isNullOrBlank()) append(" via ${leg.stopName}")
@@ -134,8 +132,10 @@ class TripDescriptionRepositoryImpl(
      * Builds the prompt for the "what's next" notice generation.
      *
      * The prompt describes the current moment in time, the traveller's computed current position
-     * (derived from the itinerary — see [describeTravellerPosition]), and the full timezone-aware
-     * itinerary, then instructs the model to identify and describe the traveller's next step.
+     * (derived from the itinerary — see [describeTravellerPosition]), the single most immediate
+     * upcoming event (see [findNextUpcomingEvent]), and the full timezone-aware itinerary
+     * (including per-destination notes), then instructs the model to identify and describe the
+     * traveller's next step.
      */
     private fun buildWhatsNextPrompt(
         trip: Trip,
@@ -145,16 +145,22 @@ class TripDescriptionRepositoryImpl(
         val nowFormatted = now.format(PROMPT_DATE_TIME_FORMATTER)
         val nowZone = now.zone.id
         val position = describeTravellerPosition(destinations, now)
+        val nextEvent = findNextUpcomingEvent(destinations, now)
         return buildString {
             appendLine(
                 "You are a helpful travel assistant. Based on the traveller's current position " +
                     "and itinerary, write a concise 1–2 sentence notice describing what their " +
-                    "next step is. Be specific and friendly. " +
+                    "next step is. Focus on the single most immediate upcoming event (departure, " +
+                    "arrival, or transport leg). Be specific about times, places, and any " +
+                    "relevant details from the notes. " +
                     "Respond in ${appPreferences.resolvedAiLanguageName()}.",
             )
             appendLine()
             appendLine("Current date and time: $nowFormatted (timezone: $nowZone)")
             appendLine("Traveller's current position: $position")
+            if (nextEvent != null) {
+                appendLine("Next upcoming event: $nextEvent")
+            }
             appendLine("Trip: ${trip.title}")
             if (destinations.isNotEmpty()) {
                 appendLine("Itinerary (${destinations.size} stop(s)):")
@@ -169,11 +175,11 @@ class TripDescriptionRepositoryImpl(
                         append(", departs ${departure.format(PROMPT_DATE_TIME_FORMATTER)} ${departure.zone.id}")
                     }
                     appendLine()
+                    if (!dest.notes.isNullOrBlank()) {
+                        appendLine("     Notes: ${dest.notes}")
+                    }
                     dest.transport?.legs?.forEach { leg ->
-                        val typeName = leg.type.name
-                            .lowercase(Locale.ROOT)
-                            .replaceFirstChar { it.titlecase(Locale.ROOT) }
-                        append("     → $typeName")
+                        append("     → ${formatTransportTypeName(leg.type)}")
                         if (!leg.company.isNullOrBlank()) append(" with ${leg.company}")
                         if (!leg.flightNumber.isNullOrBlank()) append(" (${leg.flightNumber})")
                         val legDep = leg.departureDateTime
@@ -193,6 +199,77 @@ class TripDescriptionRepositoryImpl(
                 }
             }
         }
+    }
+
+    /**
+     * Finds the single most immediate upcoming itinerary event after [now] and returns a
+     * human-readable description of it, or `null` if there are no upcoming events.
+     *
+     * All candidate events — destination arrivals, destination departures, and individual
+     * transport-leg departures/arrivals — are collected and the one with the earliest
+     * [java.time.Instant] is returned.  This gives the model a clear, unambiguous anchor for
+     * the "next step" rather than asking it to reason over the entire itinerary.
+     */
+    internal fun findNextUpcomingEvent(destinations: List<Destination>, now: ZonedDateTime): String? {
+        val nowInstant = now.toInstant()
+        // Sort by position so that event descriptions reference stops in itinerary order,
+        // matching the ordering used by describeTravellerPosition. Destinations are not
+        // guaranteed to arrive pre-sorted from callers.
+        val sorted = destinations.sortedBy { it.position }
+
+        val futureEvents = mutableListOf<ItineraryEvent>()
+        for (dest in sorted) {
+            dest.arrivalDateTime?.let { arrival ->
+                if (arrival.toInstant().isAfter(nowInstant)) {
+                    futureEvents.add(
+                        ItineraryEvent(
+                            arrival.toInstant(),
+                            "arrive at ${dest.name} on ${arrival.format(PROMPT_DATE_TIME_FORMATTER)} ${arrival.zone.id}",
+                        ),
+                    )
+                }
+            }
+            dest.departureDateTime?.let { departure ->
+                if (departure.toInstant().isAfter(nowInstant)) {
+                    futureEvents.add(
+                        ItineraryEvent(
+                            departure.toInstant(),
+                            "depart from ${dest.name} on ${departure.format(PROMPT_DATE_TIME_FORMATTER)} ${departure.zone.id}",
+                        ),
+                    )
+                }
+            }
+            dest.transport?.legs?.forEach { leg ->
+                leg.departureDateTime?.let { legDep ->
+                    if (legDep.toInstant().isAfter(nowInstant)) {
+                        val description = buildString {
+                            append(formatTransportTypeName(leg.type))
+                            if (!leg.company.isNullOrBlank()) append(" with ${leg.company}")
+                            if (!leg.flightNumber.isNullOrBlank()) append(" (${leg.flightNumber})")
+                            append(
+                                " departs on ${legDep.format(PROMPT_DATE_TIME_FORMATTER)} ${legDep.zone.id}",
+                            )
+                        }
+                        futureEvents.add(ItineraryEvent(legDep.toInstant(), description))
+                    }
+                }
+                leg.arrivalDateTime?.let { legArr ->
+                    if (legArr.toInstant().isAfter(nowInstant)) {
+                        val description = buildString {
+                            append(formatTransportTypeName(leg.type))
+                            if (!leg.company.isNullOrBlank()) append(" with ${leg.company}")
+                            if (!leg.flightNumber.isNullOrBlank()) append(" (${leg.flightNumber})")
+                            append(
+                                " arrives on ${legArr.format(PROMPT_DATE_TIME_FORMATTER)} ${legArr.zone.id}",
+                            )
+                        }
+                        futureEvents.add(ItineraryEvent(legArr.toInstant(), description))
+                    }
+                }
+            }
+        }
+
+        return futureEvents.minByOrNull { it.instant }?.description
     }
 
     /**
@@ -309,5 +386,20 @@ class TripDescriptionRepositoryImpl(
          */
         private val PROMPT_DATE_TIME_FORMATTER =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
+
+        /**
+         * Converts a [TransportType] enum value to a human-readable title-case string
+         * (e.g. `FLIGHT` → `"Flight"`).
+         */
+        internal fun formatTransportTypeName(type: TransportType): String =
+            type.name.lowercase(Locale.ROOT).replaceFirstChar { it.titlecase(Locale.ROOT) }
+
+        /**
+         * A single itinerary event considered by [findNextUpcomingEvent].
+         *
+         * @param instant The UTC instant of the event, used for chronological ordering.
+         * @param description A human-readable description included in the prompt.
+         */
+        internal data class ItineraryEvent(val instant: Instant, val description: String)
     }
 }
