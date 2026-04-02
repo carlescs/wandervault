@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.Flight
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Train
 import androidx.compose.material3.AlertDialog
@@ -288,6 +289,7 @@ private fun DestinationTimelineItem(
 
     var showStayDurationInDays by rememberSaveable { mutableStateOf(false) }
     var showTransportDurationInDays by rememberSaveable { mutableStateOf(false) }
+    var showActionsMenu by remember { mutableStateOf(false) }
 
     Column(modifier = modifier.fillMaxWidth()) {
         // ── Section 1: destination dot + destination info (name, dates, stay duration) ──
@@ -348,33 +350,59 @@ private fun DestinationTimelineItem(
                                 onClick = onClick,
                             ),
                     )
-                    IconButton(onClick = onMoveUp, enabled = !isFirst) {
-                        Icon(
-                            imageVector = Icons.Default.KeyboardArrowUp,
-                            contentDescription = stringResource(R.string.itinerary_move_up),
-                            tint = if (isFirst) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-                            else MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    IconButton(onClick = onMoveDown, enabled = !isLast) {
-                        Icon(
-                            imageVector = Icons.Default.KeyboardArrowDown,
-                            contentDescription = stringResource(R.string.itinerary_move_down),
-                            tint = if (isLast) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-                            else MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    IconButton(onClick = onDeleteDestination) {
-                        Icon(
-                            imageVector = Icons.Default.Delete,
-                            contentDescription = stringResource(R.string.itinerary_delete_destination),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                    Box {
+                        IconButton(onClick = { showActionsMenu = true }) {
+                            Icon(
+                                imageVector = Icons.Default.MoreVert,
+                                contentDescription = stringResource(R.string.itinerary_destination_actions),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = showActionsMenu,
+                            onDismissRequest = { showActionsMenu = false },
+                        ) {
+                            if (!isFirst) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.itinerary_move_up)) },
+                                    onClick = { onMoveUp(); showActionsMenu = false },
+                                    leadingIcon = {
+                                        Icon(Icons.Default.KeyboardArrowUp, contentDescription = null)
+                                    },
+                                )
+                            }
+                            if (!isLast) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.itinerary_move_down)) },
+                                    onClick = { onMoveDown(); showActionsMenu = false },
+                                    leadingIcon = {
+                                        Icon(Icons.Default.KeyboardArrowDown, contentDescription = null)
+                                    },
+                                )
+                            }
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = stringResource(R.string.itinerary_delete_destination),
+                                        color = MaterialTheme.colorScheme.error,
+                                    )
+                                },
+                                onClick = { onDeleteDestination(); showActionsMenu = false },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.Delete,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.error,
+                                    )
+                                },
+                            )
+                        }
                     }
                 }
 
                 // Show arrival only for non-first destinations (hidden when there is only one place)
                 if (!isFirst) {
+                    Spacer(modifier = Modifier.height(8.dp))
                     DateTimeRow(
                         label = stringResource(R.string.itinerary_arrival_label),
                         dateTime = destination.arrivalDateTime,
@@ -382,10 +410,10 @@ private fun DestinationTimelineItem(
                         minDateMillis = prevDepartureMillis,
                         maxDateMillis = ownDepartureMillis,
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
                 }
                 // Show departure only for non-last destinations (hidden when there is only one place)
                 if (!isLast) {
+                    Spacer(modifier = Modifier.height(8.dp))
                     DateTimeRow(
                         label = stringResource(R.string.itinerary_departure_label),
                         dateTime = destination.departureDateTime,
@@ -398,27 +426,23 @@ private fun DestinationTimelineItem(
                 // Show stay duration when both arrival and departure are set.
                 val stayDuration = destination.arrivalDateTime.durationUntil(destination.departureDateTime)
                 if (stayDuration != null) {
-                    Box(
+                    Text(
+                        text = stringResource(
+                            R.string.itinerary_stay_duration,
+                            if (showStayDurationInDays) stayDuration.formattedWithDays() else stayDuration.formatted(),
+                        ),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier
-                            .padding(top = 2.dp)
-                            .heightIn(min = 48.dp)
                             .fillMaxWidth()
+                            .heightIn(min = 48.dp)
                             .clickable(
                                 role = Role.Button,
                                 onClickLabel = stringResource(R.string.itinerary_duration_toggle),
                                 onClick = { showStayDurationInDays = !showStayDurationInDays },
-                            ),
-                        contentAlignment = Alignment.CenterStart,
-                    ) {
-                        Text(
-                            text = stringResource(
-                                R.string.itinerary_stay_duration,
-                                if (showStayDurationInDays) stayDuration.formattedWithDays() else stayDuration.formatted(),
-                            ),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                    }
+                            )
+                            .padding(top = 6.dp, bottom = 2.dp),
+                    )
                 }
             }
         }
@@ -551,27 +575,23 @@ private fun DestinationTimelineItem(
                             val transportDuration =
                                 destination.departureDateTime.durationUntil(nextDestination?.arrivalDateTime)
                             if (transportDuration != null) {
-                                Box(
+                                Text(
+                                    text = stringResource(
+                                        R.string.itinerary_transport_duration,
+                                        if (showTransportDurationInDays) transportDuration.formattedWithDays() else transportDuration.formatted(),
+                                    ),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier
-                                        .padding(top = 2.dp)
-                                        .heightIn(min = 48.dp)
                                         .fillMaxWidth()
+                                        .heightIn(min = 48.dp)
                                         .clickable(
                                             role = Role.Button,
                                             onClickLabel = stringResource(R.string.itinerary_duration_toggle),
                                             onClick = { showTransportDurationInDays = !showTransportDurationInDays },
-                                        ),
-                                    contentAlignment = Alignment.CenterStart,
-                                ) {
-                                    Text(
-                                        text = stringResource(
-                                            R.string.itinerary_transport_duration,
-                                            if (showTransportDurationInDays) transportDuration.formattedWithDays() else transportDuration.formatted(),
-                                        ),
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.primary,
-                                    )
-                                }
+                                        )
+                                        .padding(top = 6.dp, bottom = 2.dp),
+                                )
                             }
                         }
                         Spacer(modifier = Modifier.height(8.dp))
@@ -758,58 +778,59 @@ private fun DateTimeRow(
         )
     }
 
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
+    Column(modifier = modifier) {
         Text(
             text = label,
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
         )
-        OutlinedButton(
-            onClick = { showDatePicker = true },
-            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-            modifier = Modifier.height(32.dp),
+        Spacer(modifier = Modifier.height(2.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                text = dateTime?.toLocalDate()?.format(dateFormatter)
-                    ?: stringResource(R.string.itinerary_pick_date),
-                style = MaterialTheme.typography.bodySmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        Spacer(modifier = Modifier.width(4.dp))
-        OutlinedButton(
-            onClick = { showTimePicker = true },
-            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-            modifier = Modifier.height(32.dp),
-            enabled = dateTime != null,
-        ) {
-            Text(
-                text = if (dateTime != null) dateTime.format(timeFormatter) else "--:--",
-                style = MaterialTheme.typography.bodySmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        Spacer(modifier = Modifier.width(4.dp))
-        OutlinedButton(
-            onClick = { showTimezonePicker = true },
-            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-            modifier = Modifier.height(32.dp),
-            enabled = dateTime != null,
-        ) {
-            Text(
-                text = dateTime?.zone?.getDisplayName(TextStyle.SHORT, Locale.getDefault()) ?: "---",
-                style = MaterialTheme.typography.bodySmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            OutlinedButton(
+                onClick = { showDatePicker = true },
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                modifier = Modifier
+                    .weight(1f)
+                    .height(32.dp),
+            ) {
+                Text(
+                    text = dateTime?.toLocalDate()?.format(dateFormatter)
+                        ?: stringResource(R.string.itinerary_pick_date),
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            OutlinedButton(
+                onClick = { showTimePicker = true },
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                modifier = Modifier.height(32.dp),
+                enabled = dateTime != null,
+            ) {
+                Text(
+                    text = if (dateTime != null) dateTime.format(timeFormatter) else "--:--",
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            OutlinedButton(
+                onClick = { showTimezonePicker = true },
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                modifier = Modifier.height(32.dp),
+                enabled = dateTime != null,
+            ) {
+                Text(
+                    text = dateTime?.zone?.getDisplayName(TextStyle.SHORT, Locale.getDefault()) ?: "---",
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 }

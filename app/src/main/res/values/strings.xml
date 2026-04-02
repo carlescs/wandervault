@@ -129,6 +129,7 @@
     <string name="itinerary_move_down">Move destination down</string>
     <string name="itinerary_add_destination_here">Add destination here</string>
     <string name="itinerary_destination_open_details">Open details</string>
+    <string name="itinerary_destination_actions">Destination actions</string>
     <string name="itinerary_stay_duration">Stay: %s</string>
     <string name="itinerary_transport_duration">Total: %s</string>
     <string name="itinerary_duration_toggle">Toggle duration format</string>
