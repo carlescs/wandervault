@@ -130,7 +130,6 @@ class TripDetailViewModel(
                     // Trigger generation whenever the state is None and AI is available –
                     // this covers both first load and subsequent input changes.
                     if (aiAvailable && whatsNextState is WhatsNextState.None) {
-                        whatsNextGeneratedForInputs = Pair(trip, destinations)
                         generateWhatsNext(trip, destinations)
                     }
                 }
@@ -224,6 +223,9 @@ class TripDetailViewModel(
 
     private fun generateWhatsNext(trip: Trip, destinations: List<Destination>) {
         val current = _uiState.value as? TripDetailUiState.Success ?: return
+        // Record the inputs before launching so stale-check is correct even if the coroutine is
+        // cancelled, and only after confirming this call will actually proceed.
+        whatsNextGeneratedForInputs = Pair(trip, destinations)
         _uiState.value = current.copy(whatsNextState = WhatsNextState.Loading)
         viewModelScope.launch {
             val text = try {
