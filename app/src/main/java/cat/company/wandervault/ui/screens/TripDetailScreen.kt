@@ -3,6 +3,7 @@ package cat.company.wandervault.ui.screens
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.annotation.StringRes
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -18,6 +19,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Folder
@@ -25,6 +27,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -63,6 +66,7 @@ import coil.request.ImageRequest
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
 import java.time.LocalDate
+import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
@@ -76,6 +80,14 @@ private enum class TripDetailTab(@StringRes val labelRes: Int, val icon: ImageVe
 
 /** Height of the trip cover image when rendered below the top app bar. */
 private val BASE_IMAGE_HEIGHT = 200.dp
+
+/** Shared date formatter for the Trip Detail screen (medium style, e.g. "Sep 2, 2024"). */
+private val DETAIL_DATE_FORMATTER: DateTimeFormatter =
+    DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
+
+/** Shared time formatter for the Trip Detail screen (short style, e.g. "10:30 AM"). */
+private val DETAIL_TIME_FORMATTER: DateTimeFormatter =
+    DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT)
 
 /**
  * Trip Detail screen entry point.
@@ -298,7 +310,7 @@ private fun TripDetailsTabContent(
 
         is TripDetailUiState.Success -> {
             val trip = uiState.trip
-            val formatter = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
+            val formatter = DETAIL_DATE_FORMATTER
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = if (isImageCoveringTopBar) {
@@ -349,6 +361,7 @@ private fun TripDetailsTabContent(
                                 )
                             }
                             Spacer(modifier = Modifier.height(16.dp))
+                            UpcomingEventsSection(events = uiState.upcomingEvents)
                             WhatsNextSection(
                                 whatsNextState = uiState.whatsNextState,
                                 onRefresh = onRefreshWhatsNext,
@@ -447,6 +460,66 @@ private fun AiDescriptionSection(
             error("AiDescriptionSection should not be called with DescriptionState.Unavailable. Hide the section at the call site instead.")
         }
     }
+}
+
+/**
+ * Renders the "Next Up" section, listing the upcoming itinerary events sorted by time.
+ *
+ * The section is hidden when [events] is empty. Each event shows its date/time and a label
+ * indicating whether it is an arrival or departure and the destination name.
+ */
+@Composable
+private fun UpcomingEventsSection(events: List<UpcomingEvent>) {
+    if (events.isEmpty()) return
+
+    val dateFormatter = DETAIL_DATE_FORMATTER
+    val timeFormatter = DETAIL_TIME_FORMATTER
+
+    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = stringResource(R.string.trip_detail_next_up_title),
+                style = MaterialTheme.typography.titleMedium,
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            events.forEachIndexed { index, event ->
+                if (index > 0) {
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Icon(
+                        imageVector = when (event.eventType) {
+                            UpcomingEvent.EventType.ARRIVAL -> Icons.AutoMirrored.Filled.ArrowBack
+                            UpcomingEvent.EventType.DEPARTURE -> Icons.AutoMirrored.Filled.ArrowForward
+                        },
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp),
+                    )
+                    Column {
+                        Text(
+                            text = when (event.eventType) {
+                                UpcomingEvent.EventType.ARRIVAL ->
+                                    stringResource(R.string.trip_detail_next_up_arrive, event.destinationName)
+                                UpcomingEvent.EventType.DEPARTURE ->
+                                    stringResource(R.string.trip_detail_next_up_depart, event.destinationName)
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Text(
+                            text = "${event.dateTime.format(dateFormatter)}, ${event.dateTime.format(timeFormatter)}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        }
+    }
+    Spacer(modifier = Modifier.height(16.dp))
 }
 
 /**
@@ -639,6 +712,44 @@ private fun TripDetailWhatsNextLoadingPreview() {
                 trip = trip,
                 descriptionState = DescriptionState.Unavailable,
                 whatsNextState = WhatsNextState.Loading,
+            ),
+            tripId = 1,
+            onNavigateUp = {},
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun TripDetailNextUpPreview() {
+    val trip = Trip(
+        id = 1,
+        title = "Tokyo Adventure",
+        startDate = LocalDate.of(2024, 9, 1),
+        endDate = LocalDate.of(2024, 9, 15),
+    )
+    WanderVaultTheme {
+        TripDetailContent(
+            uiState = TripDetailUiState.Success(
+                trip = trip,
+                descriptionState = DescriptionState.Unavailable,
+                upcomingEvents = listOf(
+                    UpcomingEvent(
+                        dateTime = ZonedDateTime.parse("2024-09-02T10:30:00+09:00[Asia/Tokyo]"),
+                        destinationName = "Tokyo",
+                        eventType = UpcomingEvent.EventType.ARRIVAL,
+                    ),
+                    UpcomingEvent(
+                        dateTime = ZonedDateTime.parse("2024-09-10T14:00:00+09:00[Asia/Tokyo]"),
+                        destinationName = "Tokyo",
+                        eventType = UpcomingEvent.EventType.DEPARTURE,
+                    ),
+                    UpcomingEvent(
+                        dateTime = ZonedDateTime.parse("2024-09-10T18:30:00+09:00[Asia/Tokyo]"),
+                        destinationName = "Osaka",
+                        eventType = UpcomingEvent.EventType.ARRIVAL,
+                    ),
+                ),
             ),
             tripId = 1,
             onNavigateUp = {},

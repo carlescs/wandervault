@@ -158,6 +158,7 @@ class TripDetailViewModel(
                         trip = trip,
                         descriptionState = descriptionState,
                         whatsNextState = whatsNextState,
+                        upcomingEvents = computeUpcomingEvents(destinations, now),
                     )
 
                     // Trigger generation whenever the state is None and AI is available –
@@ -315,8 +316,33 @@ class TripDetailViewModel(
             .minOrNull()
     }
 
+    /**
+     * Returns the next [MAX_UPCOMING_EVENTS] itinerary events (arrivals and departures) that
+     * occur after [now], sorted chronologically.
+     */
+    private fun computeUpcomingEvents(destinations: List<Destination>, now: ZonedDateTime): List<UpcomingEvent> {
+        return destinations
+            .flatMap { dest ->
+                buildList {
+                    dest.arrivalDateTime?.let { dt ->
+                        if (dt.isAfter(now)) add(
+                            UpcomingEvent(dt, dest.name, UpcomingEvent.EventType.ARRIVAL),
+                        )
+                    }
+                    dest.departureDateTime?.let { dt ->
+                        if (dt.isAfter(now)) add(
+                            UpcomingEvent(dt, dest.name, UpcomingEvent.EventType.DEPARTURE),
+                        )
+                    }
+                }
+            }
+            .sortedBy { it.dateTime }
+            .take(MAX_UPCOMING_EVENTS)
+    }
+
     companion object {
         private const val TAG = "TripDetailViewModel"
+        private const val MAX_UPCOMING_EVENTS = 3
     }
 }
 
