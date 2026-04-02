@@ -1,7 +1,10 @@
 package cat.company.wandervault.ui.screens
 
 import android.net.Uri
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,7 +25,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxState
@@ -110,6 +112,7 @@ internal fun ArchiveContent(
                         },
                     )
                     SwipeToDismissBox(
+                        modifier = Modifier.animateItem(),
                         state = swipeState,
                         enableDismissFromStartToEnd = false,
                         backgroundContent = { SwipeToUnarchiveBackground(swipeState) },
@@ -117,7 +120,6 @@ internal fun ArchiveContent(
                         ArchivedTripCard(
                             trip = trip,
                             onCardClick = { onTripClick(trip.id) },
-                            onUnarchiveClick = { onUnarchiveClick(trip) },
                         )
                     }
                 }
@@ -130,7 +132,6 @@ internal fun ArchiveContent(
 private fun ArchivedTripCard(
     trip: Trip,
     onCardClick: () -> Unit = {},
-    onUnarchiveClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val formatter = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
@@ -149,7 +150,7 @@ private fun ArchivedTripCard(
             )
         }
         Row(
-            modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 16.dp, end = 8.dp),
+            modifier = Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
@@ -165,13 +166,6 @@ private fun ArchivedTripCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-            }
-            IconButton(onClick = onUnarchiveClick) {
-                Icon(
-                    imageVector = Icons.Default.Unarchive,
-                    contentDescription = stringResource(R.string.unarchive_trip_content_desc),
-                    tint = MaterialTheme.colorScheme.primary,
-                )
             }
         }
     }
@@ -193,7 +187,11 @@ private fun SwipeToUnarchiveBackground(swipeState: SwipeToDismissBoxState) {
             .padding(end = 20.dp),
         contentAlignment = Alignment.CenterEnd,
     ) {
-        if (isActive) {
+        AnimatedVisibility(
+            visible = isActive,
+            enter = fadeIn(),
+            exit = fadeOut(),
+        ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(
                     imageVector = Icons.Default.Unarchive,

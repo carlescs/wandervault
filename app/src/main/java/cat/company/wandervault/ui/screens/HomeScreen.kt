@@ -4,7 +4,10 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -158,6 +161,7 @@ internal fun HomeScreenContent(
                         },
                     )
                     SwipeToDismissBox(
+                        modifier = Modifier.animateItem(),
                         state = swipeState,
                         enableDismissFromStartToEnd = false,
                         backgroundContent = { SwipeToArchiveBackground(swipeState) },
@@ -313,7 +317,11 @@ private fun SwipeToArchiveBackground(swipeState: SwipeToDismissBoxState) {
             .padding(end = 20.dp),
         contentAlignment = Alignment.CenterEnd,
     ) {
-        if (isActive) {
+        AnimatedVisibility(
+            visible = isActive,
+            enter = fadeIn(),
+            exit = fadeOut(),
+        ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(
                     imageVector = Icons.Default.Archive,
