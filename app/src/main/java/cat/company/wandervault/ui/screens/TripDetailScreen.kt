@@ -43,7 +43,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -81,6 +80,14 @@ private enum class TripDetailTab(@StringRes val labelRes: Int, val icon: ImageVe
 
 /** Height of the trip cover image when rendered below the top app bar. */
 private val BASE_IMAGE_HEIGHT = 200.dp
+
+/** Shared date formatter for the Trip Detail screen (medium style, e.g. "Sep 2, 2024"). */
+private val DETAIL_DATE_FORMATTER: DateTimeFormatter =
+    DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
+
+/** Shared time formatter for the Trip Detail screen (short style, e.g. "10:30 AM"). */
+private val DETAIL_TIME_FORMATTER: DateTimeFormatter =
+    DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT)
 
 /**
  * Trip Detail screen entry point.
@@ -303,7 +310,7 @@ private fun TripDetailsTabContent(
 
         is TripDetailUiState.Success -> {
             val trip = uiState.trip
-            val formatter = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
+            val formatter = DETAIL_DATE_FORMATTER
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = if (isImageCoveringTopBar) {
@@ -465,8 +472,8 @@ private fun AiDescriptionSection(
 private fun UpcomingEventsSection(events: List<UpcomingEvent>) {
     if (events.isEmpty()) return
 
-    val dateFormatter = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
-    val timeFormatter = remember { DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT) }
+    val dateFormatter = DETAIL_DATE_FORMATTER
+    val timeFormatter = DETAIL_TIME_FORMATTER
 
     ElevatedCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -486,7 +493,7 @@ private fun UpcomingEventsSection(events: List<UpcomingEvent>) {
                     Icon(
                         imageVector = when (event.eventType) {
                             UpcomingEvent.EventType.ARRIVAL -> Icons.AutoMirrored.Filled.ArrowForward
-                            UpcomingEvent.EventType.DEPARTURE -> Icons.Default.DateRange
+                            UpcomingEvent.EventType.DEPARTURE -> Icons.AutoMirrored.Filled.ArrowBack
                         },
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
