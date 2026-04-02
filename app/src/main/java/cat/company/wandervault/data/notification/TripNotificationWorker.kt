@@ -58,7 +58,7 @@ class TripNotificationWorker(
             val daysUntilStart = ChronoUnit.DAYS.between(today, startDate)
 
             val shouldNotify = daysUntilStart in 0..NOTIFY_DAYS_AHEAD ||
-                (endDate != null && !today.isAfter(endDate) && today.isAfter(startDate))
+                (endDate != null && !today.isAfter(endDate) && !today.isBefore(startDate))
 
             if (shouldNotify) {
                 sendNotification(trip, daysUntilStart)
@@ -102,7 +102,7 @@ class TripNotificationWorker(
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .build()
 
-        NotificationManagerCompat.from(appContext).notify(trip.id, notification)
+        NotificationManagerCompat.from(appContext).notify(NOTIFICATION_TAG, trip.id, notification)
     }
 
     private fun buildNotificationText(trip: Trip, daysUntilStart: Long): String {
@@ -124,6 +124,9 @@ class TripNotificationWorker(
     companion object {
         /** Notification channel ID for trip reminders. */
         const val CHANNEL_ID = "trip_reminders"
+
+        /** Tag applied to all trip reminder notifications for targeted cancellation. */
+        private const val NOTIFICATION_TAG = "trip_reminder"
 
         /** Unique name used with [WorkManager.enqueueUniquePeriodicWork]. */
         const val WORK_NAME = "trip_notification_check"
@@ -165,12 +168,15 @@ class TripNotificationWorker(
         }
 
         /**
-         * Cancels the periodic notification worker and dismisses all trip notifications that are
-         * currently visible in the notification shade.
+         * Cancels the periodic notification worker and dismisses all visible trip reminder
+         * notifications (identified by [NOTIFICATION_TAG]) from the notification shade.
          */
         fun cancel(context: Context) {
             WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME)
-            NotificationManagerCompat.from(context).cancelAll()
+            val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            manager.activeNotifications
+                .filter { it.tag == NOTIFICATION_TAG }
+                .forEach { manager.cancel(it.tag, it.id) }
         }
     }
 }

@@ -94,9 +94,11 @@ class SettingsViewModel(
             val granted = context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) ==
                 PackageManager.PERMISSION_GRANTED
             if (!granted && _uiState.value.notificationsEnabled) {
-                appPreferences.setNotificationsEnabled(false)
-                TripNotificationWorker.cancel(context)
-                _uiState.update { it.copy(notificationsEnabled = false) }
+                viewModelScope.launch {
+                    appPreferences.setNotificationsEnabled(false)
+                    TripNotificationWorker.cancel(context)
+                    _uiState.update { it.copy(notificationsEnabled = false) }
+                }
             }
         }
     }
