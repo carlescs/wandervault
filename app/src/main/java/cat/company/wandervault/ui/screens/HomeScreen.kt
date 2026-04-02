@@ -4,7 +4,12 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -161,6 +166,7 @@ internal fun HomeScreenContent(
                         state = swipeState,
                         enableDismissFromStartToEnd = false,
                         backgroundContent = { SwipeToArchiveBackground(swipeState) },
+                        modifier = Modifier.animateItem(),
                     ) {
                         TripCard(
                             trip = trip,
@@ -301,9 +307,19 @@ private fun TripCard(trip: Trip, onEditClick: () -> Unit, onDeleteClick: () -> U
 @Composable
 private fun SwipeToArchiveBackground(swipeState: SwipeToDismissBoxState) {
     val isActive = swipeState.targetValue == SwipeToDismissBoxValue.EndToStart
+    val isSwiping = swipeState.dismissDirection == SwipeToDismissBoxValue.EndToStart
     val containerColor by animateColorAsState(
-        if (isActive) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
+        when {
+            isActive -> MaterialTheme.colorScheme.secondaryContainer
+            isSwiping -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = SWIPE_HINT_BG_ALPHA)
+            else -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0f)
+        },
         label = "archive_swipe_bg",
+    )
+    val iconTint by animateColorAsState(
+        if (isActive) MaterialTheme.colorScheme.onSecondaryContainer
+        else MaterialTheme.colorScheme.secondary.copy(alpha = SWIPE_HINT_ICON_ALPHA),
+        label = "archive_icon_tint",
     )
     Box(
         modifier = Modifier
@@ -313,19 +329,25 @@ private fun SwipeToArchiveBackground(swipeState: SwipeToDismissBoxState) {
             .padding(end = 20.dp),
         contentAlignment = Alignment.CenterEnd,
     ) {
-        if (isActive) {
+        AnimatedVisibility(
+            visible = isSwiping || isActive,
+            enter = fadeIn() + scaleIn(initialScale = 0.75f),
+            exit = fadeOut() + scaleOut(targetScale = 0.75f),
+        ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(
                     imageVector = Icons.Default.Archive,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                    tint = iconTint,
                 )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = stringResource(R.string.archive_trip_content_desc),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                )
+                AnimatedVisibility(visible = isActive) {
+                    Text(
+                        text = stringResource(R.string.archive_trip_content_desc),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
             }
         }
     }
