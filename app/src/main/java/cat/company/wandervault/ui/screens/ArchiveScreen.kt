@@ -1,7 +1,12 @@
 package cat.company.wandervault.ui.screens
 
 import android.net.Uri
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -113,6 +118,7 @@ internal fun ArchiveContent(
                         state = swipeState,
                         enableDismissFromStartToEnd = false,
                         backgroundContent = { SwipeToUnarchiveBackground(swipeState) },
+                        modifier = Modifier.animateItem(),
                     ) {
                         ArchivedTripCard(
                             trip = trip,
@@ -181,9 +187,19 @@ private fun ArchivedTripCard(
 @Composable
 private fun SwipeToUnarchiveBackground(swipeState: SwipeToDismissBoxState) {
     val isActive = swipeState.targetValue == SwipeToDismissBoxValue.EndToStart
+    val isSwiping = swipeState.dismissDirection == SwipeToDismissBoxValue.EndToStart
     val containerColor by animateColorAsState(
-        if (isActive) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+        when {
+            isActive -> MaterialTheme.colorScheme.primaryContainer
+            isSwiping -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+            else -> Color.Transparent
+        },
         label = "unarchive_swipe_bg",
+    )
+    val iconTint by animateColorAsState(
+        if (isActive) MaterialTheme.colorScheme.onPrimaryContainer
+        else MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
+        label = "unarchive_icon_tint",
     )
     Box(
         modifier = Modifier
@@ -193,19 +209,25 @@ private fun SwipeToUnarchiveBackground(swipeState: SwipeToDismissBoxState) {
             .padding(end = 20.dp),
         contentAlignment = Alignment.CenterEnd,
     ) {
-        if (isActive) {
+        AnimatedVisibility(
+            visible = isSwiping || isActive,
+            enter = fadeIn() + scaleIn(initialScale = 0.75f),
+            exit = fadeOut() + scaleOut(targetScale = 0.75f),
+        ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(
                     imageVector = Icons.Default.Unarchive,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                    tint = iconTint,
                 )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = stringResource(R.string.unarchive_trip_content_desc),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                )
+                AnimatedVisibility(visible = isActive) {
+                    Text(
+                        text = stringResource(R.string.unarchive_trip_content_desc),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
             }
         }
     }
