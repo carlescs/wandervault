@@ -27,4 +27,14 @@ interface AppPreferencesRepository {
      * Pass `null` to revert to the device default language.
      */
     fun setAiLanguage(languageTag: String?)
+
+    /**
+     * Returns whether the user has enabled trip approach notifications, defaulting to `true`.
+     */
+    fun getNotificationsEnabled(): Boolean
+
+    /**
+     * Persists whether trip approach notifications are enabled.
+     */
+    fun setNotificationsEnabled(enabled: Boolean)
 }

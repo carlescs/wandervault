@@ -1,5 +1,9 @@
 package cat.company.wandervault.ui.screens
 
+import android.Manifest
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,6 +19,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.NotificationsNone
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.DropdownMenuItem
@@ -28,9 +33,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -39,6 +46,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -75,6 +83,7 @@ internal val AI_LANGUAGE_TAGS = listOf(
  * Displays app-wide settings grouped into sections. Exposes:
  * - An app-wide default timezone selector under the "General" section.
  * - An AI language selector under the "AI" section.
+ * - A notifications toggle under the "Notifications" section.
  * - A "Data Administration" entry that opens the backup/restore flow.
  *
  * @param onNavigateUp Called when the user taps the back button.
@@ -90,12 +99,32 @@ fun SettingsScreen(
     viewModel: SettingsViewModel = koinViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+
+    // Sync toggle with runtime permission state each time the screen is shown.
+    LaunchedEffect(Unit) {
+        viewModel.refreshNotificationPermission(context)
+    }
+
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        viewModel.onNotificationPermissionResult(context, granted)
+    }
+
     SettingsContent(
         uiState = uiState,
         onNavigateUp = onNavigateUp,
         onNavigateToDataAdmin = onNavigateToDataAdmin,
         onDefaultTimezoneChange = viewModel::onDefaultTimezoneChange,
         onAiLanguageChange = viewModel::onAiLanguageChange,
+        onNotificationsEnabledChange = { enabled ->
+            if (enabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            } else {
+                viewModel.onNotificationsEnabledChange(context, enabled)
+            }
+        },
         modifier = modifier,
     )
 }
@@ -108,6 +137,7 @@ internal fun SettingsContent(
     onNavigateToDataAdmin: () -> Unit,
     onDefaultTimezoneChange: (String?) -> Unit = {},
     onAiLanguageChange: (String?) -> Unit = {},
+    onNotificationsEnabledChange: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Scaffold(
@@ -156,6 +186,20 @@ internal fun SettingsContent(
             AiLanguageRow(
                 currentLanguageTag = uiState.aiLanguage,
                 onLanguageChange = onAiLanguageChange,
+            )
+            HorizontalDivider()
+
+            // ── Notifications section ──────────────────────────────────────
+            Text(
+                text = stringResource(R.string.settings_section_notifications),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            )
+            HorizontalDivider()
+            NotificationsRow(
+                enabled = uiState.notificationsEnabled,
+                onEnabledChange = onNotificationsEnabledChange,
             )
             HorizontalDivider()
 
@@ -355,12 +399,61 @@ private fun AiLanguageRow(
     }
 }
 
+/**
+ * A settings row with a toggle for enabling or disabling trip approach notifications.
+ */
+@Composable
+private fun NotificationsRow(
+    enabled: Boolean,
+    onEnabledChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val label = stringResource(R.string.settings_notifications_label)
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(
+                role = Role.Switch,
+                onClick = { onEnabledChange(!enabled) },
+            )
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            Icons.Default.NotificationsNone,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(24.dp),
+        )
+        Spacer(modifier = Modifier.width(16.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyLarge,
+            )
+            Text(
+                text = stringResource(R.string.settings_notifications_subtitle),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Switch(
+            checked = enabled,
+            onCheckedChange = null,
+        )
+    }
+}
+
 @Preview(showBackground = true)
 @Composable
 private fun SettingsScreenPreview() {
     WanderVaultTheme {
         SettingsContent(
-            uiState = SettingsUiState(defaultTimezone = "Europe/London", aiLanguage = "en"),
+            uiState = SettingsUiState(
+                defaultTimezone = "Europe/London",
+                aiLanguage = "en",
+                notificationsEnabled = true,
+            ),
             onNavigateUp = {},
             onNavigateToDataAdmin = {},
         )

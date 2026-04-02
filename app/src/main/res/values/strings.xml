@@ -379,4 +379,22 @@
     <string name="documents_auto_organize_confirm_title">Suggested organization</string>
     <string name="documents_auto_organize_apply">Apply</string>
     <string name="documents_auto_organize_no_suggestion">No organization suggestion available.</string>
+
+    <!-- Notification settings -->
+    <string name="settings_section_notifications">Notifications</string>
+    <string name="settings_notifications_label">Trip reminders</string>
+    <string name="settings_notifications_subtitle">Get notified as the date for a trip approaches</string>
+
+    <!-- Notification channel -->
+    <string name="notification_channel_name">Trip Reminders</string>
+    <string name="notification_channel_description">Notifications about upcoming trips and next steps</string>
+
+    <!-- Notification content -->
+    <string name="notification_trip_starts_today">Your trip starts today!</string>
+    <string name="notification_trip_starts_tomorrow">Your trip starts tomorrow!</string>
+    <plurals name="notification_trip_starts_in_days">
+        <item quantity="one">Your trip starts in %d day</item>
+        <item quantity="other">Your trip starts in %d days</item>
+    </plurals>
+    <string name="notification_trip_in_progress">Your trip is in progress</string>
 </resources>

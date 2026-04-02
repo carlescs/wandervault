@@ -1,11 +1,17 @@
 package cat.company.wandervault.ui.screens
 
+import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import cat.company.wandervault.data.notification.TripNotificationWorker
 import cat.company.wandervault.domain.repository.AppPreferencesRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 
 /**
  * Holds the current app-wide settings state and handles user interactions.
@@ -20,6 +26,7 @@ class SettingsViewModel(
         SettingsUiState(
             defaultTimezone = appPreferences.getDefaultTimezone(),
             aiLanguage = appPreferences.getAiLanguage(),
+            notificationsEnabled = appPreferences.getNotificationsEnabled(),
         ),
     )
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
@@ -41,6 +48,58 @@ class SettingsViewModel(
         appPreferences.setAiLanguage(languageTag)
         _uiState.update { it.copy(aiLanguage = languageTag) }
     }
+
+    /**
+     * Toggles trip approach notifications.  When [enabled] is `true` the periodic worker is
+     * scheduled; when `false` the worker and any visible notifications are cancelled.
+     *
+     * On Android 13+ the caller must obtain [android.Manifest.permission.POST_NOTIFICATIONS]
+     * before calling this with [enabled] = `true`.
+     */
+    fun onNotificationsEnabledChange(context: Context, enabled: Boolean) {
+        viewModelScope.launch {
+            appPreferences.setNotificationsEnabled(enabled)
+            if (enabled) {
+                TripNotificationWorker.schedule(context)
+            } else {
+                TripNotificationWorker.cancel(context)
+            }
+            _uiState.update { it.copy(notificationsEnabled = enabled) }
+        }
+    }
+
+    /**
+     * Called when the system permission result is known for [android.Manifest.permission.POST_NOTIFICATIONS].
+     * Syncs the stored preference with the actual runtime permission state.
+     */
+    fun onNotificationPermissionResult(context: Context, granted: Boolean) {
+        viewModelScope.launch {
+            appPreferences.setNotificationsEnabled(granted)
+            if (granted) {
+                TripNotificationWorker.schedule(context)
+            } else {
+                TripNotificationWorker.cancel(context)
+            }
+            _uiState.update { it.copy(notificationsEnabled = granted) }
+        }
+    }
+
+    /**
+     * Refreshes the UI state to reflect the current runtime notification permission.
+     * Call this from `onResume` so the toggle stays in sync if the user changes the
+     * permission from the system settings.
+     */
+    fun refreshNotificationPermission(context: Context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val granted = context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) ==
+                PackageManager.PERMISSION_GRANTED
+            if (!granted && _uiState.value.notificationsEnabled) {
+                appPreferences.setNotificationsEnabled(false)
+                TripNotificationWorker.cancel(context)
+                _uiState.update { it.copy(notificationsEnabled = false) }
+            }
+        }
+    }
 }
 
 data class SettingsUiState(
@@ -48,4 +107,6 @@ data class SettingsUiState(
     val defaultTimezone: String? = null,
     /** The BCP-47 language tag selected for AI-generated content, or `null` for device default. */
     val aiLanguage: String? = null,
+    /** Whether the user has enabled trip approach notifications. */
+    val notificationsEnabled: Boolean = true,
 )

@@ -106,6 +106,7 @@ dependencies {
     implementation(libs.mlkit.genai.prompt)
     implementation(libs.mlkit.text.recognition)
     implementation(libs.androidx.navigation.compose)
+    implementation(libs.androidx.work.runtime.ktx)
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.androidx.junit)
