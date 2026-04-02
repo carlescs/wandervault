@@ -24,6 +24,7 @@ import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffo
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -44,6 +45,9 @@ class MainActivity : ComponentActivity() {
     /** Non-null while there is a pending `ACTION_SEND` intent waiting to be handled. */
     private var shareIntentState: Intent? by mutableStateOf(null)
 
+    /** Non-null when the app was opened via a trip notification; cleared after navigation. */
+    private var notificationTripId: Int? by mutableStateOf(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -56,6 +60,13 @@ class MainActivity : ComponentActivity() {
                         shareIntentState = null
                         // Clear the intent so a configuration change does not re-open the share
                         // overlay with the same document.
+                        setIntent(Intent(Intent.ACTION_MAIN))
+                    },
+                    notificationTripId = notificationTripId,
+                    onNotificationTripHandled = {
+                        notificationTripId = null
+                        // Clear the intent so a configuration change does not re-trigger
+                        // the notification deep-link.
                         setIntent(Intent(Intent.ACTION_MAIN))
                     },
                 )
@@ -72,6 +83,15 @@ class MainActivity : ComponentActivity() {
         if (intent?.action == Intent.ACTION_SEND) {
             shareIntentState = intent
         }
+        val tripId = intent?.getIntExtra(EXTRA_TRIP_ID, -1)?.takeIf { it > 0 }
+        if (tripId != null) {
+            notificationTripId = tripId
+        }
+    }
+
+    companion object {
+        /** Intent extra key for the trip ID carried by notification tap intents. */
+        const val EXTRA_TRIP_ID = "extra_trip_id"
     }
 }
 
@@ -81,6 +101,8 @@ class MainActivity : ComponentActivity() {
 fun WanderVaultApp(
     shareIntent: Intent? = null,
     onShareHandled: () -> Unit = {},
+    notificationTripId: Int? = null,
+    onNotificationTripHandled: () -> Unit = {},
 ) {
     val navController = rememberNavController()
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
@@ -93,6 +115,16 @@ fun WanderVaultApp(
         NavigationSuiteScaffoldDefaults.calculateFromAdaptiveInfo(currentWindowAdaptiveInfo())
     } else {
         NavigationSuiteType.None
+    }
+
+    // Navigate to the trip detail screen when the app is opened via a notification.
+    LaunchedEffect(notificationTripId) {
+        if (notificationTripId != null) {
+            navController.navigate(AppRoutes.tripDetail(notificationTripId)) {
+                launchSingleTop = true
+            }
+            onNotificationTripHandled()
+        }
     }
 
     SharedTransitionLayout(modifier = Modifier.fillMaxSize()) {
