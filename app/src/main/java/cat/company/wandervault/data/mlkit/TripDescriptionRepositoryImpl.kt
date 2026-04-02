@@ -215,22 +215,22 @@ class TripDescriptionRepositoryImpl(
         destinations: List<Destination>,
         now: ZonedDateTime,
     ): String {
-        if (destinations.isEmpty()) return "unknown"
+        if (destinations.isEmpty()) return POSITION_UNKNOWN
 
         val sorted = destinations.sortedBy { it.position }
 
         val allInstants = sorted
             .flatMap { listOfNotNull(it.arrivalDateTime, it.departureDateTime) }
             .map { it.toInstant() }
-        if (allInstants.isEmpty()) return "unknown"
+        if (allInstants.isEmpty()) return POSITION_UNKNOWN
 
         val nowInstant = now.toInstant()
         // allInstants is guaranteed non-empty by the isEmpty() check above.
-        val tripStartInstant = allInstants.minOrNull()!!
-        val tripEndInstant = allInstants.maxOrNull()!!
+        val tripStartInstant = allInstants.min()
+        val tripEndInstant = allInstants.max()
 
-        if (nowInstant.isBefore(tripStartInstant)) return "at home (the trip has not started yet)"
-        if (!nowInstant.isBefore(tripEndInstant)) return "at home (the trip is over)"
+        if (nowInstant.isBefore(tripStartInstant)) return POSITION_AT_HOME_BEFORE_TRIP
+        if (!nowInstant.isBefore(tripEndInstant)) return POSITION_AT_HOME_AFTER_TRIP
 
         for (i in sorted.indices) {
             val dest = sorted[i]
@@ -245,7 +245,7 @@ class TripDescriptionRepositoryImpl(
             }
         }
 
-        return "unknown"
+        return POSITION_UNKNOWN
     }
 
     /**
@@ -290,6 +290,15 @@ class TripDescriptionRepositoryImpl(
 
         /** Maximum number of tokens the model may generate for a what's next notice. */
         private const val MAX_WHATS_NEXT_TOKENS = 150
+
+        /** Position string used when the traveller's location cannot be determined. */
+        private const val POSITION_UNKNOWN = "unknown"
+
+        /** Position string used when now is before the first itinerary event. */
+        private const val POSITION_AT_HOME_BEFORE_TRIP = "at home (the trip has not started yet)"
+
+        /** Position string used when now is at or after the last itinerary event. */
+        private const val POSITION_AT_HOME_AFTER_TRIP = "at home (the trip is over)"
 
         /**
          * Formatter for datetime values included in LLM prompts.
