@@ -13,6 +13,7 @@ import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.tasks.await
+import java.time.Duration
 import java.time.Instant
 import java.util.UUID
 
@@ -89,8 +90,11 @@ class FirestoreTripSyncRepositoryImpl(
 
         val title = doc.getString("title") ?: "Shared Trip"
         val ownerId = doc.getString("ownerId") ?: ""
-        @Suppress("UNCHECKED_CAST")
-        val collaboratorIds = (doc.get("collaboratorIds") as? List<String>).orEmpty()
+        val rawCollaborators = doc.get("collaboratorIds")
+        val collaboratorIds: List<String> = when {
+            rawCollaborators is List<*> -> rawCollaborators.filterIsInstance<String>()
+            else -> emptyList()
+        }
 
         // Add current user as collaborator if not already present.
         if (uid !in collaboratorIds && uid != ownerId) {
@@ -99,7 +103,7 @@ class FirestoreTripSyncRepositoryImpl(
                 .await()
         }
 
-        val updatedCollaborators = (collaboratorIds + uid).distinct().filter { it != ownerId }
+        val updatedCollaborators = buildUpdatedCollaborators(collaboratorIds, uid, ownerId)
         val trip = Trip(
             id = 0,
             title = title,
@@ -145,7 +149,7 @@ class FirestoreTripSyncRepositoryImpl(
     override suspend fun createInviteCode(shareId: String): String {
         val uid = requireSignedIn()
         val code = generateInviteCode()
-        val expiresAt = Instant.now().plusSeconds(7 * 24 * 3600L) // 7 days
+        val expiresAt = Instant.now().plus(Duration.ofDays(7))
 
         invitesCollection.document(code).set(
             mapOf(
@@ -193,6 +197,16 @@ class FirestoreTripSyncRepositoryImpl(
         val chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
         return (1..6).map { chars.random() }.joinToString("")
     }
+
+    /**
+     * Merges [newUid] into [existing] collaborators and removes [ownerId] from the list, ensuring
+     * the owner is never stored as a collaborator.
+     */
+    private fun buildUpdatedCollaborators(
+        existing: List<String>,
+        newUid: String,
+        ownerId: String,
+    ): List<String> = (existing + newUid).distinct().filter { it != ownerId }
 
     private suspend fun pushTripToFirestore(
         tripId: Int,

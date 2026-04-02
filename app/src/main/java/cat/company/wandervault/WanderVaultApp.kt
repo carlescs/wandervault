@@ -13,11 +13,10 @@ class WanderVaultApplication : Application() {
     override fun onCreate() {
         super.onCreate()
 
-        // TODO: Replace these placeholder values with the real values from your
-        //  google-services.json (Firebase console → Project settings → Your apps).
-        //  Alternatively, add the google-services.json file and apply the
-        //  `com.google.gms.google-services` plugin in build.gradle.kts to have
-        //  Firebase configured automatically.
+        // TODO: Replace the placeholder values below with real values from your Firebase project.
+        //  The recommended approach is to add your google-services.json file and apply the
+        //  `com.google.gms.google-services` Gradle plugin, which replaces the manual init below.
+        //  Until then the app will start but all Firebase calls will fail at runtime.
         if (FirebaseApp.getApps(this).isEmpty()) {
             FirebaseApp.initializeApp(
                 this,

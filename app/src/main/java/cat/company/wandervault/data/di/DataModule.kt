@@ -95,7 +95,10 @@ val dataModule = module {
         FirebaseAuthRepositoryImpl(
             context = androidContext(),
             auth = get(),
-            // TODO: Replace with the web client ID from your Firebase console.
+            // TODO: Replace "YOUR_WEB_CLIENT_ID" with the OAuth 2.0 Web Client ID from the
+            //  Firebase console (Project settings → Your apps → SHA certificate fingerprints →
+            //  Web API key).  In a production build this should be read from BuildConfig or
+            //  injected via local.properties / environment variables, never hard-coded.
             webClientId = "YOUR_WEB_CLIENT_ID",
         )
     }

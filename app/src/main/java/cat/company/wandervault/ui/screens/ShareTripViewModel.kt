@@ -123,7 +123,13 @@ class ShareTripViewModel(
         val state = _uiState.value as? ShareTripUiState.Success ?: return
         val shareId = state.shareId ?: return
         viewModelScope.launch {
-            runCatching { removeCollaborator(shareId, collaboratorUid) }
+            try {
+                removeCollaborator(shareId, collaboratorUid)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                setSuccessFlag { copy(error = e.localizedMessage) }
+            }
         }
     }
 

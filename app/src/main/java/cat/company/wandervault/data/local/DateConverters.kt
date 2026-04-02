@@ -44,6 +44,9 @@ class DateConverters {
     /**
      * Serialises a [List] of strings as a pipe-delimited (`|`) string so that it can be stored in
      * a single SQLite TEXT column.  An empty list is stored as an empty string.
+     *
+     * **Safety**: Firebase UIDs consist of alphanumeric characters only (no pipes), so `|` is a
+     * safe delimiter for this specific use-case.
      */
     @TypeConverter
     fun fromStringList(list: List<String>): String = list.joinToString("|")
