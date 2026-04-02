@@ -87,6 +87,8 @@ private fun TripEntity.toDomain(destinations: List<DestinationDateProjection>): 
         aiDescription = aiDescription,
         isFavorite = isFavorite,
         defaultTimezone = defaultTimezone,
+        nextStep = nextStep,
+        nextStepDeadline = nextStepDeadline,
     )
 }
 
@@ -97,4 +99,6 @@ private fun Trip.toEntity() = TripEntity(
     aiDescription = aiDescription,
     isFavorite = isFavorite,
     defaultTimezone = defaultTimezone,
+    nextStep = nextStep,
+    nextStepDeadline = nextStepDeadline,
 )
