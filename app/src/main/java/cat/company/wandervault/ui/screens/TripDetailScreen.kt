@@ -520,8 +520,8 @@ private fun WhatsNextSection(
                 is WhatsNextState.None,
                 -> {
                     error(
-                        "WhatsNextSection should not be called with ${whatsNextState::class.simpleName}. " +
-                            "Hide the section at the call site instead.",
+                        "WhatsNextSection must not be called with Unavailable or None states. " +
+                            "Current state: ${whatsNextState::class.simpleName}.",
                     )
                 }
             }

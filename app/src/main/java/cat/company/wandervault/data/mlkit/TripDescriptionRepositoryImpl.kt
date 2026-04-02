@@ -40,9 +40,7 @@ class TripDescriptionRepositoryImpl(
                 FeatureStatus.DOWNLOADABLE -> awaitDownload()
                 FeatureStatus.AVAILABLE -> Unit
             }
-            val request = generateContentRequest(TextPart(buildPrompt(trip, destinations))) {
-                maxOutputTokens = MAX_DESCRIPTION_TOKENS
-            }
+            val request = createRequest(buildPrompt(trip, destinations), MAX_DESCRIPTION_TOKENS)
             val response = client.generateContent(request)
             val text = response.candidates.firstOrNull()?.text
             if (text.isNullOrBlank()) {
@@ -63,9 +61,7 @@ class TripDescriptionRepositoryImpl(
             FeatureStatus.DOWNLOADABLE -> awaitDownload()
             FeatureStatus.AVAILABLE -> Unit
         }
-        val request = generateContentRequest(TextPart(buildWhatsNextPrompt(trip, destinations, now))) {
-            maxOutputTokens = MAX_WHATS_NEXT_TOKENS
-        }
+        val request = createRequest(buildWhatsNextPrompt(trip, destinations, now), MAX_WHATS_NEXT_TOKENS)
         val response = client.generateContent(request)
         val text = response.candidates.firstOrNull()?.text
         if (text.isNullOrBlank()) {
@@ -75,6 +71,14 @@ class TripDescriptionRepositoryImpl(
         }
         text
     }
+
+    /**
+     * Creates a [generateContentRequest] with the given [prompt] text and [maxTokens] limit.
+     */
+    private fun createRequest(prompt: String, maxTokens: Int) =
+        generateContentRequest(TextPart(prompt)) {
+            maxOutputTokens = maxTokens
+        }
 
     /**
      * Waits for the Gemini Nano model to finish downloading by collecting the download Flow
@@ -88,7 +92,6 @@ class TripDescriptionRepositoryImpl(
 
     private fun buildPrompt(trip: Trip, destinations: List<Destination>): String {
         val dateFormatter = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
-        val dateTimeFormatter = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT)
         return buildString {
             appendLine(
                 "Write a short, engaging 2–3 sentence description for the following trip. " +
@@ -106,8 +109,8 @@ class TripDescriptionRepositoryImpl(
                 appendLine("Itinerary (${destinations.size} stop(s)):")
                 destinations.forEachIndexed { index, dest ->
                     append("  ${index + 1}. ${dest.name}")
-                    val arrival = dest.arrivalDateTime?.format(dateTimeFormatter)
-                    val departure = dest.departureDateTime?.format(dateTimeFormatter)
+                    val arrival = dest.arrivalDateTime?.format(PROMPT_DATE_TIME_FORMATTER)
+                    val departure = dest.departureDateTime?.format(PROMPT_DATE_TIME_FORMATTER)
                     if (arrival != null) append(" – arrives $arrival")
                     if (departure != null) append(", departs $departure")
                     appendLine()
@@ -137,8 +140,7 @@ class TripDescriptionRepositoryImpl(
         destinations: List<Destination>,
         now: ZonedDateTime,
     ): String {
-        val dateTimeFormatter = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT)
-        val nowFormatted = now.format(dateTimeFormatter)
+        val nowFormatted = now.format(PROMPT_DATE_TIME_FORMATTER)
         val nowZone = now.zone.id
         return buildString {
             appendLine(
@@ -159,10 +161,10 @@ class TripDescriptionRepositoryImpl(
                     val arrival = dest.arrivalDateTime
                     val departure = dest.departureDateTime
                     if (arrival != null) {
-                        append(" – arrives ${arrival.format(dateTimeFormatter)} ${arrival.zone.id}")
+                        append(" – arrives ${arrival.format(PROMPT_DATE_TIME_FORMATTER)} ${arrival.zone.id}")
                     }
                     if (departure != null) {
-                        append(", departs ${departure.format(dateTimeFormatter)} ${departure.zone.id}")
+                        append(", departs ${departure.format(PROMPT_DATE_TIME_FORMATTER)} ${departure.zone.id}")
                     }
                     appendLine()
                     dest.transport?.legs?.forEach { leg ->
@@ -176,12 +178,12 @@ class TripDescriptionRepositoryImpl(
                         val legArr = leg.arrivalDateTime
                         if (legDep != null) {
                             append(
-                                ", departs ${legDep.format(dateTimeFormatter)} ${legDep.zone.id}",
+                                ", departs ${legDep.format(PROMPT_DATE_TIME_FORMATTER)} ${legDep.zone.id}",
                             )
                         }
                         if (legArr != null) {
                             append(
-                                ", arrives ${legArr.format(dateTimeFormatter)} ${legArr.zone.id}",
+                                ", arrives ${legArr.format(PROMPT_DATE_TIME_FORMATTER)} ${legArr.zone.id}",
                             )
                         }
                         appendLine()
@@ -197,5 +199,8 @@ class TripDescriptionRepositoryImpl(
 
         /** Maximum number of tokens the model may generate for a what's next notice. */
         private const val MAX_WHATS_NEXT_TOKENS = 150
+
+        /** Formatter for datetime values included in LLM prompts. */
+        private val PROMPT_DATE_TIME_FORMATTER = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT)
     }
 }
