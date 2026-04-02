@@ -109,6 +109,11 @@
     <string name="trip_detail_whats_next_error">Could not determine what\'s next.</string>
     <string name="trip_detail_whats_next_refresh">Refresh what\'s next</string>
 
+    <!-- Next Up section: upcoming itinerary events shown in the Details tab -->
+    <string name="trip_detail_next_up_title">Next Up</string>
+    <string name="trip_detail_next_up_arrive">Arrive in %s</string>
+    <string name="trip_detail_next_up_depart">Depart from %s</string>
+
     <!-- Calendar tab -->
     <string name="calendar_previous_month">Previous month</string>
     <string name="calendar_next_month">Next month</string>

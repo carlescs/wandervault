@@ -1,6 +1,7 @@
 package cat.company.wandervault.ui.screens
 
 import cat.company.wandervault.domain.model.Trip
+import java.time.ZonedDateTime
 
 /**
  * Represents the UI state for the Trip Detail screen.
@@ -14,6 +15,7 @@ sealed class TripDetailUiState {
         val trip: Trip,
         val descriptionState: DescriptionState = DescriptionState.None,
         val whatsNextState: WhatsNextState = WhatsNextState.None,
+        val upcomingEvents: List<UpcomingEvent> = emptyList(),
     ) : TripDetailUiState()
 
     /** An error occurred (e.g. trip not found). */
@@ -54,4 +56,20 @@ sealed class WhatsNextState {
 
     /** Notice has not been generated yet. */
     data object None : WhatsNextState()
+}
+
+/**
+ * A single upcoming itinerary event shown in the "Next Up" section.
+ *
+ * @param dateTime The timezone-aware moment when the event occurs.
+ * @param destinationName The name of the destination the event is associated with.
+ * @param eventType Whether this is an arrival or departure event.
+ */
+data class UpcomingEvent(
+    val dateTime: ZonedDateTime,
+    val destinationName: String,
+    val eventType: EventType,
+) {
+    /** The kind of itinerary event. */
+    enum class EventType { ARRIVAL, DEPARTURE }
 }
