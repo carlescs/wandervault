@@ -492,8 +492,8 @@ private fun UpcomingEventsSection(events: List<UpcomingEvent>) {
                 ) {
                     Icon(
                         imageVector = when (event.eventType) {
-                            UpcomingEvent.EventType.ARRIVAL -> Icons.AutoMirrored.Filled.ArrowForward
-                            UpcomingEvent.EventType.DEPARTURE -> Icons.AutoMirrored.Filled.ArrowBack
+                            UpcomingEvent.EventType.ARRIVAL -> Icons.AutoMirrored.Filled.ArrowBack
+                            UpcomingEvent.EventType.DEPARTURE -> Icons.AutoMirrored.Filled.ArrowForward
                         },
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
