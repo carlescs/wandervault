@@ -12,6 +12,7 @@ import com.google.mlkit.genai.prompt.generateContentRequest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
+import java.time.Instant
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -132,8 +133,9 @@ class TripDescriptionRepositoryImpl(
     /**
      * Builds the prompt for the "what's next" notice generation.
      *
-     * The prompt describes the current moment in time and the full timezone-aware itinerary,
-     * then instructs the model to identify and describe the traveller's next step concisely.
+     * The prompt describes the current moment in time, the traveller's computed current position
+     * (derived from the itinerary — see [describeTravellerPosition]), and the full timezone-aware
+     * itinerary, then instructs the model to identify and describe the traveller's next step.
      */
     private fun buildWhatsNextPrompt(
         trip: Trip,
@@ -142,17 +144,17 @@ class TripDescriptionRepositoryImpl(
     ): String {
         val nowFormatted = now.format(PROMPT_DATE_TIME_FORMATTER)
         val nowZone = now.zone.id
+        val position = describeTravellerPosition(destinations, now)
         return buildString {
             appendLine(
-                "You are a helpful travel assistant. Based on the traveller's itinerary and the " +
-                    "current date and time, write a concise 1–2 sentence notice describing what " +
-                    "their next step in the trip is. Be specific and friendly. " +
-                    "If the trip has not started yet, say so and mention when it begins. " +
-                    "If the trip is over, say so briefly. " +
+                "You are a helpful travel assistant. Based on the traveller's current position " +
+                    "and itinerary, write a concise 1–2 sentence notice describing what their " +
+                    "next step is. Be specific and friendly. " +
                     "Respond in ${appPreferences.resolvedAiLanguageName()}.",
             )
             appendLine()
             appendLine("Current date and time: $nowFormatted (timezone: $nowZone)")
+            appendLine("Traveller's current position: $position")
             appendLine("Trip: ${trip.title}")
             if (destinations.isNotEmpty()) {
                 appendLine("Itinerary (${destinations.size} stop(s)):")
@@ -191,6 +193,95 @@ class TripDescriptionRepositoryImpl(
                 }
             }
         }
+    }
+
+    /**
+     * Determines the traveller's current position in the trip based on [now] and the
+     * destination itinerary.
+     *
+     * All temporal comparisons are performed on [java.time.Instant] values (UTC epoch seconds)
+     * to ensure correct ordering regardless of the zones attached to individual datetimes.
+     *
+     * Rules (applied in order):
+     * - **At home (before trip)** – [now] is before the earliest timed event in the itinerary.
+     * - **At the first destination** – the first destination has no arrival; the traveller is
+     *   considered to be there from the beginning until its departure.
+     * - **At a destination** – [now] falls between the destination's arrival and departure times.
+     * - **Traveling** – [now] falls between the departure of one stop and the arrival of the next.
+     * - **At home (after trip)** – [now] is at or after the latest timed event in the itinerary.
+     * - **Unknown** – no timed events are present, so the position cannot be determined.
+     */
+    private fun describeTravellerPosition(
+        destinations: List<Destination>,
+        now: ZonedDateTime,
+    ): String {
+        if (destinations.isEmpty()) return "unknown"
+
+        val sorted = destinations.sortedBy { it.position }
+
+        val allInstants = sorted
+            .flatMap { listOfNotNull(it.arrivalDateTime, it.departureDateTime) }
+            .map { it.toInstant() }
+        if (allInstants.isEmpty()) return "unknown"
+
+        val nowInstant = now.toInstant()
+        // allInstants is guaranteed non-empty by the isEmpty() check above.
+        val tripStartInstant = allInstants.minOrNull()!!
+        val tripEndInstant = allInstants.maxOrNull()!!
+
+        if (nowInstant.isBefore(tripStartInstant)) return "at home (the trip has not started yet)"
+        if (!nowInstant.isBefore(tripEndInstant)) return "at home (the trip is over)"
+
+        for (i in sorted.indices) {
+            val dest = sorted[i]
+
+            if (isTravellerAtDestination(dest, i, nowInstant)) return "currently at ${dest.name}"
+
+            // Check if the traveller is in transit between this stop and the next.
+            if (i + 1 < sorted.size &&
+                isTravellerInTransit(dest, sorted[i + 1], nowInstant)
+            ) {
+                return "currently traveling from ${dest.name} to ${sorted[i + 1].name}"
+            }
+        }
+
+        return "unknown"
+    }
+
+    /**
+     * Returns `true` if the traveller is currently at [dest] given [nowInstant].
+     *
+     * For the first destination (index == 0) there is no recorded arrival time — the traveller
+     * is considered to start there and remains until the departure.  For all other destinations
+     * the traveller must have arrived ([Destination.arrivalDateTime] ≤ now) and not yet departed.
+     */
+    private fun isTravellerAtDestination(
+        dest: Destination,
+        index: Int,
+        nowInstant: Instant,
+    ): Boolean {
+        val departureInstant = dest.departureDateTime?.toInstant()
+        val notDeparted = departureInstant == null || nowInstant.isBefore(departureInstant)
+        return if (index == 0) {
+            notDeparted
+        } else {
+            val arrivalInstant = dest.arrivalDateTime?.toInstant() ?: return false
+            !nowInstant.isBefore(arrivalInstant) && notDeparted
+        }
+    }
+
+    /**
+     * Returns `true` if the traveller is currently in transit from [from] to [to] given
+     * [nowInstant] — i.e. [from]'s departure has passed but [to]'s arrival has not yet occurred.
+     */
+    private fun isTravellerInTransit(
+        from: Destination,
+        to: Destination,
+        nowInstant: Instant,
+    ): Boolean {
+        val depInstant = from.departureDateTime?.toInstant() ?: return false
+        val arrInstant = to.arrivalDateTime?.toInstant() ?: return false
+        return !nowInstant.isBefore(depInstant) && nowInstant.isBefore(arrInstant)
     }
 
     companion object {
