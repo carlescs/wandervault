@@ -83,6 +83,20 @@ class TripRepositoryImpl(
             nextStepDeadline = nextStepDeadline?.toString(),
         )
     }
+
+    override suspend fun updateTripShareInfo(
+        tripId: Int,
+        shareId: String?,
+        ownerId: String?,
+        collaboratorIds: List<String>,
+    ) {
+        tripDao.updateShareInfo(
+            tripId = tripId,
+            shareId = shareId,
+            ownerId = ownerId,
+            collaboratorIds = collaboratorIds.joinToString("|"),
+        )
+    }
 }
 
 private fun mapToSortedTripList(
@@ -118,6 +132,9 @@ private fun TripEntity.toDomain(destinations: List<DestinationDateProjection>): 
         nextStep = nextStep,
         nextStepDeadline = nextStepDeadline,
         isArchived = isArchived,
+        shareId = shareId,
+        ownerId = ownerId,
+        collaboratorIds = collaboratorIds,
     )
 }
 
@@ -131,4 +148,7 @@ private fun Trip.toEntity() = TripEntity(
     nextStep = nextStep,
     nextStepDeadline = nextStepDeadline,
     isArchived = isArchived,
+    shareId = shareId,
+    ownerId = ownerId,
+    collaboratorIds = collaboratorIds,
 )

@@ -379,4 +379,38 @@
     <string name="documents_auto_organize_confirm_title">Suggested organization</string>
     <string name="documents_auto_organize_apply">Apply</string>
     <string name="documents_auto_organize_no_suggestion">No organization suggestion available.</string>
+
+    <!-- Profile screen – auth -->
+    <string name="profile_subtitle">Sign in to share and collaborate on trips</string>
+    <string name="profile_sign_in_with_google">Sign in with Google</string>
+    <string name="profile_sign_out">Sign out</string>
+    <string name="profile_unknown_name">Unknown user</string>
+    <string name="profile_join_trip">Join a Trip</string>
+
+    <!-- Trip detail – sharing -->
+    <string name="trip_detail_share">Share this trip</string>
+
+    <!-- Home screen – shared trip indicator -->
+    <string name="trip_shared_indicator_desc">Shared trip</string>
+
+    <!-- Share Trip screen -->
+    <string name="share_trip_title">Share Trip</string>
+    <string name="share_trip_navigate_up">Navigate up</string>
+    <string name="share_trip_enable_label">Enable sharing</string>
+    <string name="share_trip_share_id">ID: %s</string>
+    <string name="share_trip_invite_section">Invite collaborators</string>
+    <string name="share_trip_generate_invite">Generate invite code</string>
+    <string name="share_trip_copy_code">Copy invite code</string>
+    <string name="share_trip_sync_label">Sync changes</string>
+    <string name="share_trip_sync_button">Push changes</string>
+    <string name="share_trip_collaborators_section">Collaborators</string>
+    <string name="share_trip_remove_collaborator">Remove collaborator</string>
+
+    <!-- Join Trip screen -->
+    <string name="join_trip_title">Join a Trip</string>
+    <string name="join_trip_navigate_up">Navigate up</string>
+    <string name="join_trip_description">Enter the 6-character invite code shared by the trip owner.</string>
+    <string name="join_trip_code_label">Invite code</string>
+    <string name="join_trip_code_placeholder">ABC123</string>
+    <string name="join_trip_button">Join trip</string>
 </resources>

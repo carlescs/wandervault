@@ -22,24 +22,25 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -108,6 +109,7 @@ fun TripDetailScreen(
     onNavigateToDestination: (Int) -> Unit = {},
     onNavigateToTransport: (Int) -> Unit = {},
     onNavigateToDocument: (Int) -> Unit = {},
+    onNavigateToShare: (Int) -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: TripDetailViewModel = koinViewModel(key = "TripDetailViewModel:$tripId", parameters = { parametersOf(tripId) }),
 ) {
@@ -120,6 +122,7 @@ fun TripDetailScreen(
         onNavigateToDestination = onNavigateToDestination,
         onNavigateToTransport = onNavigateToTransport,
         onNavigateToDocument = onNavigateToDocument,
+        onNavigateToShare = { onNavigateToShare(tripId) },
         onRegenerateDescription = viewModel::regenerateDescription,
         onDeleteDescription = viewModel::deleteDescription,
         onRefreshWhatsNext = viewModel::refreshWhatsNext,
@@ -146,6 +149,7 @@ internal fun TripDetailContent(
     onNavigateToDestination: (Int) -> Unit = {},
     onNavigateToTransport: (Int) -> Unit = {},
     onNavigateToDocument: (Int) -> Unit = {},
+    onNavigateToShare: () -> Unit = {},
     onRegenerateDescription: () -> Unit = {},
     onDeleteDescription: () -> Unit = {},
     onRefreshWhatsNext: () -> Unit = {},
@@ -194,6 +198,15 @@ internal fun TripDetailContent(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = stringResource(R.string.trip_detail_navigate_up),
+                            tint = navIconColor,
+                        )
+                    }
+                },
+                actions = {
+                    IconButton(onClick = onNavigateToShare) {
+                        Icon(
+                            imageVector = Icons.Default.Share,
+                            contentDescription = stringResource(R.string.trip_detail_share),
                             tint = navIconColor,
                         )
                     }

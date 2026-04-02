@@ -17,9 +17,11 @@ import cat.company.wandervault.ui.screens.DocumentChatScreen
 import cat.company.wandervault.ui.screens.DocumentInfoScreen
 import cat.company.wandervault.ui.screens.FavoritesScreen
 import cat.company.wandervault.ui.screens.HomeScreen
+import cat.company.wandervault.ui.screens.JoinTripScreen
 import cat.company.wandervault.ui.screens.LocationDetailScreen
 import cat.company.wandervault.ui.screens.ProfileScreen
 import cat.company.wandervault.ui.screens.SettingsScreen
+import cat.company.wandervault.ui.screens.ShareTripScreen
 import cat.company.wandervault.ui.screens.TransportDetailScreen
 import cat.company.wandervault.ui.screens.TripDetailScreen
 
@@ -75,6 +77,7 @@ internal fun WanderVaultNavHost(
         composable(AppRoutes.PROFILE) {
             ProfileScreen(
                 onNavigateToSettings = { navController.navigate(AppRoutes.SETTINGS) },
+                onNavigateToJoinTrip = { navController.navigate(AppRoutes.JOIN_TRIP) },
                 modifier = Modifier.fillMaxSize(),
             )
         }
@@ -99,6 +102,9 @@ internal fun WanderVaultNavHost(
                     },
                     onNavigateToDocument = { documentId ->
                         navController.navigate(AppRoutes.documentInfo(documentId))
+                    },
+                    onNavigateToShare = { id ->
+                        navController.navigate(AppRoutes.shareTrip(id))
                     },
                     modifier = Modifier.fillMaxSize(),
                 )
@@ -178,6 +184,29 @@ internal fun WanderVaultNavHost(
             DocumentChatScreen(
                 documentId = documentId,
                 onNavigateUp = { navController.navigateUp() },
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+
+        composable(
+            route = AppRoutes.SHARE_TRIP,
+            arguments = listOf(navArgument("tripId") { type = NavType.IntType }),
+        ) { backStackEntry ->
+            val tripId = backStackEntry.arguments?.getInt("tripId")?.takeIf { it > 0 } ?: run {
+                navController.navigateUp()
+                return@composable
+            }
+            ShareTripScreen(
+                tripId = tripId,
+                onNavigateUp = { navController.navigateUp() },
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+
+        composable(AppRoutes.JOIN_TRIP) {
+            JoinTripScreen(
+                onNavigateUp = { navController.navigateUp() },
+                onTripJoined = { tripId -> navController.navigate(AppRoutes.tripDetail(tripId)) },
                 modifier = Modifier.fillMaxSize(),
             )
         }

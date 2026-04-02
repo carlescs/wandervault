@@ -13,6 +13,8 @@ internal object AppRoutes {
     const val DOCUMENT_CHAT = "document_chat/{documentId}"
     const val SETTINGS = "settings"
     const val DATA_ADMIN = "data_admin"
+    const val SHARE_TRIP = "share_trip/{tripId}"
+    const val JOIN_TRIP = "join_trip"
 
     /** Returns the navigable route for a specific trip detail screen. */
     fun tripDetail(tripId: Int) = "trip_detail/$tripId"
@@ -28,4 +30,7 @@ internal object AppRoutes {
 
     /** Returns the navigable route for the document chat screen for a specific document. */
     fun documentChat(documentId: Int) = "document_chat/$documentId"
+
+    /** Returns the navigable route for the share trip screen for a specific trip. */
+    fun shareTrip(tripId: Int) = "share_trip/$tripId"
 }

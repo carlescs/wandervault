@@ -29,6 +29,11 @@ interface TripDao {
     @Query("UPDATE trips SET isArchived = :isArchived WHERE id = :tripId")
     suspend fun setArchived(tripId: Int, isArchived: Boolean)
 
+    @Query(
+        "UPDATE trips SET shareId = :shareId, ownerId = :ownerId, collaboratorIds = :collaboratorIds WHERE id = :tripId",
+    )
+    suspend fun updateShareInfo(tripId: Int, shareId: String?, ownerId: String?, collaboratorIds: String)
+
     @Query("SELECT * FROM trips WHERE isFavorite = 1 AND isArchived = 0 ORDER BY id ASC")
     fun getFavorites(): Flow<List<TripEntity>>
 
@@ -40,4 +45,13 @@ interface TripDao {
 
     @Query("SELECT * FROM trips WHERE id = :id")
     fun getById(id: Int): Flow<TripEntity?>
+
+    @Query("SELECT * FROM trips WHERE shareId = :shareId LIMIT 1")
+    suspend fun getByShareId(shareId: String): TripEntity?
+
+    @Query("SELECT * FROM trips WHERE id = :id LIMIT 1")
+    suspend fun getByIdOnce(id: Int): TripEntity?
+
+    @Query("SELECT * FROM trips")
+    suspend fun getAllOnce(): List<TripEntity>
 }

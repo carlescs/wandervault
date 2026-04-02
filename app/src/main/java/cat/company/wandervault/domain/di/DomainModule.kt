@@ -1,13 +1,25 @@
 package cat.company.wandervault.domain.di
 
 import cat.company.wandervault.domain.usecase.AskDocumentQuestionUseCase
+import cat.company.wandervault.domain.usecase.AcceptTripInviteUseCase
 import cat.company.wandervault.domain.usecase.ArchiveTripUseCase
 import cat.company.wandervault.domain.usecase.AutoOrganizeDocumentsUseCase
+import cat.company.wandervault.domain.usecase.CreateTripInviteUseCase
 import cat.company.wandervault.domain.usecase.CopyDocumentToInternalStorageUseCase
 import cat.company.wandervault.domain.usecase.GenerateWhatsNextUseCase
 import cat.company.wandervault.domain.usecase.GetArchivedTripsUseCase
+import cat.company.wandervault.domain.usecase.GetCurrentUserUseCase
 import cat.company.wandervault.domain.usecase.GetFavoriteTripsUseCase
+import cat.company.wandervault.domain.usecase.GetSignInIntentUseCase
+import cat.company.wandervault.domain.usecase.HandleSignInResultUseCase
+import cat.company.wandervault.domain.usecase.JoinTripUseCase
+import cat.company.wandervault.domain.usecase.LeaveTripUseCase
+import cat.company.wandervault.domain.usecase.PushTripChangesUseCase
+import cat.company.wandervault.domain.usecase.RemoveCollaboratorUseCase
+import cat.company.wandervault.domain.usecase.ShareTripUseCase
+import cat.company.wandervault.domain.usecase.SignOutUseCase
 import cat.company.wandervault.domain.usecase.ToggleFavoriteTripUseCase
+import cat.company.wandervault.domain.usecase.UnshareTripUseCase
 import cat.company.wandervault.domain.usecase.CopyImageToInternalStorageUseCase
 import cat.company.wandervault.domain.usecase.CreateBackupUseCase
 import cat.company.wandervault.domain.usecase.DeleteDestinationUseCase
@@ -107,4 +119,18 @@ val domainModule = module {
     factory { AskDocumentQuestionUseCase(get()) }
     factory { AutoOrganizeDocumentsUseCase(get()) }
     factory { GetDocumentByIdUseCase(get()) }
+    // Auth
+    factory { GetSignInIntentUseCase(get()) }
+    factory { HandleSignInResultUseCase(get()) }
+    factory { SignOutUseCase(get()) }
+    factory { GetCurrentUserUseCase(get()) }
+    // Trip sync & collaboration
+    factory { ShareTripUseCase(get()) }
+    factory { UnshareTripUseCase(get()) }
+    factory { JoinTripUseCase(get()) }
+    factory { LeaveTripUseCase(get()) }
+    factory { CreateTripInviteUseCase(get()) }
+    factory { AcceptTripInviteUseCase(get()) }
+    factory { RemoveCollaboratorUseCase(get()) }
+    factory { PushTripChangesUseCase(get()) }
 }

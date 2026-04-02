@@ -7,8 +7,11 @@ import cat.company.wandervault.ui.screens.DocumentInfoViewModel
 import cat.company.wandervault.ui.screens.FavoritesViewModel
 import cat.company.wandervault.ui.screens.HomeViewModel
 import cat.company.wandervault.ui.screens.ItineraryViewModel
+import cat.company.wandervault.ui.screens.JoinTripViewModel
 import cat.company.wandervault.ui.screens.LocationDetailViewModel
+import cat.company.wandervault.ui.screens.ProfileViewModel
 import cat.company.wandervault.ui.screens.SettingsViewModel
+import cat.company.wandervault.ui.screens.ShareTripViewModel
 import cat.company.wandervault.ui.screens.ShareViewModel
 import cat.company.wandervault.ui.screens.TransportDetailViewModel
 import cat.company.wandervault.ui.screens.TripDetailViewModel
@@ -21,6 +24,7 @@ val presentationModule = module {
     viewModel { HomeViewModel(get(), get(), get(), get(), get(), get(), get(), get()) }
     viewModel { SettingsViewModel(get()) }
     viewModel { ArchiveViewModel(get(), get()) }
+    viewModel { ProfileViewModel(get(), get(), get(), get()) }
     viewModel { params -> TripDetailViewModel(params.get(), get(), get(), get(), get(), get(), get()) }
     viewModel { params ->
         ItineraryViewModel(
@@ -119,6 +123,24 @@ val presentationModule = module {
             getHotelForDestination = get(),
             saveHotel = get(),
             updateTransportLeg = get(),
+        )
+    }
+    viewModel { params ->
+        ShareTripViewModel(
+            tripId = params.get(),
+            getTrip = get(),
+            getCurrentUser = get(),
+            shareTrip = get(),
+            unshareTrip = get(),
+            createInvite = get(),
+            removeCollaborator = get(),
+            pushChanges = get(),
+        )
+    }
+    viewModel {
+        JoinTripViewModel(
+            acceptInvite = get(),
+            joinTrip = get(),
         )
     }
 }

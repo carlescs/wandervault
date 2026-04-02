@@ -4,6 +4,9 @@ import androidx.room.Room
 import cat.company.wandervault.data.local.WanderVaultDatabase
 import cat.company.wandervault.data.mlkit.DocumentSummaryRepositoryImpl
 import cat.company.wandervault.data.mlkit.TripDescriptionRepositoryImpl
+import cat.company.wandervault.data.remote.firebase.FirebaseAuthRepositoryImpl
+import cat.company.wandervault.data.remote.firebase.FirebaseStorageDocumentRepositoryImpl
+import cat.company.wandervault.data.remote.firebase.FirestoreTripSyncRepositoryImpl
 import cat.company.wandervault.data.repository.AppPreferencesRepositoryImpl
 import cat.company.wandervault.data.repository.BackupRepositoryImpl
 import cat.company.wandervault.data.repository.DestinationRepositoryImpl
@@ -12,20 +15,32 @@ import cat.company.wandervault.data.repository.TransportRepositoryImpl
 import cat.company.wandervault.data.repository.TripDocumentRepositoryImpl
 import cat.company.wandervault.data.repository.TripRepositoryImpl
 import cat.company.wandervault.domain.repository.AppPreferencesRepository
+import cat.company.wandervault.domain.repository.AuthRepository
 import cat.company.wandervault.domain.repository.BackupRepository
 import cat.company.wandervault.domain.repository.DocumentSummaryRepository
 import cat.company.wandervault.domain.repository.DestinationRepository
 import cat.company.wandervault.data.repository.HotelRepositoryImpl
 import cat.company.wandervault.domain.repository.HotelRepository
 import cat.company.wandervault.domain.repository.ImageRepository
+import cat.company.wandervault.domain.repository.RemoteDocumentRepository
 import cat.company.wandervault.domain.repository.TransportRepository
 import cat.company.wandervault.domain.repository.TripDescriptionRepository
 import cat.company.wandervault.domain.repository.TripDocumentRepository
 import cat.company.wandervault.domain.repository.TripRepository
+import cat.company.wandervault.domain.repository.TripSyncRepository
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.storage.FirebaseStorage
 import org.koin.android.ext.koin.androidContext
 import org.koin.dsl.module
 
 val dataModule = module {
+    // ── Firebase ─────────────────────────────────────────────────────────────
+    single { FirebaseAuth.getInstance() }
+    single { FirebaseFirestore.getInstance() }
+    single { FirebaseStorage.getInstance() }
+
+    // ── Room database ─────────────────────────────────────────────────────────
     single {
         Room.databaseBuilder(
             androidContext(),
@@ -52,6 +67,7 @@ val dataModule = module {
             WanderVaultDatabase.MIGRATION_18_19,
             WanderVaultDatabase.MIGRATION_19_20,
             WanderVaultDatabase.MIGRATION_20_21,
+            WanderVaultDatabase.MIGRATION_21_22,
         ).build()
     }
     single { get<WanderVaultDatabase>().tripDao() }
@@ -61,6 +77,8 @@ val dataModule = module {
     single { get<WanderVaultDatabase>().hotelDao() }
     single { get<WanderVaultDatabase>().tripDocumentFolderDao() }
     single { get<WanderVaultDatabase>().tripDocumentDao() }
+
+    // ── Local repositories ────────────────────────────────────────────────────
     single<TripRepository> { TripRepositoryImpl(get(), get(), get()) }
     single<DestinationRepository> { DestinationRepositoryImpl(get(), get(), get()) }
     single<TransportRepository> { TransportRepositoryImpl(get(), get()) }
@@ -71,4 +89,29 @@ val dataModule = module {
     single<DocumentSummaryRepository> { DocumentSummaryRepositoryImpl(androidContext(), get()) }
     single<BackupRepository> { BackupRepositoryImpl(androidContext(), get()) }
     single<AppPreferencesRepository> { AppPreferencesRepositoryImpl(androidContext()) }
+
+    // ── Firebase / remote repositories ───────────────────────────────────────
+    single<AuthRepository> {
+        FirebaseAuthRepositoryImpl(
+            context = androidContext(),
+            auth = get(),
+            // TODO: Replace with the web client ID from your Firebase console.
+            webClientId = "YOUR_WEB_CLIENT_ID",
+        )
+    }
+    single<TripSyncRepository> {
+        FirestoreTripSyncRepositoryImpl(
+            firestore = get(),
+            auth = get(),
+            tripRepository = get(),
+            tripDao = get(),
+        )
+    }
+    single<RemoteDocumentRepository> {
+        FirebaseStorageDocumentRepositoryImpl(
+            context = androidContext(),
+            storage = get(),
+            tripDocumentDao = get(),
+        )
+    }
 }

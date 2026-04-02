@@ -18,6 +18,11 @@ import java.time.ZonedDateTime
  * @param nextStepDeadline The moment after which [nextStep] should be considered stale and
  *   recalculated.  Computed as the earliest upcoming destination event time when [nextStep] is
  *   saved.  `null` means the notice never auto-expires.
+ * @param shareId Stable Firestore document ID used for cloud sharing, or `null` if the trip is
+ *   local-only (never shared).
+ * @param ownerId Firebase UID of the user who shared the trip, or `null` for local-only trips.
+ * @param collaboratorIds Firebase UIDs of users who have joined the shared trip (excluding the
+ *   owner).
  * @param isArchived Whether this trip has been archived and hidden from the main trip list.
  */
 data class Trip(
@@ -32,4 +37,10 @@ data class Trip(
     val nextStep: String? = null,
     val nextStepDeadline: ZonedDateTime? = null,
     val isArchived: Boolean = false,
+    /** Stable Firestore document ID, or `null` if the trip has never been shared. */
+    val shareId: String? = null,
+    /** Firebase UID of the owner, or `null` for local-only trips. */
+    val ownerId: String? = null,
+    /** Firebase UIDs of collaborators who have joined this shared trip. */
+    val collaboratorIds: List<String> = emptyList(),
 )

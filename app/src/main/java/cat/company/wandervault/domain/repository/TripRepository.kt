@@ -26,4 +26,15 @@ interface TripRepository {
      * concurrent user edits.
      */
     suspend fun updateTripWhatsNext(tripId: Int, nextStep: String?, nextStepDeadline: ZonedDateTime?)
+
+    /**
+     * Partially updates the sharing-related fields ([Trip.shareId], [Trip.ownerId],
+     * [Trip.collaboratorIds]) for the trip identified by [tripId].
+     */
+    suspend fun updateTripShareInfo(
+        tripId: Int,
+        shareId: String?,
+        ownerId: String?,
+        collaboratorIds: List<String>,
+    )
 }

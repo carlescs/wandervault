@@ -46,4 +46,6 @@ data class TripDocumentEntity(
     val mimeType: String,
     /** AI-generated summary of the document content, or `null` if not yet extracted. */
     val summary: String? = null,
+    /** Firebase Storage download URL, or `null` if not yet uploaded. */
+    val remoteUrl: String? = null,
 )

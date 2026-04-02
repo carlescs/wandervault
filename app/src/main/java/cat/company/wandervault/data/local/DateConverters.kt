@@ -40,4 +40,19 @@ class DateConverters {
             }
         }
     }
+
+    /**
+     * Serialises a [List] of strings as a pipe-delimited (`|`) string so that it can be stored in
+     * a single SQLite TEXT column.  An empty list is stored as an empty string.
+     */
+    @TypeConverter
+    fun fromStringList(list: List<String>): String = list.joinToString("|")
+
+    /**
+     * Deserialises a pipe-delimited string back into a [List] of strings.  An empty or blank
+     * input string returns an empty list.
+     */
+    @TypeConverter
+    fun toStringList(value: String): List<String> =
+        if (value.isBlank()) emptyList() else value.split("|")
 }

@@ -65,4 +65,8 @@ interface TripDocumentDao {
     /** Returns a [Flow] emitting the document with the given [id], or `null` if not found. */
     @Query("SELECT * FROM trip_documents WHERE id = :id")
     fun getById(id: Int): Flow<TripDocumentEntity?>
+
+    /** Updates the [remoteUrl] of the document with the given [id]. */
+    @Query("UPDATE trip_documents SET remoteUrl = :remoteUrl WHERE id = :id")
+    suspend fun updateRemoteUrl(id: Int, remoteUrl: String?)
 }

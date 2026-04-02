@@ -22,4 +22,13 @@ data class TripEntity(
     val nextStepDeadline: ZonedDateTime? = null,
     /** Whether this trip has been archived and hidden from the main trip list. */
     val isArchived: Boolean = false,
+    /** Stable Firestore document ID, or `null` if the trip has never been shared. */
+    val shareId: String? = null,
+    /** Firebase UID of the user who shared the trip, or `null` for local-only trips. */
+    val ownerId: String? = null,
+    /**
+     * Comma-separated Firebase UIDs of collaborators (excluding the owner).
+     * Stored via [cat.company.wandervault.data.local.DateConverters.fromStringList].
+     */
+    val collaboratorIds: List<String> = emptyList(),
 )
