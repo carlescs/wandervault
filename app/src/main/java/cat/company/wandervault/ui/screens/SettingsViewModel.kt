@@ -86,15 +86,15 @@ class SettingsViewModel(
 
     /**
      * Refreshes the UI state to reflect the current runtime notification permission.
-     * Call this from `onResume` so the toggle stays in sync if the user changes the
+     * Call this when the screen is shown so the toggle stays in sync if the user changes the
      * permission from the system settings.
      */
     fun refreshNotificationPermission(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            val granted = context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) ==
-                PackageManager.PERMISSION_GRANTED
-            if (!granted && _uiState.value.notificationsEnabled) {
-                viewModelScope.launch {
+            viewModelScope.launch {
+                val granted = context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) ==
+                    PackageManager.PERMISSION_GRANTED
+                if (!granted && _uiState.value.notificationsEnabled) {
                     appPreferences.setNotificationsEnabled(false)
                     TripNotificationWorker.cancel(context)
                     _uiState.update { it.copy(notificationsEnabled = false) }

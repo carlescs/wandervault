@@ -77,6 +77,9 @@ class TripNotificationWorker(
         }
 
         val contentText = buildNotificationText(trip, daysUntilStart)
+        val notificationTitle = trip.title.ifBlank {
+            appContext.getString(R.string.notification_trip_fallback_title)
+        }
 
         val intent = Intent(appContext, MainActivity::class.java).apply {
             action = Intent.ACTION_MAIN
@@ -94,7 +97,7 @@ class TripNotificationWorker(
 
         val notification = NotificationCompat.Builder(appContext, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle(trip.title)
+            .setContentTitle(notificationTitle)
             .setContentText(contentText)
             .setStyle(NotificationCompat.BigTextStyle().bigText(contentText))
             .setContentIntent(pendingIntent)

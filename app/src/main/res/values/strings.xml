@@ -390,6 +390,7 @@
     <string name="notification_channel_description">Notifications about upcoming trips and next steps</string>
 
     <!-- Notification content -->
+    <string name="notification_trip_fallback_title">Upcoming Trip</string>
     <string name="notification_trip_starts_today">Your trip starts today!</string>
     <string name="notification_trip_starts_tomorrow">Your trip starts tomorrow!</string>
     <plurals name="notification_trip_starts_in_days">
