@@ -103,6 +103,12 @@
     <string name="trip_detail_ai_summary_delete">Delete AI summary</string>
     <string name="trip_detail_ai_summary_generate">Generate AI summary</string>
 
+    <!-- What's Next notice shown in the Details tab -->
+    <string name="trip_detail_whats_next_title">What\'s Next</string>
+    <string name="trip_detail_whats_next_generating">Figuring out what\'s next…</string>
+    <string name="trip_detail_whats_next_error">Could not determine what\'s next.</string>
+    <string name="trip_detail_whats_next_refresh">Refresh what\'s next</string>
+
     <!-- Calendar tab -->
     <string name="calendar_previous_month">Previous month</string>
     <string name="calendar_next_month">Next month</string>

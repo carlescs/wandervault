@@ -6,6 +6,7 @@ import android.util.Log
 import cat.company.wandervault.domain.model.Destination
 import cat.company.wandervault.domain.model.Trip
 import cat.company.wandervault.domain.usecase.GenerateTripDescriptionUseCase
+import cat.company.wandervault.domain.usecase.GenerateWhatsNextUseCase
 import cat.company.wandervault.domain.usecase.GetDestinationsForTripUseCase
 import cat.company.wandervault.domain.usecase.GetTripUseCase
 import cat.company.wandervault.domain.usecase.SaveTripDescriptionUseCase
@@ -24,6 +25,7 @@ import kotlinx.coroutines.launch
  * @param getDestinationsForTripUseCase Use-case that returns the ordered destinations for the trip.
  * @param generateTripDescriptionUseCase Use-case that generates a short AI description of the trip.
  * @param saveTripDescriptionUseCase Use-case that persists the AI description (or clears it).
+ * @param generateWhatsNextUseCase Use-case that generates the "what's next" notice for the trip.
  */
 class TripDetailViewModel(
     private val tripId: Int,
@@ -31,6 +33,7 @@ class TripDetailViewModel(
     private val getDestinationsForTripUseCase: GetDestinationsForTripUseCase,
     private val generateTripDescriptionUseCase: GenerateTripDescriptionUseCase,
     private val saveTripDescriptionUseCase: SaveTripDescriptionUseCase,
+    private val generateWhatsNextUseCase: GenerateWhatsNextUseCase,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<TripDetailUiState>(TripDetailUiState.Loading)
@@ -48,6 +51,9 @@ class TripDetailViewModel(
      * Drives whether the AI description section is shown when no description is stored.
      */
     private val _isAiAvailable = MutableStateFlow(false)
+
+    /** Guards against starting a second concurrent what's next generation. */
+    private var whatsNextGenerationStarted = false
 
     init {
         // Check AI availability upfront so the description section is hidden proactively
@@ -93,10 +99,28 @@ class TripDetailViewModel(
                     } else {
                         persistedDescription
                     }
+
+                    // Preserve the current what's next state while generation is in progress.
+                    val currentWhatsNext =
+                        (_uiState.value as? TripDetailUiState.Success)?.whatsNextState
+                    val whatsNextState = when {
+                        currentWhatsNext is WhatsNextState.Loading -> currentWhatsNext
+                        !aiAvailable -> WhatsNextState.Unavailable
+                        currentWhatsNext != null -> currentWhatsNext
+                        else -> WhatsNextState.None
+                    }
+
                     _uiState.value = TripDetailUiState.Success(
                         trip = trip,
                         descriptionState = descriptionState,
+                        whatsNextState = whatsNextState,
                     )
+
+                    // Auto-generate what's next on first load when AI is available.
+                    if (aiAvailable && !whatsNextGenerationStarted) {
+                        whatsNextGenerationStarted = true
+                        generateWhatsNext(trip, destinations)
+                    }
                 }
         }
     }
@@ -137,6 +161,20 @@ class TripDetailViewModel(
         }
     }
 
+    /**
+     * Re-triggers "what's next" generation with the current date and time.
+     *
+     * No-op if generation is already in progress.
+     */
+    fun refreshWhatsNext() {
+        val current = _uiState.value as? TripDetailUiState.Success ?: return
+        if (current.whatsNextState is WhatsNextState.Loading) return
+        val trip = lastTrip ?: return
+        val destinations = lastDestinations
+        _uiState.value = current.copy(whatsNextState = WhatsNextState.Loading)
+        generateWhatsNext(trip, destinations)
+    }
+
     private fun generateDescription(trip: Trip, destinations: List<Destination>) {
         viewModelScope.launch {
             val text = try {
@@ -168,6 +206,36 @@ class TripDetailViewModel(
                 saveTripDescriptionUseCase(trip, text)
             } catch (e: Exception) {
                 Log.e(TAG, "Generated description displayed but not saved to database", e)
+            }
+        }
+    }
+
+    private fun generateWhatsNext(trip: Trip, destinations: List<Destination>) {
+        val current = _uiState.value as? TripDetailUiState.Success ?: return
+        _uiState.value = current.copy(whatsNextState = WhatsNextState.Loading)
+        viewModelScope.launch {
+            val text = try {
+                generateWhatsNextUseCase(trip, destinations)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to generate what's next notice", e)
+                val latest = _uiState.value
+                if (latest is TripDetailUiState.Success) {
+                    _uiState.value = latest.copy(whatsNextState = WhatsNextState.Error)
+                }
+                return@launch
+            }
+
+            if (text == null) {
+                val latest = _uiState.value
+                if (latest is TripDetailUiState.Success) {
+                    _uiState.value = latest.copy(whatsNextState = WhatsNextState.Unavailable)
+                }
+                return@launch
+            }
+
+            val latest = _uiState.value
+            if (latest is TripDetailUiState.Success) {
+                _uiState.value = latest.copy(whatsNextState = WhatsNextState.Available(text))
             }
         }
     }

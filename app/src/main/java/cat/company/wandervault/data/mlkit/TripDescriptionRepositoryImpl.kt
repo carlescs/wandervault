@@ -12,6 +12,7 @@ import com.google.mlkit.genai.prompt.generateContentRequest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
+import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.util.Locale
@@ -51,6 +52,29 @@ class TripDescriptionRepositoryImpl(
             }
             text
         }
+
+    override suspend fun generateWhatsNext(
+        trip: Trip,
+        destinations: List<Destination>,
+        now: ZonedDateTime,
+    ): String? = withContext(Dispatchers.IO) {
+        when (client.checkStatus()) {
+            FeatureStatus.UNAVAILABLE -> return@withContext null
+            FeatureStatus.DOWNLOADABLE -> awaitDownload()
+            FeatureStatus.AVAILABLE -> Unit
+        }
+        val request = generateContentRequest(TextPart(buildWhatsNextPrompt(trip, destinations, now))) {
+            maxOutputTokens = MAX_WHATS_NEXT_TOKENS
+        }
+        val response = client.generateContent(request)
+        val text = response.candidates.firstOrNull()?.text
+        if (text.isNullOrBlank()) {
+            throw IllegalStateException(
+                "Gemini Nano returned no candidates for what's next on an available model.",
+            )
+        }
+        text
+    }
 
     /**
      * Waits for the Gemini Nano model to finish downloading by collecting the download Flow
@@ -102,8 +126,76 @@ class TripDescriptionRepositoryImpl(
         }
     }
 
+    /**
+     * Builds the prompt for the "what's next" notice generation.
+     *
+     * The prompt describes the current moment in time and the full timezone-aware itinerary,
+     * then instructs the model to identify and describe the traveller's next step concisely.
+     */
+    private fun buildWhatsNextPrompt(
+        trip: Trip,
+        destinations: List<Destination>,
+        now: ZonedDateTime,
+    ): String {
+        val dateTimeFormatter = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT)
+        val nowFormatted = now.format(dateTimeFormatter)
+        val nowZone = now.zone.id
+        return buildString {
+            appendLine(
+                "You are a helpful travel assistant. Based on the traveller's itinerary and the " +
+                    "current date and time, write a concise 1–2 sentence notice describing what " +
+                    "their next step in the trip is. Be specific and friendly. " +
+                    "If the trip has not started yet, say so and mention when it begins. " +
+                    "If the trip is over, say so briefly. " +
+                    "Respond in ${appPreferences.resolvedAiLanguageName()}.",
+            )
+            appendLine()
+            appendLine("Current date and time: $nowFormatted (timezone: $nowZone)")
+            appendLine("Trip: ${trip.title}")
+            if (destinations.isNotEmpty()) {
+                appendLine("Itinerary (${destinations.size} stop(s)):")
+                destinations.forEachIndexed { index, dest ->
+                    append("  ${index + 1}. ${dest.name}")
+                    val arrival = dest.arrivalDateTime
+                    val departure = dest.departureDateTime
+                    if (arrival != null) {
+                        append(" – arrives ${arrival.format(dateTimeFormatter)} ${arrival.zone.id}")
+                    }
+                    if (departure != null) {
+                        append(", departs ${departure.format(dateTimeFormatter)} ${departure.zone.id}")
+                    }
+                    appendLine()
+                    dest.transport?.legs?.forEach { leg ->
+                        val typeName = leg.type.name
+                            .lowercase(Locale.ROOT)
+                            .replaceFirstChar { it.titlecase(Locale.ROOT) }
+                        append("     → $typeName")
+                        if (!leg.company.isNullOrBlank()) append(" with ${leg.company}")
+                        if (!leg.flightNumber.isNullOrBlank()) append(" (${leg.flightNumber})")
+                        val legDep = leg.departureDateTime
+                        val legArr = leg.arrivalDateTime
+                        if (legDep != null) {
+                            append(
+                                ", departs ${legDep.format(dateTimeFormatter)} ${legDep.zone.id}",
+                            )
+                        }
+                        if (legArr != null) {
+                            append(
+                                ", arrives ${legArr.format(dateTimeFormatter)} ${legArr.zone.id}",
+                            )
+                        }
+                        appendLine()
+                    }
+                }
+            }
+        }
+    }
+
     companion object {
         /** Maximum number of tokens the model may generate for a trip description. */
         private const val MAX_DESCRIPTION_TOKENS = 200
+
+        /** Maximum number of tokens the model may generate for a what's next notice. */
+        private const val MAX_WHATS_NEXT_TOKENS = 150
     }
 }
