@@ -384,7 +384,7 @@ private fun TripDetailsTabContent(
 /**
  * Renders the AI-generated trip description section.
  *
- * Shows a section title ("AI Summary") followed by the current [DescriptionState]:
+ * Shows a card with a title ("AI Summary") followed by the current [DescriptionState]:
  * a spinner while loading, or the generated text when available.
  * When the description is [DescriptionState.Available], Regenerate and Delete icon buttons are shown.
  * When the description is [DescriptionState.Error], a Regenerate icon button is shown.
@@ -399,65 +399,69 @@ private fun AiDescriptionSection(
     onRegenerate: () -> Unit = {},
     onDelete: () -> Unit = {},
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = stringResource(R.string.trip_detail_ai_summary_title),
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.weight(1f),
-        )
-        if (descriptionState is DescriptionState.Available || descriptionState is DescriptionState.Error) {
-            IconButton(onClick = onRegenerate) {
-                Icon(
-                    imageVector = Icons.Default.Refresh,
-                    contentDescription = stringResource(R.string.trip_detail_ai_summary_regenerate),
-                )
-            }
-        }
-        if (descriptionState is DescriptionState.Available) {
-            IconButton(onClick = onDelete) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = stringResource(R.string.trip_detail_ai_summary_delete),
-                )
-            }
-        }
-    }
-    Spacer(modifier = Modifier.height(8.dp))
-    when (descriptionState) {
-        is DescriptionState.Loading -> {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                CircularProgressIndicator(modifier = Modifier.size(24.dp))
-                Spacer(modifier = Modifier.width(8.dp))
+    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 Text(
-                    text = stringResource(R.string.trip_detail_ai_summary_generating),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    text = stringResource(R.string.trip_detail_ai_summary_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f),
                 )
+                if (descriptionState is DescriptionState.Available || descriptionState is DescriptionState.Error) {
+                    IconButton(onClick = onRegenerate) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = stringResource(R.string.trip_detail_ai_summary_regenerate),
+                        )
+                    }
+                }
+                if (descriptionState is DescriptionState.Available) {
+                    IconButton(onClick = onDelete) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = stringResource(R.string.trip_detail_ai_summary_delete),
+                        )
+                    }
+                }
             }
-        }
-        is DescriptionState.Available -> {
-            Text(
-                text = descriptionState.text,
-                style = MaterialTheme.typography.bodyMedium,
-            )
-        }
-        is DescriptionState.Error -> {
-            Text(
-                text = stringResource(R.string.trip_detail_ai_summary_error),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.error,
-            )
-        }
-        is DescriptionState.None -> {
-            TextButton(onClick = onRegenerate) {
-                Text(text = stringResource(R.string.trip_detail_ai_summary_generate))
+            Spacer(modifier = Modifier.height(8.dp))
+            when (descriptionState) {
+                is DescriptionState.Loading -> {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = stringResource(R.string.trip_detail_ai_summary_generating),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                is DescriptionState.Available -> {
+                    Text(
+                        text = descriptionState.text,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+                is DescriptionState.Error -> {
+                    Text(
+                        text = stringResource(R.string.trip_detail_ai_summary_error),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+                is DescriptionState.None -> {
+                    TextButton(onClick = onRegenerate) {
+                        Text(text = stringResource(R.string.trip_detail_ai_summary_generate))
+                    }
+                }
+                is DescriptionState.Unavailable -> {
+                    error("AiDescriptionSection should not be called with DescriptionState.Unavailable. Hide the section at the call site instead.")
+                }
             }
-        }
-        is DescriptionState.Unavailable -> {
-            error("AiDescriptionSection should not be called with DescriptionState.Unavailable. Hide the section at the call site instead.")
         }
     }
 }
