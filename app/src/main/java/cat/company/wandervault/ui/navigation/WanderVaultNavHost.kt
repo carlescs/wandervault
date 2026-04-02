@@ -11,6 +11,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import cat.company.wandervault.ui.LocalAnimatedVisibilityScope
+import cat.company.wandervault.ui.screens.ArchiveScreen
 import cat.company.wandervault.ui.screens.DataAdminScreen
 import cat.company.wandervault.ui.screens.DocumentChatScreen
 import cat.company.wandervault.ui.screens.DocumentInfoScreen
@@ -59,6 +60,13 @@ internal fun WanderVaultNavHost(
 
         composable(AppRoutes.FAVORITES) {
             FavoritesScreen(
+                onTripClick = { tripId -> navController.navigate(AppRoutes.tripDetail(tripId)) },
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+
+        composable(AppRoutes.ARCHIVE) {
+            ArchiveScreen(
                 onTripClick = { tripId -> navController.navigate(AppRoutes.tripDetail(tripId)) },
                 modifier = Modifier.fillMaxSize(),
             )

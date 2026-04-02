@@ -26,11 +26,17 @@ interface TripDao {
     )
     suspend fun updateWhatsNext(tripId: Int, nextStep: String?, nextStepDeadline: String?)
 
-    @Query("SELECT * FROM trips WHERE isFavorite = 1 ORDER BY id ASC")
+    @Query("UPDATE trips SET isArchived = :isArchived WHERE id = :tripId")
+    suspend fun setArchived(tripId: Int, isArchived: Boolean)
+
+    @Query("SELECT * FROM trips WHERE isFavorite = 1 AND isArchived = 0 ORDER BY id ASC")
     fun getFavorites(): Flow<List<TripEntity>>
 
-    @Query("SELECT * FROM trips ORDER BY id ASC")
+    @Query("SELECT * FROM trips WHERE isArchived = 0 ORDER BY id ASC")
     fun getAll(): Flow<List<TripEntity>>
+
+    @Query("SELECT * FROM trips WHERE isArchived = 1 ORDER BY id ASC")
+    fun getArchived(): Flow<List<TripEntity>>
 
     @Query("SELECT * FROM trips WHERE id = :id")
     fun getById(id: Int): Flow<TripEntity?>

@@ -31,6 +31,12 @@ class TripRepositoryImpl(
         ::mapToSortedTripList,
     )
 
+    override fun getArchivedTrips(): Flow<List<Trip>> = combine(
+        tripDao.getArchived(),
+        destinationDao.getAll(),
+        ::mapToSortedTripList,
+    )
+
     override fun getTripById(id: Int): Flow<Trip?> = combine(
         tripDao.getById(id),
         destinationDao.getDateProjectionsForTrip(id),
@@ -48,6 +54,14 @@ class TripRepositoryImpl(
 
     override suspend fun toggleFavoriteTrip(tripId: Int) {
         tripDao.toggleFavorite(tripId)
+    }
+
+    override suspend fun archiveTrip(tripId: Int) {
+        tripDao.setArchived(tripId, true)
+    }
+
+    override suspend fun unarchiveTrip(tripId: Int) {
+        tripDao.setArchived(tripId, false)
     }
 
     override suspend fun deleteTrip(trip: Trip) {
@@ -103,6 +117,7 @@ private fun TripEntity.toDomain(destinations: List<DestinationDateProjection>): 
         defaultTimezone = defaultTimezone,
         nextStep = nextStep,
         nextStepDeadline = nextStepDeadline,
+        isArchived = isArchived,
     )
 }
 
@@ -115,4 +130,5 @@ private fun Trip.toEntity() = TripEntity(
     defaultTimezone = defaultTimezone,
     nextStep = nextStep,
     nextStepDeadline = nextStepDeadline,
+    isArchived = isArchived,
 )

@@ -18,6 +18,7 @@ import java.time.ZonedDateTime
  * @param nextStepDeadline The moment after which [nextStep] should be considered stale and
  *   recalculated.  Computed as the earliest upcoming destination event time when [nextStep] is
  *   saved.  `null` means the notice never auto-expires.
+ * @param isArchived Whether this trip has been archived and hidden from the main trip list.
  */
 data class Trip(
     val id: Int,
@@ -30,4 +31,5 @@ data class Trip(
     val defaultTimezone: String? = null,
     val nextStep: String? = null,
     val nextStepDeadline: ZonedDateTime? = null,
+    val isArchived: Boolean = false,
 )

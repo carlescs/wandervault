@@ -4,6 +4,7 @@
     <!-- Bottom navigation labels -->
     <string name="nav_home">Home</string>
     <string name="nav_favorites">Favorites</string>
+    <string name="nav_archive">Archive</string>
     <string name="nav_profile">Profile</string>
 
     <!-- Home screen – trips list -->
@@ -15,6 +16,12 @@
     <string name="favorites_empty">No favorite trips yet.\nTap the heart icon on any trip to add it to your favorites.</string>
     <string name="trip_add_favorite">Add to favorites</string>
     <string name="trip_remove_favorite">Remove from favorites</string>
+
+    <!-- Archive screen -->
+    <string name="archive_title">Archived Trips</string>
+    <string name="archive_empty">No archived trips yet.\nTap the archive icon on any trip to move it here.</string>
+    <string name="archive_trip_content_desc">Archive trip</string>
+    <string name="unarchive_trip_content_desc">Unarchive trip</string>
 
     <!-- Profile screen -->
     <string name="profile_title">My Profile</string>
@@ -53,6 +60,7 @@
     <!-- Navigation content descriptions (accessibility) -->
     <string name="nav_home_desc">Home</string>
     <string name="nav_favorites_desc">Favorites</string>
+    <string name="nav_archive_desc">Archive</string>
     <string name="nav_profile_desc">Profile</string>
 
     <!-- Add Trip dialog -->
