@@ -402,7 +402,7 @@ private fun DestinationTimelineItem(
 
                 // Show arrival only for non-first destinations (hidden when there is only one place)
                 if (!isFirst) {
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                     DateTimeRow(
                         label = stringResource(R.string.itinerary_arrival_label),
                         dateTime = destination.arrivalDateTime,
