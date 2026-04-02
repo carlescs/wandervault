@@ -289,7 +289,7 @@ private fun DestinationTimelineItem(
 
     var showStayDurationInDays by rememberSaveable { mutableStateOf(false) }
     var showTransportDurationInDays by rememberSaveable { mutableStateOf(false) }
-    var showActionsMenu by rememberSaveable { mutableStateOf(false) }
+    var showActionsMenu by remember { mutableStateOf(false) }
 
     Column(modifier = modifier.fillMaxWidth()) {
         // ── Section 1: destination dot + destination info (name, dates, stay duration) ──
@@ -434,12 +434,14 @@ private fun DestinationTimelineItem(
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier
-                            .padding(top = 6.dp, bottom = 2.dp)
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp)
                             .clickable(
                                 role = Role.Button,
                                 onClickLabel = stringResource(R.string.itinerary_duration_toggle),
                                 onClick = { showStayDurationInDays = !showStayDurationInDays },
-                            ),
+                            )
+                            .padding(top = 6.dp, bottom = 2.dp),
                     )
                 }
             }
@@ -581,12 +583,14 @@ private fun DestinationTimelineItem(
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier
-                                        .padding(top = 6.dp, bottom = 2.dp)
+                                        .fillMaxWidth()
+                                        .heightIn(min = 48.dp)
                                         .clickable(
                                             role = Role.Button,
                                             onClickLabel = stringResource(R.string.itinerary_duration_toggle),
                                             onClick = { showTransportDurationInDays = !showTransportDurationInDays },
-                                        ),
+                                        )
+                                        .padding(top = 6.dp, bottom = 2.dp),
                                 )
                             }
                         }
