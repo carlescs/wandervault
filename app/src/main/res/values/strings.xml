@@ -103,6 +103,7 @@
     <string name="image_search_downloading">Downloading image…</string>
     <string name="image_search_download_error">Failed to download image. Please try again.</string>
     <string name="image_search_result_desc">Search result: %1$s</string>
+    <string name="image_search_clear_query">Clear search query</string>
 
     <!-- Trip Detail screen -->
     <string name="trip_detail_navigate_up">Navigate up</string>
