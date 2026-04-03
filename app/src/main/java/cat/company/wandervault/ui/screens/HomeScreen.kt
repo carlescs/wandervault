@@ -84,7 +84,7 @@ import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
 /**
- * Home screen â displays the user's list of trips.
+ * Home screen – displays the user's list of trips.
  *
  * When no trips exist an empty-state message is shown.
  * A FAB opens the [AddTripDialog] to create a new trip.
@@ -263,7 +263,7 @@ private fun TripCard(trip: Trip, onEditClick: () -> Unit, onDeleteClick: () -> U
                 if (trip.startDate != null && trip.endDate != null) {
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "${trip.startDate.format(formatter)} â ${trip.endDate.format(formatter)}",
+                        text = "${trip.startDate.format(formatter)} – ${trip.endDate.format(formatter)}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
