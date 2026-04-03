@@ -79,13 +79,7 @@ class ImageSearchRepositoryImpl(private val context: Context) : ImageSearchRepos
         }
     }
 
-    private fun extractExtension(url: String): String {
-        // Strip query string before extracting the extension to handle URLs like
-        // "https://example.com/image.jpg?size=large".
-        val path = url.substringBefore('?').substringAfterLast('/')
-        val ext = path.substringAfterLast('.', "").take(4).filter { it.isLetterOrDigit() }
-        return ext.ifBlank { "jpg" }
-    }
+    private fun extractExtension(url: String): String = imageUrlExtension(url)
 
     private fun parseResults(json: String): List<ImageSearchResult> {
         return try {
@@ -119,4 +113,17 @@ class ImageSearchRepositoryImpl(private val context: Context) : ImageSearchRepos
         private const val IMAGES_DIR_NAME = "images"
         private const val TIMEOUT_MS = 10_000
     }
+}
+
+/**
+ * Extracts the file extension from an image [url], stripping any query parameters first.
+ *
+ * Returns `"jpg"` as a fallback when no valid extension can be determined.
+ */
+internal fun imageUrlExtension(url: String): String {
+    // Strip query string before extracting the extension to handle URLs like
+    // "https://example.com/image.jpg?size=large".
+    val path = url.substringBefore('?').substringAfterLast('/')
+    val ext = path.substringAfterLast('.', "").take(4).filter { it.isLetterOrDigit() }
+    return ext.ifBlank { "jpg" }
 }
