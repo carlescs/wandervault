@@ -454,6 +454,7 @@ class ShareViewModel(
 
         // Sync destination-level datetimes to keep the itinerary timeline consistent
         // (same convention as TransportDetailViewModel).
+        if (selectedTripId == NO_TRIP_SELECTED) return
         val allDestinations = getDestinationsForTrip(selectedTripId).first()
             .sortedBy { it.position }
         val owningDestination = allDestinations.firstOrNull { dest ->
