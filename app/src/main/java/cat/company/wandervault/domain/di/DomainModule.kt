@@ -2,9 +2,6 @@ package cat.company.wandervault.domain.di
 
 import cat.company.wandervault.domain.usecase.AskDocumentQuestionUseCase
 import cat.company.wandervault.domain.usecase.ArchiveTripUseCase
-import cat.company.wandervault.domain.usecase.AutoOrganizeDocumentsUseCase
-import cat.company.wandervault.domain.usecase.CopyDocumentToInternalStorageUseCase
-import cat.company.wandervault.domain.usecase.DownloadImageUseCase
 import cat.company.wandervault.domain.usecase.GenerateWhatsNextUseCase
 import cat.company.wandervault.domain.usecase.GetArchivedTripsUseCase
 import cat.company.wandervault.domain.usecase.GetFavoriteTripsUseCase
@@ -86,7 +83,6 @@ val domainModule = module {
     factory { CopyImageToInternalStorageUseCase(get()) }
     factory { DeleteImageUseCase(get()) }
     factory { SearchImagesUseCase(get()) }
-    factory { DownloadImageUseCase(get()) }
     factory { CreateBackupUseCase(get()) }
     factory { RestoreBackupUseCase(get()) }
     factory { GetHotelForDestinationUseCase(get()) }

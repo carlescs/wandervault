@@ -1,30 +1,26 @@
 package cat.company.wandervault.data.repository
 
-import android.content.Context
-import android.net.Uri
 import cat.company.wandervault.BuildConfig
 import cat.company.wandervault.domain.model.ImageSearchResult
 import cat.company.wandervault.domain.repository.ImageSearchRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
-import java.io.File
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
-import java.util.UUID
 
 /**
- * Searches for images using the Pexels REST API and saves downloaded results to internal storage.
+ * Searches for images using the Pexels REST API.
  *
  * To use this feature, provide a valid Pexels API key (obtainable for free at
  * https://www.pexels.com/api/) via the `PEXELS_API_KEY` property in `local.properties` or
  * the `PEXELS_API_KEY` environment variable. The key is surfaced through [BuildConfig] at
  * build time. Leave the property unset to disable online image search.
  */
-class ImageSearchRepositoryImpl(private val context: Context) : ImageSearchRepository {
+class ImageSearchRepositoryImpl : ImageSearchRepository {
 
     override suspend fun searchImages(query: String): Result<List<ImageSearchResult>> =
         withContext(Dispatchers.IO) {
@@ -59,37 +55,6 @@ class ImageSearchRepositoryImpl(private val context: Context) : ImageSearchRepos
             }
         }
 
-    override suspend fun downloadImage(url: String): String? = withContext(Dispatchers.IO) {
-        val imagesDir = File(context.filesDir, IMAGES_DIR_NAME)
-        if (!imagesDir.exists() && !imagesDir.mkdirs()) return@withContext null
-        val extension = extractExtension(url)
-        val file = File(imagesDir, "${UUID.randomUUID()}.$extension")
-        try {
-            val connection = URL(url).openConnection() as HttpURLConnection
-            connection.connectTimeout = TIMEOUT_MS
-            connection.readTimeout = TIMEOUT_MS
-            try {
-                if (connection.responseCode != HttpURLConnection.HTTP_OK) return@withContext null
-                connection.inputStream.use { input ->
-                    file.outputStream().use { output ->
-                        input.copyTo(output)
-                    }
-                }
-            } finally {
-                connection.disconnect()
-            }
-            Uri.fromFile(file).toString()
-        } catch (e: IOException) {
-            file.delete()
-            null
-        } catch (e: Exception) {
-            file.delete()
-            null
-        }
-    }
-
-    private fun extractExtension(url: String): String = imageUrlExtension(url)
-
     private fun parseResults(json: String): List<ImageSearchResult> {
         val root = JSONObject(json)
         val photos = root.getJSONArray("photos")
@@ -111,20 +76,6 @@ class ImageSearchRepositoryImpl(private val context: Context) : ImageSearchRepos
     }
 
     companion object {
-        private const val IMAGES_DIR_NAME = "images"
         private const val TIMEOUT_MS = 10_000
     }
-}
-
-/**
- * Extracts the file extension from an image [url], stripping any query parameters first.
- *
- * Returns `"jpg"` as a fallback when no valid extension can be determined.
- */
-internal fun imageUrlExtension(url: String): String {
-    // Strip query string before extracting the extension to handle URLs like
-    // "https://example.com/image.jpg?size=large".
-    val path = url.substringBefore('?').substringAfterLast('/')
-    val ext = path.substringAfterLast('.', "").take(4).filter { it.isLetterOrDigit() }
-    return ext.ifBlank { "jpg" }
 }

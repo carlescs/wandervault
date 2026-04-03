@@ -9,7 +9,6 @@ import cat.company.wandervault.domain.usecase.CopyImageToInternalStorageUseCase
 import cat.company.wandervault.domain.usecase.DeleteImageUseCase
 import cat.company.wandervault.domain.usecase.DeleteTripUseCase
 import cat.company.wandervault.domain.usecase.ArchiveTripUseCase
-import cat.company.wandervault.domain.usecase.DownloadImageUseCase
 import cat.company.wandervault.domain.usecase.GetTripsUseCase
 import cat.company.wandervault.domain.usecase.SaveTripUseCase
 import cat.company.wandervault.domain.usecase.SearchImagesUseCase
@@ -31,7 +30,6 @@ class HomeViewModel(
     private val toggleFavorite: ToggleFavoriteTripUseCase,
     private val archiveTrip: ArchiveTripUseCase,
     private val searchImages: SearchImagesUseCase,
-    private val downloadImage: DownloadImageUseCase,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -195,8 +193,6 @@ class HomeViewModel(
                 imageSearchLoading = false,
                 imageSearchError = false,
                 imageSearchNoResults = false,
-                imageDownloading = false,
-                imageDownloadError = false,
             )
         }
     }
@@ -210,8 +206,6 @@ class HomeViewModel(
                 imageSearchLoading = false,
                 imageSearchError = false,
                 imageSearchNoResults = false,
-                imageDownloading = false,
-                imageDownloadError = false,
             )
         }
     }
@@ -255,21 +249,12 @@ class HomeViewModel(
     }
 
     fun onSelectSearchImage(result: ImageSearchResult, isAddDialog: Boolean) {
-        if (_uiState.value.imageDownloading) return
-        _uiState.update { it.copy(imageDownloading = true, imageDownloadError = false) }
-        viewModelScope.launch {
-            val fileUri = downloadImage(result.fullUrl)
-            if (fileUri != null) {
-                if (isAddDialog) {
-                    _uiState.update { it.copy(addTripImageUri = fileUri, imageDownloading = false) }
-                } else {
-                    _uiState.update { it.copy(editTripImageUri = fileUri, imageDownloading = false) }
-                }
-                onDismissImageSearch()
-            } else {
-                _uiState.update { it.copy(imageDownloading = false, imageDownloadError = true) }
-            }
+        if (isAddDialog) {
+            _uiState.update { it.copy(addTripImageUri = result.fullUrl) }
+        } else {
+            _uiState.update { it.copy(editTripImageUri = result.fullUrl) }
         }
+        onDismissImageSearch()
     }
 
     companion object {

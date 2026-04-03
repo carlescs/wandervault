@@ -234,11 +234,9 @@ internal fun HomeScreenContent(
             onImageSearchQueryChange = onImageSearchQueryChange,
             onSearchImages = onSearchImages,
             imageSearchLoading = uiState.imageSearchLoading,
-            imageDownloading = uiState.imageDownloading,
             imageSearchResults = uiState.imageSearchResults,
             imageSearchError = uiState.imageSearchError,
             imageSearchNoResults = uiState.imageSearchNoResults,
-            imageDownloadError = uiState.imageDownloadError,
             onSelectSearchImage = { result -> onSelectSearchImage(result, true) },
             onDismissImageSearch = onDismissImageSearch,
         )
@@ -261,11 +259,9 @@ internal fun HomeScreenContent(
             onImageSearchQueryChange = onImageSearchQueryChange,
             onSearchImages = onSearchImages,
             imageSearchLoading = uiState.imageSearchLoading,
-            imageDownloading = uiState.imageDownloading,
             imageSearchResults = uiState.imageSearchResults,
             imageSearchError = uiState.imageSearchError,
             imageSearchNoResults = uiState.imageSearchNoResults,
-            imageDownloadError = uiState.imageDownloadError,
             onSelectSearchImage = { result -> onSelectSearchImage(result, false) },
             onDismissImageSearch = onDismissImageSearch,
         )
@@ -426,11 +422,9 @@ private fun SwipeToArchiveBackground(swipeState: SwipeToDismissBoxState) {
  * @param onImageSearchQueryChange Called when the search query changes.
  * @param onSearchImages Called to trigger an image search.
  * @param imageSearchLoading True while a search is in progress.
- * @param imageDownloading True while a selected image is being downloaded.
  * @param imageSearchResults The current list of search results.
  * @param imageSearchError True when the search failed due to a network/API error.
  * @param imageSearchNoResults True when the search succeeded but returned no results.
- * @param imageDownloadError True when the download of a selected image failed.
  * @param onSelectSearchImage Called with the chosen [ImageSearchResult].
  * @param onDismissImageSearch Called when the image search dialog is dismissed.
  */
@@ -453,11 +447,9 @@ private fun TripFormDialog(
     onImageSearchQueryChange: (String) -> Unit = {},
     onSearchImages: () -> Unit = {},
     imageSearchLoading: Boolean = false,
-    imageDownloading: Boolean = false,
     imageSearchResults: List<ImageSearchResult> = emptyList(),
     imageSearchError: Boolean = false,
     imageSearchNoResults: Boolean = false,
-    imageDownloadError: Boolean = false,
     onSelectSearchImage: (ImageSearchResult) -> Unit = {},
     onDismissImageSearch: () -> Unit = {},
 ) {
@@ -473,11 +465,9 @@ private fun TripFormDialog(
             onQueryChange = onImageSearchQueryChange,
             onSearch = onSearchImages,
             isLoading = imageSearchLoading,
-            isDownloading = imageDownloading,
             results = imageSearchResults,
             hasError = imageSearchError,
             hasNoResults = imageSearchNoResults,
-            hasDownloadError = imageDownloadError,
             onSelectImage = onSelectSearchImage,
             onDismiss = onDismissImageSearch,
         )
@@ -568,11 +558,9 @@ private fun AddTripDialog(
     onImageSearchQueryChange: (String) -> Unit = {},
     onSearchImages: () -> Unit = {},
     imageSearchLoading: Boolean = false,
-    imageDownloading: Boolean = false,
     imageSearchResults: List<ImageSearchResult> = emptyList(),
     imageSearchError: Boolean = false,
     imageSearchNoResults: Boolean = false,
-    imageDownloadError: Boolean = false,
     onSelectSearchImage: (ImageSearchResult) -> Unit = {},
     onDismissImageSearch: () -> Unit = {},
 ) {
@@ -593,11 +581,9 @@ private fun AddTripDialog(
         onImageSearchQueryChange = onImageSearchQueryChange,
         onSearchImages = onSearchImages,
         imageSearchLoading = imageSearchLoading,
-        imageDownloading = imageDownloading,
         imageSearchResults = imageSearchResults,
         imageSearchError = imageSearchError,
         imageSearchNoResults = imageSearchNoResults,
-        imageDownloadError = imageDownloadError,
         onSelectSearchImage = onSelectSearchImage,
         onDismissImageSearch = onDismissImageSearch,
     )
@@ -620,11 +606,9 @@ private fun EditTripDialog(
     onImageSearchQueryChange: (String) -> Unit = {},
     onSearchImages: () -> Unit = {},
     imageSearchLoading: Boolean = false,
-    imageDownloading: Boolean = false,
     imageSearchResults: List<ImageSearchResult> = emptyList(),
     imageSearchError: Boolean = false,
     imageSearchNoResults: Boolean = false,
-    imageDownloadError: Boolean = false,
     onSelectSearchImage: (ImageSearchResult) -> Unit = {},
     onDismissImageSearch: () -> Unit = {},
 ) {
@@ -645,11 +629,9 @@ private fun EditTripDialog(
         onImageSearchQueryChange = onImageSearchQueryChange,
         onSearchImages = onSearchImages,
         imageSearchLoading = imageSearchLoading,
-        imageDownloading = imageDownloading,
         imageSearchResults = imageSearchResults,
         imageSearchError = imageSearchError,
         imageSearchNoResults = imageSearchNoResults,
-        imageDownloadError = imageDownloadError,
         onSelectSearchImage = onSelectSearchImage,
         onDismissImageSearch = onDismissImageSearch,
     )
@@ -680,9 +662,8 @@ private fun DeleteTripConfirmationDialog(
 /**
  * Dialog that lets the user search for images online and pick one for their trip.
  *
- * Results are displayed in a 3-column thumbnail grid. Tapping a thumbnail starts the image
- * selection/download flow for the chosen result. The dialog stays open when a download fails so
- * the user can retry or dismiss manually.
+ * Results are displayed in a 3-column thumbnail grid. Tapping a thumbnail selects
+ * the image for the trip using its remote URL.
  */
 @Composable
 private fun ImageSearchDialog(
@@ -690,11 +671,9 @@ private fun ImageSearchDialog(
     onQueryChange: (String) -> Unit,
     onSearch: () -> Unit,
     isLoading: Boolean,
-    isDownloading: Boolean,
     results: List<ImageSearchResult>,
     hasError: Boolean,
     hasNoResults: Boolean,
-    hasDownloadError: Boolean,
     onSelectImage: (ImageSearchResult) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -732,45 +711,20 @@ private fun ImageSearchDialog(
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                         keyboardActions = KeyboardActions(
                             onSearch = {
-                                if (query.isNotBlank() && !isLoading && !isDownloading) onSearch()
+                                if (query.isNotBlank() && !isLoading) onSearch()
                             },
                         ),
                         modifier = Modifier.weight(1f),
                     )
                     Button(
                         onClick = onSearch,
-                        enabled = query.isNotBlank() && !isLoading && !isDownloading,
+                        enabled = query.isNotBlank() && !isLoading,
                     ) {
                         Text(stringResource(R.string.image_search_button))
                     }
                 }
-                if (hasDownloadError) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = stringResource(R.string.image_search_download_error),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                }
                 Spacer(modifier = Modifier.height(8.dp))
                 when {
-                    isDownloading -> {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(80.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                CircularProgressIndicator()
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = stringResource(R.string.image_search_downloading),
-                                    style = MaterialTheme.typography.bodySmall,
-                                )
-                            }
-                        }
-                    }
                     isLoading -> {
                         Box(
                             modifier = Modifier
@@ -837,7 +791,7 @@ private fun ImageSearchDialog(
         },
         confirmButton = {},
         dismissButton = {
-            TextButton(onClick = onDismiss, enabled = !isDownloading) { Text(stringResource(R.string.dialog_cancel)) }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.dialog_cancel)) }
         },
     )
 }
