@@ -223,6 +223,18 @@ internal fun HomeScreenContent(
             onSave = onSaveTrip,
             onDismiss = onDismissDialog,
             onSearchOnline = onOpenImageSearchForAdd,
+            showImageSearch = uiState.showImageSearchDialog,
+            imageSearchQuery = uiState.imageSearchQuery,
+            onImageSearchQueryChange = onImageSearchQueryChange,
+            onSearchImages = onSearchImages,
+            imageSearchLoading = uiState.imageSearchLoading,
+            imageDownloading = uiState.imageDownloading,
+            imageSearchResults = uiState.imageSearchResults,
+            imageSearchError = uiState.imageSearchError,
+            imageSearchNoResults = uiState.imageSearchNoResults,
+            imageDownloadError = uiState.imageDownloadError,
+            onSelectSearchImage = { result -> onSelectSearchImage(result, true) },
+            onDismissImageSearch = onDismissImageSearch,
         )
     }
 
@@ -238,22 +250,18 @@ internal fun HomeScreenContent(
             onSave = onUpdateTrip,
             onDismiss = onDismissEditDialog,
             onSearchOnline = onOpenImageSearchForEdit,
-        )
-    }
-
-    if (uiState.showImageSearchDialog) {
-        ImageSearchDialog(
-            query = uiState.imageSearchQuery,
-            onQueryChange = onImageSearchQueryChange,
-            onSearch = onSearchImages,
-            isLoading = uiState.imageSearchLoading,
-            isDownloading = uiState.imageDownloading,
-            results = uiState.imageSearchResults,
-            hasError = uiState.imageSearchError,
-            hasNoResults = uiState.imageSearchNoResults,
-            hasDownloadError = uiState.imageDownloadError,
-            onSelectImage = { result -> onSelectSearchImage(result, uiState.imageSearchForAdd) },
-            onDismiss = onDismissImageSearch,
+            showImageSearch = uiState.showImageSearchDialog,
+            imageSearchQuery = uiState.imageSearchQuery,
+            onImageSearchQueryChange = onImageSearchQueryChange,
+            onSearchImages = onSearchImages,
+            imageSearchLoading = uiState.imageSearchLoading,
+            imageDownloading = uiState.imageDownloading,
+            imageSearchResults = uiState.imageSearchResults,
+            imageSearchError = uiState.imageSearchError,
+            imageSearchNoResults = uiState.imageSearchNoResults,
+            imageDownloadError = uiState.imageDownloadError,
+            onSelectSearchImage = { result -> onSelectSearchImage(result, false) },
+            onDismissImageSearch = onDismissImageSearch,
         )
     }
 
@@ -407,6 +415,18 @@ private fun SwipeToArchiveBackground(swipeState: SwipeToDismissBoxState) {
  * @param onSave Called when the user confirms the dialog.
  * @param onDismiss Called when the user cancels or dismisses the dialog.
  * @param onSearchOnline Called when the user wants to search for an image online.
+ * @param showImageSearch Whether to show the inline image search dialog.
+ * @param imageSearchQuery The current search query text.
+ * @param onImageSearchQueryChange Called when the search query changes.
+ * @param onSearchImages Called to trigger an image search.
+ * @param imageSearchLoading True while a search is in progress.
+ * @param imageDownloading True while a selected image is being downloaded.
+ * @param imageSearchResults The current list of search results.
+ * @param imageSearchError True when the search failed due to a network/API error.
+ * @param imageSearchNoResults True when the search succeeded but returned no results.
+ * @param imageDownloadError True when the download of a selected image failed.
+ * @param onSelectSearchImage Called with the chosen [ImageSearchResult].
+ * @param onDismissImageSearch Called when the image search dialog is dismissed.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -422,11 +442,39 @@ private fun TripFormDialog(
     onSave: () -> Unit,
     onDismiss: () -> Unit,
     onSearchOnline: () -> Unit = {},
+    showImageSearch: Boolean = false,
+    imageSearchQuery: String = "",
+    onImageSearchQueryChange: (String) -> Unit = {},
+    onSearchImages: () -> Unit = {},
+    imageSearchLoading: Boolean = false,
+    imageDownloading: Boolean = false,
+    imageSearchResults: List<ImageSearchResult> = emptyList(),
+    imageSearchError: Boolean = false,
+    imageSearchNoResults: Boolean = false,
+    imageDownloadError: Boolean = false,
+    onSelectSearchImage: (ImageSearchResult) -> Unit = {},
+    onDismissImageSearch: () -> Unit = {},
 ) {
     val imagePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia(),
     ) { uri: Uri? ->
         onImageUriChange(uri?.toString())
+    }
+
+    if (showImageSearch) {
+        ImageSearchDialog(
+            query = imageSearchQuery,
+            onQueryChange = onImageSearchQueryChange,
+            onSearch = onSearchImages,
+            isLoading = imageSearchLoading,
+            isDownloading = imageDownloading,
+            results = imageSearchResults,
+            hasError = imageSearchError,
+            hasNoResults = imageSearchNoResults,
+            hasDownloadError = imageDownloadError,
+            onSelectImage = onSelectSearchImage,
+            onDismiss = onDismissImageSearch,
+        )
     }
 
     AlertDialog(
@@ -509,6 +557,18 @@ private fun AddTripDialog(
     onSave: () -> Unit,
     onDismiss: () -> Unit,
     onSearchOnline: () -> Unit = {},
+    showImageSearch: Boolean = false,
+    imageSearchQuery: String = "",
+    onImageSearchQueryChange: (String) -> Unit = {},
+    onSearchImages: () -> Unit = {},
+    imageSearchLoading: Boolean = false,
+    imageDownloading: Boolean = false,
+    imageSearchResults: List<ImageSearchResult> = emptyList(),
+    imageSearchError: Boolean = false,
+    imageSearchNoResults: Boolean = false,
+    imageDownloadError: Boolean = false,
+    onSelectSearchImage: (ImageSearchResult) -> Unit = {},
+    onDismissImageSearch: () -> Unit = {},
 ) {
     TripFormDialog(
         dialogTitle = stringResource(R.string.add_trip_title),
@@ -522,6 +582,18 @@ private fun AddTripDialog(
         onSave = onSave,
         onDismiss = onDismiss,
         onSearchOnline = onSearchOnline,
+        showImageSearch = showImageSearch,
+        imageSearchQuery = imageSearchQuery,
+        onImageSearchQueryChange = onImageSearchQueryChange,
+        onSearchImages = onSearchImages,
+        imageSearchLoading = imageSearchLoading,
+        imageDownloading = imageDownloading,
+        imageSearchResults = imageSearchResults,
+        imageSearchError = imageSearchError,
+        imageSearchNoResults = imageSearchNoResults,
+        imageDownloadError = imageDownloadError,
+        onSelectSearchImage = onSelectSearchImage,
+        onDismissImageSearch = onDismissImageSearch,
     )
 }
 
@@ -537,6 +609,18 @@ private fun EditTripDialog(
     onSave: () -> Unit,
     onDismiss: () -> Unit,
     onSearchOnline: () -> Unit = {},
+    showImageSearch: Boolean = false,
+    imageSearchQuery: String = "",
+    onImageSearchQueryChange: (String) -> Unit = {},
+    onSearchImages: () -> Unit = {},
+    imageSearchLoading: Boolean = false,
+    imageDownloading: Boolean = false,
+    imageSearchResults: List<ImageSearchResult> = emptyList(),
+    imageSearchError: Boolean = false,
+    imageSearchNoResults: Boolean = false,
+    imageDownloadError: Boolean = false,
+    onSelectSearchImage: (ImageSearchResult) -> Unit = {},
+    onDismissImageSearch: () -> Unit = {},
 ) {
     TripFormDialog(
         dialogTitle = stringResource(R.string.edit_trip_title),
@@ -550,6 +634,18 @@ private fun EditTripDialog(
         onSave = onSave,
         onDismiss = onDismiss,
         onSearchOnline = onSearchOnline,
+        showImageSearch = showImageSearch,
+        imageSearchQuery = imageSearchQuery,
+        onImageSearchQueryChange = onImageSearchQueryChange,
+        onSearchImages = onSearchImages,
+        imageSearchLoading = imageSearchLoading,
+        imageDownloading = imageDownloading,
+        imageSearchResults = imageSearchResults,
+        imageSearchError = imageSearchError,
+        imageSearchNoResults = imageSearchNoResults,
+        imageDownloadError = imageDownloadError,
+        onSelectSearchImage = onSelectSearchImage,
+        onDismissImageSearch = onDismissImageSearch,
     )
 }
 
