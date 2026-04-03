@@ -6,6 +6,19 @@ import java.time.ZoneId
 import java.time.ZonedDateTime
 
 /**
+ * Constructs a [ZonedDateTime] from [FlightInfo.departureDate] and [FlightInfo.departureTime]
+ * using [zone] (defaults to the system default zone), or returns `null` when either field is
+ * absent. Use this helper whenever a `ZonedDateTime` needs to be seeded from extracted document
+ * data so that the zone-selection strategy stays consistent across the codebase.
+ */
+internal fun FlightInfo.toZonedDeparture(zone: ZoneId = ZoneId.systemDefault()): ZonedDateTime? =
+    if (departureDate != null && departureTime != null) {
+        ZonedDateTime.of(departureDate, departureTime, zone)
+    } else {
+        null
+    }
+
+/**
  * Returns a copy of this [TransportLeg] with fields filled in from [flightInfo].
  *
  * Text fields (company, flightNumber, reservationConfirmationNumber, stopName) follow the
@@ -17,7 +30,7 @@ import java.time.ZonedDateTime
  *   leg's existing `departureDateTime` is replaced while the date and zone are preserved.
  *   When the leg has no `departureDateTime` but both [FlightInfo.departureDate] and
  *   [FlightInfo.departureTime] are available, a new [ZonedDateTime] is constructed using the
- *   system default zone.
+ *   system default zone via [FlightInfo.toZonedDeparture].
  * - **arrivalDateTime**: if [flightInfo] carries an `arrivalTime` and the leg already has an
  *   `arrivalDateTime`, only the time portion is updated while the date and zone are preserved.
  *   No new `arrivalDateTime` is created from scratch because the document rarely carries a
@@ -27,8 +40,8 @@ internal fun TransportLeg.applyFlightInfo(flightInfo: FlightInfo): TransportLeg 
     val newDepartureDateTime: ZonedDateTime? = when {
         flightInfo.departureTime != null && departureDateTime != null ->
             departureDateTime.with(flightInfo.departureTime)
-        flightInfo.departureTime != null && flightInfo.departureDate != null ->
-            ZonedDateTime.of(flightInfo.departureDate, flightInfo.departureTime, ZoneId.systemDefault())
+        flightInfo.departureTime != null ->
+            flightInfo.toZonedDeparture()
         else -> departureDateTime
     }
     val newArrivalDateTime: ZonedDateTime? = when {

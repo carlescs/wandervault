@@ -21,6 +21,7 @@ import cat.company.wandervault.domain.usecase.SaveHotelUseCase
 import cat.company.wandervault.domain.usecase.SaveTripDescriptionUseCase
 import cat.company.wandervault.domain.usecase.SummarizeDocumentUseCase
 import cat.company.wandervault.domain.usecase.UpdateDocumentUseCase
+import cat.company.wandervault.domain.usecase.UpdateDestinationUseCase
 import cat.company.wandervault.domain.usecase.UpdateTransportLegUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -61,6 +62,7 @@ class ShareViewModel(
     private val getHotelForDestination: GetHotelForDestinationUseCase,
     private val saveHotel: SaveHotelUseCase,
     private val updateTransportLeg: UpdateTransportLegUseCase,
+    private val updateDestination: UpdateDestinationUseCase,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<ShareUiState>(ShareUiState.Loading)
@@ -447,8 +449,27 @@ class ShareViewModel(
 
     private suspend fun applyFlightInfoToLeg(flightInfo: FlightInfo, leg: TransportLeg) {
         val updatedLeg = leg.applyFlightInfo(flightInfo)
-        if (updatedLeg != leg) {
-            updateTransportLeg(updatedLeg)
+        if (updatedLeg == leg) return
+        updateTransportLeg(updatedLeg)
+
+        // Sync destination-level datetimes to keep the itinerary timeline consistent
+        // (same convention as TransportDetailViewModel).
+        val allDestinations = getDestinationsForTrip(selectedTripId).first()
+            .sortedBy { it.position }
+        val owningDestination = allDestinations.firstOrNull { dest ->
+            dest.transport?.id == leg.transportId
+        } ?: return
+        val legsInTransport = owningDestination.transport?.legs.orEmpty()
+        val legIndex = legsInTransport.indexOfFirst { it.id == leg.id }
+        if (legIndex < 0) return
+
+        if (legIndex == 0 && updatedLeg.departureDateTime != leg.departureDateTime) {
+            updateDestination(owningDestination.copy(departureDateTime = updatedLeg.departureDateTime))
+        }
+        if (legIndex == legsInTransport.lastIndex && updatedLeg.arrivalDateTime != leg.arrivalDateTime) {
+            val owningIndex = allDestinations.indexOf(owningDestination)
+            val nextDestination = allDestinations.getOrNull(owningIndex + 1) ?: return
+            updateDestination(nextDestination.copy(arrivalDateTime = updatedLeg.arrivalDateTime))
         }
     }
 
