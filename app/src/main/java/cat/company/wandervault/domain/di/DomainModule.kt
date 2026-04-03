@@ -1,6 +1,8 @@
 package cat.company.wandervault.domain.di
 
 import cat.company.wandervault.domain.usecase.AskDocumentQuestionUseCase
+import cat.company.wandervault.domain.usecase.AutoOrganizeDocumentsUseCase
+import cat.company.wandervault.domain.usecase.CopyDocumentToInternalStorageUseCase
 import cat.company.wandervault.domain.usecase.ArchiveTripUseCase
 import cat.company.wandervault.domain.usecase.GenerateWhatsNextUseCase
 import cat.company.wandervault.domain.usecase.GetArchivedTripsUseCase
