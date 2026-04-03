@@ -703,42 +703,46 @@ private fun ImageSearchDialog(
         title = { Text(stringResource(R.string.image_search_dialog_title)) },
         text = {
             Column {
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = onQueryChange,
-                    label = { Text(stringResource(R.string.image_search_hint)) },
-                    singleLine = true,
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Default.Search,
-                            contentDescription = null,
-                        )
-                    },
-                    trailingIcon = {
-                        if (query.isNotEmpty()) {
-                            IconButton(onClick = { onQueryChange("") }) {
-                                Icon(
-                                    imageVector = Icons.Default.Clear,
-                                    contentDescription = stringResource(R.string.image_search_clear_query),
-                                )
-                            }
-                        }
-                    },
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                    keyboardActions = KeyboardActions(
-                        onSearch = {
-                            if (query.isNotBlank() && !isLoading && !isDownloading) onSearch()
-                        },
-                    ),
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Button(
-                    onClick = onSearch,
-                    enabled = query.isNotBlank() && !isLoading && !isDownloading,
-                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(stringResource(R.string.image_search_button))
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = onQueryChange,
+                        label = { Text(stringResource(R.string.image_search_hint)) },
+                        singleLine = true,
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = null,
+                            )
+                        },
+                        trailingIcon = {
+                            if (query.isNotEmpty()) {
+                                IconButton(onClick = { onQueryChange("") }) {
+                                    Icon(
+                                        imageVector = Icons.Default.Clear,
+                                        contentDescription = stringResource(R.string.image_search_clear_query),
+                                    )
+                                }
+                            }
+                        },
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(
+                            onSearch = {
+                                if (query.isNotBlank() && !isLoading && !isDownloading) onSearch()
+                            },
+                        ),
+                        modifier = Modifier.weight(1f),
+                    )
+                    Button(
+                        onClick = onSearch,
+                        enabled = query.isNotBlank() && !isLoading && !isDownloading,
+                    ) {
+                        Text(stringResource(R.string.image_search_button))
+                    }
                 }
                 if (hasDownloadError) {
                     Spacer(modifier = Modifier.height(4.dp))
