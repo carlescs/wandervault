@@ -22,6 +22,7 @@ import cat.company.wandervault.domain.usecase.SaveTransportLegUseCase
 import cat.company.wandervault.domain.usecase.SaveTripDescriptionUseCase
 import cat.company.wandervault.domain.usecase.SummarizeDocumentUseCase
 import cat.company.wandervault.domain.usecase.UpdateDocumentUseCase
+import cat.company.wandervault.domain.usecase.UpdateDestinationUseCase
 import cat.company.wandervault.domain.usecase.UpdateTransportLegUseCase
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -59,6 +60,9 @@ import java.io.File
  * @param getHotelsForDestinations Use-case that fetches hotels for multiple destinations in one query.
  * @param saveHotel Use-case that saves a hotel record.
  * @param updateTransportLeg Use-case that persists an updated transport leg.
+ * @param updateDestination Use-case that persists an updated destination record (used to keep
+ *   [Destination.departureDateTime] and [Destination.arrivalDateTime] in sync with the first/last
+ *   leg's datetime when flight info is applied from a document).
  * @param getOrCreateTransport Use-case that returns the transport ID for a destination, creating one if needed.
  * @param saveTransportLeg Use-case that persists a new transport leg.
  */
@@ -76,6 +80,7 @@ class DocumentInfoViewModel(
     private val getHotelsForDestinations: GetHotelsForDestinationsUseCase,
     private val saveHotel: SaveHotelUseCase,
     private val updateTransportLeg: UpdateTransportLegUseCase,
+    private val updateDestination: UpdateDestinationUseCase,
     private val getOrCreateTransport: GetOrCreateTransportForDestinationUseCase,
     private val saveTransportLeg: SaveTransportLegUseCase,
 ) : ViewModel() {
@@ -601,6 +606,10 @@ class DocumentInfoViewModel(
     /**
      * Creates a new FLIGHT-type [TransportLeg] populated from [flightInfo] and appends it to
      * the transport belonging to [destination], creating the transport record if needed.
+     *
+     * When the new leg is the first leg (position 0) and a departure datetime can be derived from
+     * the extracted document, [Destination.departureDateTime] is also updated to keep the
+     * itinerary timeline in sync (matching the convention in [TransportDetailViewModel]).
      */
     private suspend fun addFlightLegToTransport(flightInfo: FlightInfo, destination: Destination) {
         val transportId = getOrCreateTransport(destination.id)
@@ -609,6 +618,7 @@ class DocumentInfoViewModel(
         val currentDestination = getDestinationsForTrip(destination.tripId).first()
             .firstOrNull { it.id == destination.id }
         val position = currentDestination?.transport?.legs?.size ?: 0
+        val departureDateTime = flightInfo.toZonedDeparture()
         saveTransportLeg(
             TransportLeg(
                 id = 0,
@@ -619,24 +629,51 @@ class DocumentInfoViewModel(
                 flightNumber = flightInfo.flightNumber,
                 reservationConfirmationNumber = flightInfo.bookingReference,
                 stopName = flightInfo.arrivalPlace,
+                departureDateTime = departureDateTime,
             ),
         )
+        // Sync the destination departure time when this is the first leg and a time was extracted.
+        if (position == 0 && departureDateTime != null) {
+            val destToUpdate = currentDestination ?: destination
+            updateDestination(destToUpdate.copy(departureDateTime = departureDateTime))
+        }
     }
 
     /**
-     * Applies [flightInfo] to [leg], filling only blank fields and preserving existing non-blank
-     * values. Persists the change via [updateTransportLeg] only when the leg actually changes.
+     * Applies [flightInfo] to [leg] via [TransportLeg.applyFlightInfo], then persists the
+     * updated leg when it actually changed.
+     *
+     * Also syncs destination-level datetimes following the same convention as
+     * [TransportDetailViewModel]:
+     * - If the updated leg is the **first leg** (position 0) of its transport and its
+     *   `departureDateTime` changed, the owning destination's [Destination.departureDateTime] is
+     *   updated to match.
+     * - If the updated leg is the **last leg** of its transport and its `arrivalDateTime`
+     *   changed, the *next* destination's [Destination.arrivalDateTime] is updated to match.
      */
     private suspend fun applyFlightInfoToLeg(flightInfo: FlightInfo, leg: TransportLeg) {
-        val updatedLeg = leg.copy(
-            company = leg.company?.ifBlank { null } ?: flightInfo.airline,
-            flightNumber = leg.flightNumber?.ifBlank { null } ?: flightInfo.flightNumber,
-            reservationConfirmationNumber = leg.reservationConfirmationNumber
-                ?.ifBlank { null } ?: flightInfo.bookingReference,
-            stopName = leg.stopName?.ifBlank { null } ?: flightInfo.arrivalPlace,
-        )
-        if (updatedLeg != leg) {
-            updateTransportLeg(updatedLeg)
+        val updatedLeg = leg.applyFlightInfo(flightInfo)
+        if (updatedLeg == leg) return
+        updateTransportLeg(updatedLeg)
+
+        // Re-fetch destinations to find owning and next destination for syncing.
+        val tripId = pendingAnalysisTripId.takeIf { it != NO_TRIP_PENDING } ?: return
+        val allDestinations = getDestinationsForTrip(tripId).first()
+            .sortedBy { it.position }
+        val owningDestination = allDestinations.firstOrNull { dest ->
+            dest.transport?.id == leg.transportId
+        } ?: return
+        val legsInTransport = owningDestination.transport?.legs.orEmpty()
+        val legIndex = legsInTransport.indexOfFirst { it.id == leg.id }
+        if (legIndex < 0) return
+
+        if (legIndex == 0 && updatedLeg.departureDateTime != leg.departureDateTime) {
+            updateDestination(owningDestination.copy(departureDateTime = updatedLeg.departureDateTime))
+        }
+        if (legIndex == legsInTransport.lastIndex && updatedLeg.arrivalDateTime != leg.arrivalDateTime) {
+            val owningIndex = allDestinations.indexOf(owningDestination)
+            val nextDestination = allDestinations.getOrNull(owningIndex + 1) ?: return
+            updateDestination(nextDestination.copy(arrivalDateTime = updatedLeg.arrivalDateTime))
         }
     }
 

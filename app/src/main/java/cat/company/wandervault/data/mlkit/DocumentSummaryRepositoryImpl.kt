@@ -291,7 +291,7 @@ class DocumentSummaryRepositoryImpl(
         appendLine(
             "- If it contains FLIGHT information (boarding pass, e-ticket, flight itinerary), " +
                 "output one line per flight leg: " +
-                "${FLIGHT_MARKER}<airline>|<flight number>|<booking reference>|<departure city>|<arrival city>|<departure date (YYYY-MM-DD)>",
+                "${FLIGHT_MARKER}<airline>|<flight number>|<booking reference>|<departure city>|<arrival city>|<departure date (YYYY-MM-DD)>|<departure time (HH:MM)>|<arrival time (HH:MM)>",
         )
         appendLine(
             "- If it contains HOTEL information (booking confirmation, reservation, hotel voucher), " +

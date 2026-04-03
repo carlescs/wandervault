@@ -11,6 +11,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
+import java.time.LocalTime
 
 /**
  * Unit tests for [parseDocumentResponse] — the function that converts raw Gemini Nano output
@@ -24,6 +25,8 @@ import java.time.LocalDate
  * - "None" variants with and without trailing punctuation.
  * - Missing or blank fields within the structured line.
  * - The [cat.company.wandervault.domain.model.FlightInfo.departureDate] field (index 5).
+ * - The [cat.company.wandervault.domain.model.FlightInfo.departureTime] field (index 6).
+ * - The [cat.company.wandervault.domain.model.FlightInfo.arrivalTime] field (index 7).
  */
 class DocumentResponseParserTest {
 
@@ -34,7 +37,7 @@ class DocumentResponseParserTest {
         val raw = """
             This is a boarding pass for flight LH1234 from Frankfurt to London.
             ---
-            FLIGHT|Lufthansa|LH1234|ABC123|Frankfurt|London|2024-06-15
+            FLIGHT|Lufthansa|LH1234|ABC123|Frankfurt|London|2024-06-15|10:30|12:45
         """.trimIndent()
 
         val result = parseDocumentResponse(raw)
@@ -47,6 +50,8 @@ class DocumentResponseParserTest {
         assertEquals("Frankfurt", fi.departurePlace)
         assertEquals("London", fi.arrivalPlace)
         assertEquals(LocalDate.of(2024, 6, 15), fi.departureDate)
+        assertEquals(LocalTime.of(10, 30), fi.departureTime)
+        assertEquals(LocalTime.of(12, 45), fi.arrivalTime)
         assertNull(result.hotelInfo)
         assertNull(result.relevantTripInfo)
         assertEquals(1, result.flightInfoList.size)
@@ -78,6 +83,8 @@ class DocumentResponseParserTest {
         assertNull(fi.departurePlace)
         assertNull(fi.arrivalPlace)
         assertNull(fi.departureDate)
+        assertNull(fi.departureTime)
+        assertNull(fi.arrivalTime)
     }
 
     @Test
@@ -100,6 +107,83 @@ class DocumentResponseParserTest {
 
         assertNotNull(result.flightInfo)
         assertNull(result.flightInfo!!.departureDate)
+    }
+
+    // ── FLIGHT document — time fields ─────────────────────────────────────────
+
+    @Test
+    fun `flight marker with departure and arrival times parses times correctly`() {
+        val raw = "Summary.\n---\nFLIGHT|Iberia|IB3456|PNR99|Madrid|London|2025-07-10|08:15|10:20\n"
+
+        val result = parseDocumentResponse(raw)
+
+        assertNotNull(result.flightInfo)
+        val fi = result.flightInfo!!
+        assertEquals(LocalDate.of(2025, 7, 10), fi.departureDate)
+        assertEquals(LocalTime.of(8, 15), fi.departureTime)
+        assertEquals(LocalTime.of(10, 20), fi.arrivalTime)
+    }
+
+    @Test
+    fun `flight marker with departure time only produces null arrivalTime`() {
+        val raw = "Summary.\n---\nFLIGHT|Ryanair|FR1234|REF|Dublin|Barcelona|2025-06-01|06:00\n"
+
+        val result = parseDocumentResponse(raw)
+
+        assertNotNull(result.flightInfo)
+        assertEquals(LocalTime.of(6, 0), result.flightInfo!!.departureTime)
+        assertNull(result.flightInfo!!.arrivalTime)
+    }
+
+    @Test
+    fun `flight marker with blank time fields produces null times`() {
+        val raw = "Summary.\n---\nFLIGHT|EasyJet|EZY123|REF|London|Paris|2025-05-01||\n"
+
+        val result = parseDocumentResponse(raw)
+
+        assertNotNull(result.flightInfo)
+        assertNull(result.flightInfo!!.departureTime)
+        assertNull(result.flightInfo!!.arrivalTime)
+    }
+
+    @Test
+    fun `flight departure time with invalid format produces null departureTime`() {
+        val raw = "Summary.\n---\nFLIGHT|BA|BA001|REF|London|NYC|2025-01-01|25:00|10:30\n"
+
+        val result = parseDocumentResponse(raw)
+
+        assertNotNull(result.flightInfo)
+        assertNull(result.flightInfo!!.departureTime)
+        assertEquals(LocalTime.of(10, 30), result.flightInfo!!.arrivalTime)
+    }
+
+    @Test
+    fun `flight arrival time with invalid format produces null arrivalTime`() {
+        val raw = "Summary.\n---\nFLIGHT|BA|BA001|REF|London|NYC|2025-01-01|08:00|99:99\n"
+
+        val result = parseDocumentResponse(raw)
+
+        assertNotNull(result.flightInfo)
+        assertEquals(LocalTime.of(8, 0), result.flightInfo!!.departureTime)
+        assertNull(result.flightInfo!!.arrivalTime)
+    }
+
+    @Test
+    fun `multiple flight lines with times all parse correctly`() {
+        val raw = """
+            Multi-leg itinerary.
+            ---
+            FLIGHT|Lufthansa|LH1234|ABC|Frankfurt|London|2024-06-15|07:00|08:15
+            FLIGHT|British Airways|BA456|ABC|London|New York|2024-06-15|11:00|14:30
+        """.trimIndent()
+
+        val result = parseDocumentResponse(raw)
+
+        assertEquals(2, result.flightInfoList.size)
+        assertEquals(LocalTime.of(7, 0), result.flightInfoList[0].departureTime)
+        assertEquals(LocalTime.of(8, 15), result.flightInfoList[0].arrivalTime)
+        assertEquals(LocalTime.of(11, 0), result.flightInfoList[1].departureTime)
+        assertEquals(LocalTime.of(14, 30), result.flightInfoList[1].arrivalTime)
     }
 
     // ── FLIGHT document — non-standard layout (marker not on first line) ───────
