@@ -4,6 +4,7 @@ import cat.company.wandervault.domain.usecase.AskDocumentQuestionUseCase
 import cat.company.wandervault.domain.usecase.ArchiveTripUseCase
 import cat.company.wandervault.domain.usecase.AutoOrganizeDocumentsUseCase
 import cat.company.wandervault.domain.usecase.CopyDocumentToInternalStorageUseCase
+import cat.company.wandervault.domain.usecase.DownloadImageUseCase
 import cat.company.wandervault.domain.usecase.GenerateWhatsNextUseCase
 import cat.company.wandervault.domain.usecase.GetArchivedTripsUseCase
 import cat.company.wandervault.domain.usecase.GetFavoriteTripsUseCase
@@ -44,6 +45,7 @@ import cat.company.wandervault.domain.usecase.SaveTransportLegUseCase
 import cat.company.wandervault.domain.usecase.SaveTripDescriptionUseCase
 import cat.company.wandervault.domain.usecase.SaveTripWhatsNextUseCase
 import cat.company.wandervault.domain.usecase.SaveTripUseCase
+import cat.company.wandervault.domain.usecase.SearchImagesUseCase
 import cat.company.wandervault.domain.usecase.SummarizeDocumentUseCase
 import cat.company.wandervault.domain.usecase.SuggestDocumentNameUseCase
 import cat.company.wandervault.domain.usecase.UpdateDestinationUseCase
@@ -83,6 +85,8 @@ val domainModule = module {
     factory { DeleteTripUseCase(get(), get(), get()) }
     factory { CopyImageToInternalStorageUseCase(get()) }
     factory { DeleteImageUseCase(get()) }
+    factory { SearchImagesUseCase(get()) }
+    factory { DownloadImageUseCase(get()) }
     factory { CreateBackupUseCase(get()) }
     factory { RestoreBackupUseCase(get()) }
     factory { GetHotelForDestinationUseCase(get()) }
