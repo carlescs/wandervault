@@ -17,7 +17,6 @@ data class HomeUiState(
     val editTripTimezone: String? = null,
     val tripToDelete: Trip? = null,
     val showImageSearchDialog: Boolean = false,
-    val imageSearchForAdd: Boolean = true,
     val imageSearchQuery: String = "",
     val imageSearchResults: List<ImageSearchResult> = emptyList(),
     val imageSearchLoading: Boolean = false,

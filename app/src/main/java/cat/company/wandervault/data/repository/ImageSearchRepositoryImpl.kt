@@ -43,7 +43,11 @@ class ImageSearchRepositoryImpl(private val context: Context) : ImageSearchRepos
                             IOException("HTTP ${connection.responseCode}"),
                         )
                     }
-                    connection.inputStream.bufferedReader().readText()
+                    connection.inputStream.use { inputStream ->
+                        inputStream.bufferedReader().use { reader ->
+                            reader.readText()
+                        }
+                    }
                 } finally {
                     connection.disconnect()
                 }
@@ -56,25 +60,30 @@ class ImageSearchRepositoryImpl(private val context: Context) : ImageSearchRepos
         }
 
     override suspend fun downloadImage(url: String): String? = withContext(Dispatchers.IO) {
+        val imagesDir = File(context.filesDir, IMAGES_DIR_NAME)
+        if (!imagesDir.exists() && !imagesDir.mkdirs()) return@withContext null
+        val extension = extractExtension(url)
+        val file = File(imagesDir, "${UUID.randomUUID()}.$extension")
         try {
             val connection = URL(url).openConnection() as HttpURLConnection
             connection.connectTimeout = TIMEOUT_MS
             connection.readTimeout = TIMEOUT_MS
-            val bytes = try {
+            try {
                 if (connection.responseCode != HttpURLConnection.HTTP_OK) return@withContext null
-                connection.inputStream.use { it.readBytes() }
+                connection.inputStream.use { input ->
+                    file.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                }
             } finally {
                 connection.disconnect()
             }
-            val imagesDir = File(context.filesDir, IMAGES_DIR_NAME)
-            if (!imagesDir.exists() && !imagesDir.mkdirs()) return@withContext null
-            val extension = extractExtension(url)
-            val file = File(imagesDir, "${UUID.randomUUID()}.$extension")
-            file.writeBytes(bytes)
             Uri.fromFile(file).toString()
         } catch (e: IOException) {
+            file.delete()
             null
         } catch (e: Exception) {
+            file.delete()
             null
         }
     }
@@ -82,23 +91,19 @@ class ImageSearchRepositoryImpl(private val context: Context) : ImageSearchRepos
     private fun extractExtension(url: String): String = imageUrlExtension(url)
 
     private fun parseResults(json: String): List<ImageSearchResult> {
-        return try {
-            val root = JSONObject(json)
-            val hits = root.getJSONArray("hits")
-            buildList {
-                for (i in 0 until hits.length()) {
-                    val hit = hits.getJSONObject(i)
-                    val thumbnail = hit.optString("previewURL").takeIf { it.isNotBlank() }
-                        ?: continue
-                    val full = hit.optString("largeImageURL").takeIf { it.isNotBlank() }
-                        ?: hit.optString("webformatURL").takeIf { it.isNotBlank() }
-                        ?: continue
-                    val tags = hit.optString("tags")
-                    add(ImageSearchResult(thumbnailUrl = thumbnail, fullUrl = full, description = tags))
-                }
+        val root = JSONObject(json)
+        val hits = root.getJSONArray("hits")
+        return buildList {
+            for (i in 0 until hits.length()) {
+                val hit = hits.getJSONObject(i)
+                val thumbnail = hit.optString("previewURL").takeIf { it.isNotBlank() }
+                    ?: continue
+                val full = hit.optString("largeImageURL").takeIf { it.isNotBlank() }
+                    ?: hit.optString("webformatURL").takeIf { it.isNotBlank() }
+                    ?: continue
+                val tags = hit.optString("tags")
+                add(ImageSearchResult(thumbnailUrl = thumbnail, fullUrl = full, description = tags))
             }
-        } catch (e: Exception) {
-            emptyList()
         }
     }
 

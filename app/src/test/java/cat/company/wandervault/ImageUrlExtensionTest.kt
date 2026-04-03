@@ -10,7 +10,7 @@ import org.junit.Test
 class ImageUrlExtensionTest {
 
     @Test
-    fun `simple jpeg URL returns jpg`() {
+    fun `simple jpg URL returns jpg`() {
         assertEquals("jpg", imageUrlExtension("https://example.com/photo/image.jpg"))
     }
 

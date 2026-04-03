@@ -672,10 +672,11 @@ private fun DeleteTripConfirmationDialog(
 }
 
 /**
- * Full-screen dialog that lets the user search for images online and pick one for their trip.
+ * Dialog that lets the user search for images online and pick one for their trip.
  *
- * Results are displayed in a 3-column thumbnail grid. Tapping a thumbnail triggers a download
- * and closes the dialog.
+ * Results are displayed in a 3-column thumbnail grid. Tapping a thumbnail starts the image
+ * selection/download flow for the chosen result. The dialog stays open when a download fails so
+ * the user can retry or dismiss manually.
  */
 @Composable
 private fun ImageSearchDialog(
@@ -808,7 +809,7 @@ private fun ImageSearchDialog(
         },
         confirmButton = {},
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.dialog_cancel)) }
+            TextButton(onClick = onDismiss, enabled = !isDownloading) { Text(stringResource(R.string.dialog_cancel)) }
         },
     )
 }

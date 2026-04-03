@@ -190,12 +190,12 @@ class HomeViewModel(
         _uiState.update {
             it.copy(
                 showImageSearchDialog = true,
-                imageSearchForAdd = forAdd,
                 imageSearchQuery = "",
                 imageSearchResults = emptyList(),
                 imageSearchLoading = false,
                 imageSearchError = false,
                 imageSearchNoResults = false,
+                imageDownloading = false,
                 imageDownloadError = false,
             )
         }
@@ -210,6 +210,7 @@ class HomeViewModel(
                 imageSearchLoading = false,
                 imageSearchError = false,
                 imageSearchNoResults = false,
+                imageDownloading = false,
                 imageDownloadError = false,
             )
         }
@@ -254,6 +255,7 @@ class HomeViewModel(
     }
 
     fun onSelectSearchImage(result: ImageSearchResult, isAddDialog: Boolean) {
+        if (_uiState.value.imageDownloading) return
         _uiState.update { it.copy(imageDownloading = true, imageDownloadError = false) }
         viewModelScope.launch {
             val fileUri = downloadImage(result.fullUrl)
