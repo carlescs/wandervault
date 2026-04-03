@@ -1,6 +1,7 @@
 package cat.company.wandervault.data.repository
 
 import android.content.Context
+import android.net.Uri
 import cat.company.wandervault.domain.model.ImageSearchResult
 import cat.company.wandervault.domain.repository.ImageSearchRepository
 import kotlinx.coroutines.Dispatchers
@@ -11,21 +12,25 @@ import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 import java.util.UUID
 
 /**
  * Searches for images using the Pixabay REST API and saves downloaded results to internal storage.
  *
  * To use this feature, replace [PIXABAY_API_KEY] with a valid key obtained for free at
- * https://pixabay.com/api/docs/. Searches will return an empty list when the key is absent.
+ * https://pixabay.com/api/docs/.
+ *
+ * For production builds, store the key in `local.properties` and expose it via a BuildConfig
+ * field rather than committing it to source control.
  */
 class ImageSearchRepositoryImpl(private val context: Context) : ImageSearchRepository {
 
-    override suspend fun searchImages(query: String): List<ImageSearchResult> =
+    override suspend fun searchImages(query: String): Result<List<ImageSearchResult>> =
         withContext(Dispatchers.IO) {
-            if (PIXABAY_API_KEY.isBlank()) return@withContext emptyList()
+            if (PIXABAY_API_KEY.isBlank()) return@withContext Result.success(emptyList())
             try {
-                val encodedQuery = URLEncoder.encode(query, "UTF-8")
+                val encodedQuery = URLEncoder.encode(query, StandardCharsets.UTF_8.name())
                 val urlString =
                     "https://pixabay.com/api/?key=$PIXABAY_API_KEY" +
                         "&q=$encodedQuery&image_type=photo&per_page=40&safesearch=true"
@@ -34,17 +39,19 @@ class ImageSearchRepositoryImpl(private val context: Context) : ImageSearchRepos
                 connection.readTimeout = TIMEOUT_MS
                 val body = try {
                     if (connection.responseCode != HttpURLConnection.HTTP_OK) {
-                        return@withContext emptyList()
+                        return@withContext Result.failure(
+                            IOException("HTTP ${connection.responseCode}"),
+                        )
                     }
                     connection.inputStream.bufferedReader().readText()
                 } finally {
                     connection.disconnect()
                 }
-                parseResults(body)
+                Result.success(parseResults(body))
             } catch (e: IOException) {
-                emptyList()
+                Result.failure(e)
             } catch (e: Exception) {
-                emptyList()
+                Result.failure(e)
             }
         }
 
@@ -59,17 +66,25 @@ class ImageSearchRepositoryImpl(private val context: Context) : ImageSearchRepos
             } finally {
                 connection.disconnect()
             }
-            val imagesDir = File(context.filesDir, "images")
+            val imagesDir = File(context.filesDir, IMAGES_DIR_NAME)
             if (!imagesDir.exists() && !imagesDir.mkdirs()) return@withContext null
-            val extension = url.substringAfterLast('.', "jpg").take(4).filter { it.isLetterOrDigit() }
+            val extension = extractExtension(url)
             val file = File(imagesDir, "${UUID.randomUUID()}.$extension")
             file.writeBytes(bytes)
-            android.net.Uri.fromFile(file).toString()
+            Uri.fromFile(file).toString()
         } catch (e: IOException) {
             null
         } catch (e: Exception) {
             null
         }
+    }
+
+    private fun extractExtension(url: String): String {
+        // Strip query string before extracting the extension to handle URLs like
+        // "https://example.com/image.jpg?size=large".
+        val path = url.substringBefore('?').substringAfterLast('/')
+        val ext = path.substringAfterLast('.', "").take(4).filter { it.isLetterOrDigit() }
+        return ext.ifBlank { "jpg" }
     }
 
     private fun parseResults(json: String): List<ImageSearchResult> {
@@ -96,10 +111,12 @@ class ImageSearchRepositoryImpl(private val context: Context) : ImageSearchRepos
     companion object {
         /**
          * Replace with your own free Pixabay API key from https://pixabay.com/api/docs/.
-         * Leave blank to disable online image search.
+         * Store the actual key in `local.properties` and surface it via BuildConfig to avoid
+         * committing secrets to source control. Leave blank to disable online image search.
          */
         const val PIXABAY_API_KEY: String = ""
 
+        private const val IMAGES_DIR_NAME = "images"
         private const val TIMEOUT_MS = 10_000
     }
 }

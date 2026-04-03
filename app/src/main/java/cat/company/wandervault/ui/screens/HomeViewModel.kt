@@ -195,6 +195,8 @@ class HomeViewModel(
                 imageSearchResults = emptyList(),
                 imageSearchLoading = false,
                 imageSearchError = false,
+                imageSearchNoResults = false,
+                imageDownloadError = false,
             )
         }
     }
@@ -207,40 +209,64 @@ class HomeViewModel(
                 imageSearchResults = emptyList(),
                 imageSearchLoading = false,
                 imageSearchError = false,
+                imageSearchNoResults = false,
+                imageDownloadError = false,
             )
         }
     }
 
     fun onImageSearchQueryChange(query: String) {
-        _uiState.update { it.copy(imageSearchQuery = query) }
+        _uiState.update { it.copy(imageSearchQuery = query, imageSearchError = false, imageSearchNoResults = false) }
     }
 
     fun onSearchImages() {
         val query = _uiState.value.imageSearchQuery.trim()
         if (query.isBlank()) return
-        _uiState.update { it.copy(imageSearchLoading = true, imageSearchError = false, imageSearchResults = emptyList()) }
+        _uiState.update {
+            it.copy(
+                imageSearchLoading = true,
+                imageSearchError = false,
+                imageSearchNoResults = false,
+                imageSearchResults = emptyList(),
+            )
+        }
         viewModelScope.launch {
-            val results = searchImages(query)
-            _uiState.update {
-                it.copy(
-                    imageSearchLoading = false,
-                    imageSearchResults = results,
-                    imageSearchError = results.isEmpty(),
-                )
-            }
+            searchImages(query).fold(
+                onSuccess = { results ->
+                    _uiState.update {
+                        it.copy(
+                            imageSearchLoading = false,
+                            imageSearchResults = results,
+                            imageSearchNoResults = results.isEmpty(),
+                        )
+                    }
+                },
+                onFailure = {
+                    _uiState.update {
+                        it.copy(
+                            imageSearchLoading = false,
+                            imageSearchError = true,
+                        )
+                    }
+                },
+            )
         }
     }
 
     fun onSelectSearchImage(result: ImageSearchResult, isAddDialog: Boolean) {
-        _uiState.update { it.copy(imageDownloading = true) }
+        _uiState.update { it.copy(imageDownloading = true, imageDownloadError = false) }
         viewModelScope.launch {
             val fileUri = downloadImage(result.fullUrl)
-            if (isAddDialog) {
-                _uiState.update { it.copy(addTripImageUri = fileUri, imageDownloading = false) }
+            if (fileUri != null) {
+                if (isAddDialog) {
+                    _uiState.update { it.copy(addTripImageUri = fileUri, imageDownloading = false) }
+                } else {
+                    _uiState.update { it.copy(editTripImageUri = fileUri, imageDownloading = false) }
+                }
+                onDismissImageSearch()
             } else {
-                _uiState.update { it.copy(editTripImageUri = fileUri, imageDownloading = false) }
+                _uiState.update { it.copy(imageDownloading = false, imageDownloadError = true) }
             }
-            onDismissImageSearch()
         }
     }
 

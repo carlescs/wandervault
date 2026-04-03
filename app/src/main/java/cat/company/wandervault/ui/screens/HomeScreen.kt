@@ -250,6 +250,8 @@ internal fun HomeScreenContent(
             isDownloading = uiState.imageDownloading,
             results = uiState.imageSearchResults,
             hasError = uiState.imageSearchError,
+            hasNoResults = uiState.imageSearchNoResults,
+            hasDownloadError = uiState.imageDownloadError,
             onSelectImage = { result -> onSelectSearchImage(result, uiState.imageSearchForAdd) },
             onDismiss = onDismissImageSearch,
         )
@@ -588,6 +590,8 @@ private fun ImageSearchDialog(
     isDownloading: Boolean,
     results: List<ImageSearchResult>,
     hasError: Boolean,
+    hasNoResults: Boolean,
+    hasDownloadError: Boolean,
     onSelectImage: (ImageSearchResult) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -614,6 +618,14 @@ private fun ImageSearchDialog(
                     ) {
                         Text(stringResource(R.string.image_search_button))
                     }
+                }
+                if (hasDownloadError) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = stringResource(R.string.image_search_download_error),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
                 }
                 Spacer(modifier = Modifier.height(8.dp))
                 when {
@@ -652,6 +664,14 @@ private fun ImageSearchDialog(
                         }
                     }
                     hasError -> {
+                        Text(
+                            text = stringResource(R.string.image_search_error),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(vertical = 8.dp),
+                        )
+                    }
+                    hasNoResults -> {
                         Text(
                             text = stringResource(R.string.image_search_no_results),
                             style = MaterialTheme.typography.bodySmall,

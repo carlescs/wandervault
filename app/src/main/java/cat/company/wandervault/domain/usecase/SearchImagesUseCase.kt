@@ -5,6 +5,6 @@ import cat.company.wandervault.domain.repository.ImageSearchRepository
 
 /** Searches for images online matching the provided [query]. */
 class SearchImagesUseCase(private val repository: ImageSearchRepository) {
-    suspend operator fun invoke(query: String): List<ImageSearchResult> =
+    suspend operator fun invoke(query: String): Result<List<ImageSearchResult>> =
         repository.searchImages(query)
 }

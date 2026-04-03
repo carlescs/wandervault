@@ -7,12 +7,13 @@ import cat.company.wandervault.domain.model.ImageSearchResult
  */
 interface ImageSearchRepository {
     /**
-     * Searches for images matching [query] and returns a list of results.
+     * Searches for images matching [query].
      *
      * @param query The search term (e.g. "Paris Eiffel Tower").
-     * @return A list of matching [ImageSearchResult] items, or an empty list on error.
+     * @return [Result.success] with a (possibly empty) list of results on success,
+     *   or [Result.failure] when a network or API error occurs.
      */
-    suspend fun searchImages(query: String): List<ImageSearchResult>
+    suspend fun searchImages(query: String): Result<List<ImageSearchResult>>
 
     /**
      * Downloads the image at [url] and saves it to the app's internal storage.
