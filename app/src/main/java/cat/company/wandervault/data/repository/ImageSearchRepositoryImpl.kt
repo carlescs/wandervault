@@ -17,26 +17,26 @@ import java.nio.charset.StandardCharsets
 import java.util.UUID
 
 /**
- * Searches for images using the Pixabay REST API and saves downloaded results to internal storage.
+ * Searches for images using the Pexels REST API and saves downloaded results to internal storage.
  *
- * To use this feature, provide a valid Pixabay API key (obtainable for free at
- * https://pixabay.com/api/docs/) via the `PIXABAY_API_KEY` property in `local.properties` or
- * the `PIXABAY_API_KEY` environment variable. The key is surfaced through [BuildConfig] at
+ * To use this feature, provide a valid Pexels API key (obtainable for free at
+ * https://www.pexels.com/api/) via the `PEXELS_API_KEY` property in `local.properties` or
+ * the `PEXELS_API_KEY` environment variable. The key is surfaced through [BuildConfig] at
  * build time. Leave the property unset to disable online image search.
  */
 class ImageSearchRepositoryImpl(private val context: Context) : ImageSearchRepository {
 
     override suspend fun searchImages(query: String): Result<List<ImageSearchResult>> =
         withContext(Dispatchers.IO) {
-            if (BuildConfig.PIXABAY_API_KEY.isBlank()) return@withContext Result.success(emptyList())
+            if (BuildConfig.PEXELS_API_KEY.isBlank()) return@withContext Result.success(emptyList())
             try {
                 val encodedQuery = URLEncoder.encode(query, StandardCharsets.UTF_8.name())
                 val urlString =
-                    "https://pixabay.com/api/?key=${BuildConfig.PIXABAY_API_KEY}" +
-                        "&q=$encodedQuery&image_type=photo&per_page=40&safesearch=true"
+                    "https://api.pexels.com/v1/search?query=$encodedQuery&per_page=40"
                 val connection = URL(urlString).openConnection() as HttpURLConnection
                 connection.connectTimeout = TIMEOUT_MS
                 connection.readTimeout = TIMEOUT_MS
+                connection.setRequestProperty("Authorization", BuildConfig.PEXELS_API_KEY)
                 val body = try {
                     if (connection.responseCode != HttpURLConnection.HTTP_OK) {
                         return@withContext Result.failure(
@@ -92,17 +92,20 @@ class ImageSearchRepositoryImpl(private val context: Context) : ImageSearchRepos
 
     private fun parseResults(json: String): List<ImageSearchResult> {
         val root = JSONObject(json)
-        val hits = root.getJSONArray("hits")
+        val photos = root.getJSONArray("photos")
         return buildList {
-            for (i in 0 until hits.length()) {
-                val hit = hits.getJSONObject(i)
-                val thumbnail = hit.optString("previewURL").takeIf { it.isNotBlank() }
+            for (i in 0 until photos.length()) {
+                val photo = photos.getJSONObject(i)
+                val src = photo.optJSONObject("src") ?: continue
+                val thumbnail = src.optString("medium").takeIf { it.isNotBlank() }
+                    ?: src.optString("small").takeIf { it.isNotBlank() }
                     ?: continue
-                val full = hit.optString("largeImageURL").takeIf { it.isNotBlank() }
-                    ?: hit.optString("webformatURL").takeIf { it.isNotBlank() }
+                val full = src.optString("large2x").takeIf { it.isNotBlank() }
+                    ?: src.optString("large").takeIf { it.isNotBlank() }
+                    ?: src.optString("original").takeIf { it.isNotBlank() }
                     ?: continue
-                val tags = hit.optString("tags")
-                add(ImageSearchResult(thumbnailUrl = thumbnail, fullUrl = full, description = tags))
+                val description = photo.optString("alt")
+                add(ImageSearchResult(thumbnailUrl = thumbnail, fullUrl = full, description = description))
             }
         }
     }

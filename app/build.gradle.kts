@@ -42,15 +42,15 @@ android {
         val localProps = Properties()
         val localPropsFile = rootProject.file("local.properties")
         if (localPropsFile.exists()) localPropsFile.inputStream().use { localProps.load(it) }
-        val pixabayApiKey =
-            (localProps.getProperty("PIXABAY_API_KEY") ?: System.getenv("PIXABAY_API_KEY") ?: "")
+        val pexelsApiKey =
+            (localProps.getProperty("PEXELS_API_KEY") ?: System.getenv("PEXELS_API_KEY") ?: "")
                 .trim()
-        val escapedPixabayApiKey = pixabayApiKey
+        val escapedPexelsApiKey = pexelsApiKey
             .replace("\\", "\\\\")
             .replace("\"", "\\\"")
             .replace("\r", "\\r")
             .replace("\n", "\\n")
-        buildConfigField("String", "PIXABAY_API_KEY", "\"$escapedPixabayApiKey\"")
+        buildConfigField("String", "PEXELS_API_KEY", "\"$escapedPexelsApiKey\"")
     }
 
     val keystorePath = System.getenv("KEYSTORE_PATH")
