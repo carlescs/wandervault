@@ -39,6 +39,8 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.time.ZoneId
+import java.time.ZonedDateTime
 
 /**
  * ViewModel for the Document Info screen.
@@ -619,6 +621,11 @@ class DocumentInfoViewModel(
                 flightNumber = flightInfo.flightNumber,
                 reservationConfirmationNumber = flightInfo.bookingReference,
                 stopName = flightInfo.arrivalPlace,
+                departureDateTime = if (flightInfo.departureDate != null && flightInfo.departureTime != null) {
+                    ZonedDateTime.of(flightInfo.departureDate, flightInfo.departureTime, ZoneId.systemDefault())
+                } else {
+                    null
+                },
             ),
         )
     }
@@ -626,14 +633,34 @@ class DocumentInfoViewModel(
     /**
      * Applies [flightInfo] to [leg], filling only blank fields and preserving existing non-blank
      * values. Persists the change via [updateTransportLeg] only when the leg actually changes.
+     *
+     * Departure and arrival times extracted from the document are always applied: if the leg
+     * already has a [TransportLeg.departureDateTime] or [TransportLeg.arrivalDateTime], only the
+     * time portion is updated while the date and zone are preserved. When the leg has no
+     * departure datetime but both [FlightInfo.departureDate] and [FlightInfo.departureTime] are
+     * available, a new datetime is constructed using the system default zone.
      */
     private suspend fun applyFlightInfoToLeg(flightInfo: FlightInfo, leg: TransportLeg) {
+        val newDepartureDateTime: ZonedDateTime? = when {
+            flightInfo.departureTime != null && leg.departureDateTime != null ->
+                leg.departureDateTime.with(flightInfo.departureTime)
+            flightInfo.departureTime != null && flightInfo.departureDate != null ->
+                ZonedDateTime.of(flightInfo.departureDate, flightInfo.departureTime, ZoneId.systemDefault())
+            else -> leg.departureDateTime
+        }
+        val newArrivalDateTime: ZonedDateTime? = when {
+            flightInfo.arrivalTime != null && leg.arrivalDateTime != null ->
+                leg.arrivalDateTime.with(flightInfo.arrivalTime)
+            else -> leg.arrivalDateTime
+        }
         val updatedLeg = leg.copy(
             company = leg.company?.ifBlank { null } ?: flightInfo.airline,
             flightNumber = leg.flightNumber?.ifBlank { null } ?: flightInfo.flightNumber,
             reservationConfirmationNumber = leg.reservationConfirmationNumber
                 ?.ifBlank { null } ?: flightInfo.bookingReference,
             stopName = leg.stopName?.ifBlank { null } ?: flightInfo.arrivalPlace,
+            departureDateTime = newDepartureDateTime,
+            arrivalDateTime = newArrivalDateTime,
         )
         if (updatedLeg != leg) {
             updateTransportLeg(updatedLeg)

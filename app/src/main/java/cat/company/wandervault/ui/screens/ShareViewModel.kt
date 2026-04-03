@@ -28,6 +28,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.launch
+import java.time.ZoneId
+import java.time.ZonedDateTime
 
 /**
  * ViewModel that drives the share-to-WanderVault flow.
@@ -446,12 +448,26 @@ class ShareViewModel(
     }
 
     private suspend fun applyFlightInfoToLeg(flightInfo: FlightInfo, leg: TransportLeg) {
+        val newDepartureDateTime: ZonedDateTime? = when {
+            flightInfo.departureTime != null && leg.departureDateTime != null ->
+                leg.departureDateTime.with(flightInfo.departureTime)
+            flightInfo.departureTime != null && flightInfo.departureDate != null ->
+                ZonedDateTime.of(flightInfo.departureDate, flightInfo.departureTime, ZoneId.systemDefault())
+            else -> leg.departureDateTime
+        }
+        val newArrivalDateTime: ZonedDateTime? = when {
+            flightInfo.arrivalTime != null && leg.arrivalDateTime != null ->
+                leg.arrivalDateTime.with(flightInfo.arrivalTime)
+            else -> leg.arrivalDateTime
+        }
         val updatedLeg = leg.copy(
             company = leg.company?.ifBlank { null } ?: flightInfo.airline,
             flightNumber = leg.flightNumber?.ifBlank { null } ?: flightInfo.flightNumber,
             reservationConfirmationNumber = leg.reservationConfirmationNumber
                 ?.ifBlank { null } ?: flightInfo.bookingReference,
             stopName = leg.stopName?.ifBlank { null } ?: flightInfo.arrivalPlace,
+            departureDateTime = newDepartureDateTime,
+            arrivalDateTime = newArrivalDateTime,
         )
         if (updatedLeg != leg) {
             updateTransportLeg(updatedLeg)

@@ -7,6 +7,7 @@ import cat.company.wandervault.domain.model.HotelInfo
 import cat.company.wandervault.domain.model.OrganizationPlan
 import cat.company.wandervault.domain.model.TripDocument
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.format.DateTimeParseException
 
 private const val SECTION_SEPARATOR = "---"
@@ -20,8 +21,8 @@ internal const val HOTEL_MARKER = "HOTEL|"
  * ```
  * <summary text>
  * ---
- * FLIGHT|<airline>|<flight number>|<booking ref>|<departure city>|<arrival city>|<departure date (YYYY-MM-DD)>
- * FLIGHT|<airline>|<flight number>|<booking ref>|<departure city>|<arrival city>|<departure date (YYYY-MM-DD)>
+ * FLIGHT|<airline>|<flight number>|<booking ref>|<departure city>|<arrival city>|<departure date (YYYY-MM-DD)>|<departure time (HH:MM)>|<arrival time (HH:MM)>
+ * FLIGHT|<airline>|<flight number>|<booking ref>|<departure city>|<arrival city>|<departure date (YYYY-MM-DD)>|<departure time (HH:MM)>|<arrival time (HH:MM)>
  * ```
  * or
  * ```
@@ -77,6 +78,10 @@ internal fun parseDocumentResponse(raw: String): DocumentExtractionResult {
                 arrivalPlace = fields.getOrNull(4)?.trim()?.ifBlank { null },
                 departureDate = fields.getOrNull(5)?.trim()?.ifBlank { null }
                     ?.parseLocalDateOrNull(),
+                departureTime = fields.getOrNull(6)?.trim()?.ifBlank { null }
+                    ?.parseLocalTimeOrNull(),
+                arrivalTime = fields.getOrNull(7)?.trim()?.ifBlank { null }
+                    ?.parseLocalTimeOrNull(),
             )
         }
 
@@ -113,6 +118,16 @@ internal fun parseDocumentResponse(raw: String): DocumentExtractionResult {
  */
 internal fun String.parseLocalDateOrNull(): LocalDate? = try {
     LocalDate.parse(this)
+} catch (_: DateTimeParseException) {
+    null
+}
+
+/**
+ * Parses an HH:MM time string into a [LocalTime], returning `null` if the string is malformed
+ * or represents an invalid time.
+ */
+internal fun String.parseLocalTimeOrNull(): LocalTime? = try {
+    LocalTime.parse(this)
 } catch (_: DateTimeParseException) {
     null
 }
