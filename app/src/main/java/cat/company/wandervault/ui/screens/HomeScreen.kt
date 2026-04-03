@@ -11,21 +11,28 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
@@ -33,6 +40,8 @@ import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -49,7 +58,10 @@ import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -66,18 +78,13 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cat.company.wandervault.R
+import cat.company.wandervault.domain.model.ImageSearchResult
 import cat.company.wandervault.domain.model.Trip
 import cat.company.wandervault.ui.sharedTripCoverBounds
 import cat.company.wandervault.ui.theme.WanderVaultTheme
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import org.koin.androidx.compose.koinViewModel
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.foundation.clickable
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -113,6 +120,12 @@ fun HomeScreen(modifier: Modifier = Modifier, viewModel: HomeViewModel = koinVie
         onFavoriteClick = viewModel::onToggleFavorite,
         onArchiveClick = viewModel::onArchiveTrip,
         onTripClick = onTripClick,
+        onOpenImageSearchForAdd = { viewModel.onOpenImageSearch(forAdd = true) },
+        onOpenImageSearchForEdit = { viewModel.onOpenImageSearch(forAdd = false) },
+        onDismissImageSearch = viewModel::onDismissImageSearch,
+        onImageSearchQueryChange = viewModel::onImageSearchQueryChange,
+        onSearchImages = viewModel::onSearchImages,
+        onSelectSearchImage = viewModel::onSelectSearchImage,
         modifier = modifier,
     )
 }
@@ -145,6 +158,12 @@ internal fun HomeScreenContent(
     onFavoriteClick: (Trip) -> Unit = {},
     onArchiveClick: (Trip) -> Unit = {},
     onTripClick: (Int) -> Unit = {},
+    onOpenImageSearchForAdd: () -> Unit = {},
+    onOpenImageSearchForEdit: () -> Unit = {},
+    onDismissImageSearch: () -> Unit = {},
+    onImageSearchQueryChange: (String) -> Unit = {},
+    onSearchImages: () -> Unit = {},
+    onSelectSearchImage: (ImageSearchResult, Boolean) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier,
 ) {
     Box(modifier = modifier.fillMaxSize()) {
@@ -203,6 +222,19 @@ internal fun HomeScreenContent(
             isFormValid = uiState.isAddTripFormValid,
             onSave = onSaveTrip,
             onDismiss = onDismissDialog,
+            onSearchOnline = onOpenImageSearchForAdd,
+            showImageSearch = uiState.showImageSearchDialog,
+            imageSearchQuery = uiState.imageSearchQuery,
+            onImageSearchQueryChange = onImageSearchQueryChange,
+            onSearchImages = onSearchImages,
+            imageSearchLoading = uiState.imageSearchLoading,
+            imageDownloading = uiState.imageDownloading,
+            imageSearchResults = uiState.imageSearchResults,
+            imageSearchError = uiState.imageSearchError,
+            imageSearchNoResults = uiState.imageSearchNoResults,
+            imageDownloadError = uiState.imageDownloadError,
+            onSelectSearchImage = { result -> onSelectSearchImage(result, true) },
+            onDismissImageSearch = onDismissImageSearch,
         )
     }
 
@@ -217,6 +249,19 @@ internal fun HomeScreenContent(
             isFormValid = uiState.isEditTripFormValid,
             onSave = onUpdateTrip,
             onDismiss = onDismissEditDialog,
+            onSearchOnline = onOpenImageSearchForEdit,
+            showImageSearch = uiState.showImageSearchDialog,
+            imageSearchQuery = uiState.imageSearchQuery,
+            onImageSearchQueryChange = onImageSearchQueryChange,
+            onSearchImages = onSearchImages,
+            imageSearchLoading = uiState.imageSearchLoading,
+            imageDownloading = uiState.imageDownloading,
+            imageSearchResults = uiState.imageSearchResults,
+            imageSearchError = uiState.imageSearchError,
+            imageSearchNoResults = uiState.imageSearchNoResults,
+            imageDownloadError = uiState.imageDownloadError,
+            onSelectSearchImage = { result -> onSelectSearchImage(result, false) },
+            onDismissImageSearch = onDismissImageSearch,
         )
     }
 
@@ -369,6 +414,19 @@ private fun SwipeToArchiveBackground(swipeState: SwipeToDismissBoxState) {
  * @param isFormValid Whether the form inputs are valid, enabling the save button.
  * @param onSave Called when the user confirms the dialog.
  * @param onDismiss Called when the user cancels or dismisses the dialog.
+ * @param onSearchOnline Called when the user wants to search for an image online.
+ * @param showImageSearch Whether to show the inline image search dialog.
+ * @param imageSearchQuery The current search query text.
+ * @param onImageSearchQueryChange Called when the search query changes.
+ * @param onSearchImages Called to trigger an image search.
+ * @param imageSearchLoading True while a search is in progress.
+ * @param imageDownloading True while a selected image is being downloaded.
+ * @param imageSearchResults The current list of search results.
+ * @param imageSearchError True when the search failed due to a network/API error.
+ * @param imageSearchNoResults True when the search succeeded but returned no results.
+ * @param imageDownloadError True when the download of a selected image failed.
+ * @param onSelectSearchImage Called with the chosen [ImageSearchResult].
+ * @param onDismissImageSearch Called when the image search dialog is dismissed.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -383,11 +441,40 @@ private fun TripFormDialog(
     isFormValid: Boolean,
     onSave: () -> Unit,
     onDismiss: () -> Unit,
+    onSearchOnline: () -> Unit = {},
+    showImageSearch: Boolean = false,
+    imageSearchQuery: String = "",
+    onImageSearchQueryChange: (String) -> Unit = {},
+    onSearchImages: () -> Unit = {},
+    imageSearchLoading: Boolean = false,
+    imageDownloading: Boolean = false,
+    imageSearchResults: List<ImageSearchResult> = emptyList(),
+    imageSearchError: Boolean = false,
+    imageSearchNoResults: Boolean = false,
+    imageDownloadError: Boolean = false,
+    onSelectSearchImage: (ImageSearchResult) -> Unit = {},
+    onDismissImageSearch: () -> Unit = {},
 ) {
     val imagePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia(),
     ) { uri: Uri? ->
         onImageUriChange(uri?.toString())
+    }
+
+    if (showImageSearch) {
+        ImageSearchDialog(
+            query = imageSearchQuery,
+            onQueryChange = onImageSearchQueryChange,
+            onSearch = onSearchImages,
+            isLoading = imageSearchLoading,
+            isDownloading = imageDownloading,
+            results = imageSearchResults,
+            hasError = imageSearchError,
+            hasNoResults = imageSearchNoResults,
+            hasDownloadError = imageDownloadError,
+            onSelectImage = onSelectSearchImage,
+            onDismiss = onDismissImageSearch,
+        )
     }
 
     AlertDialog(
@@ -439,6 +526,13 @@ private fun TripFormDialog(
                     ) {
                         Text(stringResource(R.string.trip_image_pick))
                     }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    OutlinedButton(
+                        onClick = onSearchOnline,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(stringResource(R.string.trip_image_search_online))
+                    }
                 }
             }
         },
@@ -462,6 +556,19 @@ private fun AddTripDialog(
     isFormValid: Boolean,
     onSave: () -> Unit,
     onDismiss: () -> Unit,
+    onSearchOnline: () -> Unit = {},
+    showImageSearch: Boolean = false,
+    imageSearchQuery: String = "",
+    onImageSearchQueryChange: (String) -> Unit = {},
+    onSearchImages: () -> Unit = {},
+    imageSearchLoading: Boolean = false,
+    imageDownloading: Boolean = false,
+    imageSearchResults: List<ImageSearchResult> = emptyList(),
+    imageSearchError: Boolean = false,
+    imageSearchNoResults: Boolean = false,
+    imageDownloadError: Boolean = false,
+    onSelectSearchImage: (ImageSearchResult) -> Unit = {},
+    onDismissImageSearch: () -> Unit = {},
 ) {
     TripFormDialog(
         dialogTitle = stringResource(R.string.add_trip_title),
@@ -474,6 +581,19 @@ private fun AddTripDialog(
         isFormValid = isFormValid,
         onSave = onSave,
         onDismiss = onDismiss,
+        onSearchOnline = onSearchOnline,
+        showImageSearch = showImageSearch,
+        imageSearchQuery = imageSearchQuery,
+        onImageSearchQueryChange = onImageSearchQueryChange,
+        onSearchImages = onSearchImages,
+        imageSearchLoading = imageSearchLoading,
+        imageDownloading = imageDownloading,
+        imageSearchResults = imageSearchResults,
+        imageSearchError = imageSearchError,
+        imageSearchNoResults = imageSearchNoResults,
+        imageDownloadError = imageDownloadError,
+        onSelectSearchImage = onSelectSearchImage,
+        onDismissImageSearch = onDismissImageSearch,
     )
 }
 
@@ -488,6 +608,19 @@ private fun EditTripDialog(
     isFormValid: Boolean,
     onSave: () -> Unit,
     onDismiss: () -> Unit,
+    onSearchOnline: () -> Unit = {},
+    showImageSearch: Boolean = false,
+    imageSearchQuery: String = "",
+    onImageSearchQueryChange: (String) -> Unit = {},
+    onSearchImages: () -> Unit = {},
+    imageSearchLoading: Boolean = false,
+    imageDownloading: Boolean = false,
+    imageSearchResults: List<ImageSearchResult> = emptyList(),
+    imageSearchError: Boolean = false,
+    imageSearchNoResults: Boolean = false,
+    imageDownloadError: Boolean = false,
+    onSelectSearchImage: (ImageSearchResult) -> Unit = {},
+    onDismissImageSearch: () -> Unit = {},
 ) {
     TripFormDialog(
         dialogTitle = stringResource(R.string.edit_trip_title),
@@ -500,6 +633,19 @@ private fun EditTripDialog(
         isFormValid = isFormValid,
         onSave = onSave,
         onDismiss = onDismiss,
+        onSearchOnline = onSearchOnline,
+        showImageSearch = showImageSearch,
+        imageSearchQuery = imageSearchQuery,
+        onImageSearchQueryChange = onImageSearchQueryChange,
+        onSearchImages = onSearchImages,
+        imageSearchLoading = imageSearchLoading,
+        imageDownloading = imageDownloading,
+        imageSearchResults = imageSearchResults,
+        imageSearchError = imageSearchError,
+        imageSearchNoResults = imageSearchNoResults,
+        imageDownloadError = imageDownloadError,
+        onSelectSearchImage = onSelectSearchImage,
+        onDismissImageSearch = onDismissImageSearch,
     )
 }
 
@@ -521,6 +667,149 @@ private fun DeleteTripConfirmationDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.dialog_cancel)) }
+        },
+    )
+}
+
+/**
+ * Dialog that lets the user search for images online and pick one for their trip.
+ *
+ * Results are displayed in a 3-column thumbnail grid. Tapping a thumbnail starts the image
+ * selection/download flow for the chosen result. The dialog stays open when a download fails so
+ * the user can retry or dismiss manually.
+ */
+@Composable
+private fun ImageSearchDialog(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    onSearch: () -> Unit,
+    isLoading: Boolean,
+    isDownloading: Boolean,
+    results: List<ImageSearchResult>,
+    hasError: Boolean,
+    hasNoResults: Boolean,
+    hasDownloadError: Boolean,
+    onSelectImage: (ImageSearchResult) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.image_search_dialog_title)) },
+        text = {
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = onQueryChange,
+                        label = { Text(stringResource(R.string.image_search_hint)) },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(
+                        onClick = onSearch,
+                        enabled = query.isNotBlank() && !isLoading && !isDownloading,
+                    ) {
+                        Text(stringResource(R.string.image_search_button))
+                    }
+                }
+                if (hasDownloadError) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = stringResource(R.string.image_search_download_error),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                when {
+                    isDownloading -> {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(80.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                CircularProgressIndicator()
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = stringResource(R.string.image_search_downloading),
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                            }
+                        }
+                    }
+                    isLoading -> {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(80.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                CircularProgressIndicator()
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = stringResource(R.string.image_search_loading),
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                            }
+                        }
+                    }
+                    hasError -> {
+                        Text(
+                            text = stringResource(R.string.image_search_error),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(vertical = 8.dp),
+                        )
+                    }
+                    hasNoResults -> {
+                        Text(
+                            text = stringResource(R.string.image_search_no_results),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(vertical = 8.dp),
+                        )
+                    }
+                    results.isNotEmpty() -> {
+                        LazyVerticalGrid(
+                            columns = GridCells.Fixed(3),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 360.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            items(results) { result ->
+                                AsyncImage(
+                                    model = ImageRequest.Builder(LocalContext.current)
+                                        .data(result.thumbnailUrl)
+                                        .crossfade(true)
+                                        .build(),
+                                    contentDescription = stringResource(
+                                        R.string.image_search_result_desc,
+                                        result.description,
+                                    ),
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier
+                                        .aspectRatio(1f)
+                                        .clip(MaterialTheme.shapes.small)
+                                        .clickable { onSelectImage(result) },
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !isDownloading) { Text(stringResource(R.string.dialog_cancel)) }
         },
     )
 }

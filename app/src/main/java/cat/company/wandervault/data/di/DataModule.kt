@@ -16,8 +16,10 @@ import cat.company.wandervault.domain.repository.BackupRepository
 import cat.company.wandervault.domain.repository.DocumentSummaryRepository
 import cat.company.wandervault.domain.repository.DestinationRepository
 import cat.company.wandervault.data.repository.HotelRepositoryImpl
+import cat.company.wandervault.data.repository.ImageSearchRepositoryImpl
 import cat.company.wandervault.domain.repository.HotelRepository
 import cat.company.wandervault.domain.repository.ImageRepository
+import cat.company.wandervault.domain.repository.ImageSearchRepository
 import cat.company.wandervault.domain.repository.TransportRepository
 import cat.company.wandervault.domain.repository.TripDescriptionRepository
 import cat.company.wandervault.domain.repository.TripDocumentRepository
@@ -67,6 +69,7 @@ val dataModule = module {
     single<HotelRepository> { HotelRepositoryImpl(get()) }
     single<TripDocumentRepository> { TripDocumentRepositoryImpl(androidContext(), get(), get()) }
     single<ImageRepository> { ImageRepositoryImpl(androidContext()) }
+    single<ImageSearchRepository> { ImageSearchRepositoryImpl(androidContext()) }
     single<TripDescriptionRepository> { TripDescriptionRepositoryImpl(get()) }
     single<DocumentSummaryRepository> { DocumentSummaryRepositoryImpl(androidContext(), get()) }
     single<BackupRepository> { BackupRepositoryImpl(androidContext(), get()) }
