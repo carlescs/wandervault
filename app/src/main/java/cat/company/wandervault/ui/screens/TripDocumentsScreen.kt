@@ -277,9 +277,9 @@ internal fun TripDocumentsContent(
     // At root level the AI analyzes all trip documents (including those inside folders), so
     // check the full-trip count; inside a folder only that folder's documents are organized.
     val hasDocuments = if (successState?.currentFolder == null) {
-        (successState?.allDocuments?.size ?: 0) >= 2
+        (successState?.allDocuments?.size ?: 0) >= 1
     } else {
-        (successState.documents.size) >= 2
+        (successState.documents.size) >= 1
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
