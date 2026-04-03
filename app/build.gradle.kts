@@ -36,6 +36,13 @@ android {
         versionName = (project.findProperty("versionName") as String?) ?: getVersionNameFromTag()
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        val localProps = java.util.Properties()
+        val localPropsFile = rootProject.file("local.properties")
+        if (localPropsFile.exists()) localPropsFile.inputStream().use { localProps.load(it) }
+        val pixabayApiKey =
+            (localProps.getProperty("PIXABAY_API_KEY") ?: System.getenv("PIXABAY_API_KEY") ?: "")
+        buildConfigField("String", "PIXABAY_API_KEY", "\"$pixabayApiKey\"")
     }
 
     val keystorePath = System.getenv("KEYSTORE_PATH")
@@ -73,6 +80,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     packaging {
     }
