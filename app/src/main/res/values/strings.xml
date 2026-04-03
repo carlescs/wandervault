@@ -89,19 +89,8 @@
 
     <!-- Trip image picker -->
     <string name="trip_image_pick">Pick background image</string>
-    <string name="trip_image_search_online">Search online</string>
     <string name="trip_image_remove">Remove image</string>
     <string name="trip_image_content_desc">Trip background image</string>
-
-    <!-- Online image search dialog -->
-    <string name="image_search_dialog_title">Search Images</string>
-    <string name="image_search_hint">Search for images…</string>
-    <string name="image_search_button">Search</string>
-    <string name="image_search_loading">Searching…</string>
-    <string name="image_search_no_results">No results found. Try a different query.</string>
-    <string name="image_search_error">Search failed. Please check your connection and try again.</string>
-    <string name="image_search_result_desc">Search result: %1$s</string>
-    <string name="image_search_clear_query">Clear search query</string>
 
     <!-- Trip Detail screen -->
     <string name="trip_detail_navigate_up">Navigate up</string>

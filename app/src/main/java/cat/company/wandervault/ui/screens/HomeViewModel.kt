@@ -3,7 +3,6 @@ package cat.company.wandervault.ui.screens
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import cat.company.wandervault.domain.model.ImageSearchResult
 import cat.company.wandervault.domain.model.Trip
 import cat.company.wandervault.domain.usecase.CopyImageToInternalStorageUseCase
 import cat.company.wandervault.domain.usecase.DeleteImageUseCase
@@ -11,7 +10,6 @@ import cat.company.wandervault.domain.usecase.DeleteTripUseCase
 import cat.company.wandervault.domain.usecase.ArchiveTripUseCase
 import cat.company.wandervault.domain.usecase.GetTripsUseCase
 import cat.company.wandervault.domain.usecase.SaveTripUseCase
-import cat.company.wandervault.domain.usecase.SearchImagesUseCase
 import cat.company.wandervault.domain.usecase.ToggleFavoriteTripUseCase
 import cat.company.wandervault.domain.usecase.UpdateTripUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,7 +27,6 @@ class HomeViewModel(
     private val deleteTrip: DeleteTripUseCase,
     private val toggleFavorite: ToggleFavoriteTripUseCase,
     private val archiveTrip: ArchiveTripUseCase,
-    private val searchImages: SearchImagesUseCase,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -182,79 +179,6 @@ class HomeViewModel(
         viewModelScope.launch {
             archiveTrip(trip.id)
         }
-    }
-
-    fun onOpenImageSearch(forAdd: Boolean) {
-        _uiState.update {
-            it.copy(
-                showImageSearchDialog = true,
-                imageSearchQuery = "",
-                imageSearchResults = emptyList(),
-                imageSearchLoading = false,
-                imageSearchError = false,
-                imageSearchNoResults = false,
-            )
-        }
-    }
-
-    fun onDismissImageSearch() {
-        _uiState.update {
-            it.copy(
-                showImageSearchDialog = false,
-                imageSearchQuery = "",
-                imageSearchResults = emptyList(),
-                imageSearchLoading = false,
-                imageSearchError = false,
-                imageSearchNoResults = false,
-            )
-        }
-    }
-
-    fun onImageSearchQueryChange(query: String) {
-        _uiState.update { it.copy(imageSearchQuery = query, imageSearchError = false, imageSearchNoResults = false) }
-    }
-
-    fun onSearchImages() {
-        val query = _uiState.value.imageSearchQuery.trim()
-        if (query.isBlank()) return
-        _uiState.update {
-            it.copy(
-                imageSearchLoading = true,
-                imageSearchError = false,
-                imageSearchNoResults = false,
-                imageSearchResults = emptyList(),
-            )
-        }
-        viewModelScope.launch {
-            searchImages(query).fold(
-                onSuccess = { results ->
-                    _uiState.update {
-                        it.copy(
-                            imageSearchLoading = false,
-                            imageSearchResults = results,
-                            imageSearchNoResults = results.isEmpty(),
-                        )
-                    }
-                },
-                onFailure = {
-                    _uiState.update {
-                        it.copy(
-                            imageSearchLoading = false,
-                            imageSearchError = true,
-                        )
-                    }
-                },
-            )
-        }
-    }
-
-    fun onSelectSearchImage(result: ImageSearchResult, isAddDialog: Boolean) {
-        if (isAddDialog) {
-            _uiState.update { it.copy(addTripImageUri = result.fullUrl) }
-        } else {
-            _uiState.update { it.copy(editTripImageUri = result.fullUrl) }
-        }
-        onDismissImageSearch()
     }
 
     companion object {

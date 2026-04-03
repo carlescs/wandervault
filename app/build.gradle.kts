@@ -1,4 +1,3 @@
-import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
@@ -38,19 +37,6 @@ android {
         versionName = (project.findProperty("versionName") as String?) ?: getVersionNameFromTag()
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-
-        val localProps = Properties()
-        val localPropsFile = rootProject.file("local.properties")
-        if (localPropsFile.exists()) localPropsFile.inputStream().use { localProps.load(it) }
-        val pexelsApiKey =
-            (localProps.getProperty("PEXELS_API_KEY") ?: System.getenv("PEXELS_API_KEY") ?: "")
-                .trim()
-        val escapedPexelsApiKey = pexelsApiKey
-            .replace("\\", "\\\\")
-            .replace("\"", "\\\"")
-            .replace("\r", "\\r")
-            .replace("\n", "\\n")
-        buildConfigField("String", "PEXELS_API_KEY", "\"$escapedPexelsApiKey\"")
     }
 
     val keystorePath = System.getenv("KEYSTORE_PATH")

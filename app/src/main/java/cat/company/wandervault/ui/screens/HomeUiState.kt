@@ -1,6 +1,5 @@
 package cat.company.wandervault.ui.screens
 
-import cat.company.wandervault.domain.model.ImageSearchResult
 import cat.company.wandervault.domain.model.Trip
 
 data class HomeUiState(
@@ -16,14 +15,6 @@ data class HomeUiState(
     val editTripOriginalImageUri: String? = null,
     val editTripTimezone: String? = null,
     val tripToDelete: Trip? = null,
-    val showImageSearchDialog: Boolean = false,
-    val imageSearchQuery: String = "",
-    val imageSearchResults: List<ImageSearchResult> = emptyList(),
-    val imageSearchLoading: Boolean = false,
-    /** True when a network/API error prevented the search from completing. */
-    val imageSearchError: Boolean = false,
-    /** True when the search succeeded but returned no results. */
-    val imageSearchNoResults: Boolean = false,
 ) {
     val isAddTripFormValid: Boolean
         get() = addTripTitle.isNotBlank()
