@@ -43,6 +43,10 @@ import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxState
 import androidx.compose.material3.SwipeToDismissBoxValue
@@ -50,6 +54,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -91,29 +96,52 @@ import java.time.format.FormatStyle
 @Composable
 fun HomeScreen(modifier: Modifier = Modifier, viewModel: HomeViewModel = koinViewModel(), onTripClick: (Int) -> Unit = {}) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
 
-    HomeScreenContent(
-        uiState = uiState,
-        onAddTripClick = viewModel::onAddTripClick,
-        onDismissDialog = viewModel::onDismissAddTripDialog,
-        onTitleChange = viewModel::onAddTripTitleChange,
-        onImageUriChange = viewModel::onAddTripImageUriChange,
-        onTimezoneChange = viewModel::onAddTripTimezoneChange,
-        onSaveTrip = viewModel::onSaveTrip,
-        onEditTripClick = viewModel::onEditTripClick,
-        onDismissEditDialog = viewModel::onDismissEditTripDialog,
-        onEditTitleChange = viewModel::onEditTripTitleChange,
-        onEditImageUriChange = viewModel::onEditTripImageUriChange,
-        onEditTimezoneChange = viewModel::onEditTripTimezoneChange,
-        onUpdateTrip = viewModel::onUpdateTrip,
-        onDeleteTripClick = viewModel::onDeleteTripClick,
-        onConfirmDeleteTrip = viewModel::onConfirmDeleteTrip,
-        onDismissDeleteDialog = viewModel::onDismissDeleteTripDialog,
-        onFavoriteClick = viewModel::onToggleFavorite,
-        onArchiveClick = viewModel::onArchiveTrip,
-        onTripClick = onTripClick,
-        modifier = modifier,
-    )
+    val archivedMessage = stringResource(R.string.trip_archived_snackbar)
+    val undoLabel = stringResource(R.string.undo)
+    LaunchedEffect(uiState.pendingArchiveUndo) {
+        if (uiState.pendingArchiveUndo == null) return@LaunchedEffect
+        val result = snackbarHostState.showSnackbar(
+            message = archivedMessage,
+            actionLabel = undoLabel,
+            duration = SnackbarDuration.Short,
+        )
+        if (result == SnackbarResult.ActionPerformed) {
+            viewModel.onUndoArchive()
+        } else {
+            viewModel.onDismissArchiveSnackbar()
+        }
+    }
+
+    Box(modifier = modifier.fillMaxSize()) {
+        HomeScreenContent(
+            uiState = uiState,
+            onAddTripClick = viewModel::onAddTripClick,
+            onDismissDialog = viewModel::onDismissAddTripDialog,
+            onTitleChange = viewModel::onAddTripTitleChange,
+            onImageUriChange = viewModel::onAddTripImageUriChange,
+            onTimezoneChange = viewModel::onAddTripTimezoneChange,
+            onSaveTrip = viewModel::onSaveTrip,
+            onEditTripClick = viewModel::onEditTripClick,
+            onDismissEditDialog = viewModel::onDismissEditTripDialog,
+            onEditTitleChange = viewModel::onEditTripTitleChange,
+            onEditImageUriChange = viewModel::onEditTripImageUriChange,
+            onEditTimezoneChange = viewModel::onEditTripTimezoneChange,
+            onUpdateTrip = viewModel::onUpdateTrip,
+            onDeleteTripClick = viewModel::onDeleteTripClick,
+            onConfirmDeleteTrip = viewModel::onConfirmDeleteTrip,
+            onDismissDeleteDialog = viewModel::onDismissDeleteTripDialog,
+            onFavoriteClick = viewModel::onToggleFavorite,
+            onArchiveClick = viewModel::onArchiveTrip,
+            onTripClick = onTripClick,
+            modifier = Modifier.fillMaxSize(),
+        )
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter),
+        )
+    }
 }
 
 /**

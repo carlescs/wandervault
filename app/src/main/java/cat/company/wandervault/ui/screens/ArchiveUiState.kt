@@ -6,6 +6,7 @@ import cat.company.wandervault.domain.model.Trip
 data class ArchiveUiState(
     val trips: List<Trip> = emptyList(),
     val isLoading: Boolean = true,
+    val pendingUnarchiveUndo: Trip? = null,
 ) {
     /** `true` when loading is complete and there are no archived trips to display. */
     val showEmptyState: Boolean get() = !isLoading && trips.isEmpty()

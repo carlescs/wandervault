@@ -11,6 +11,7 @@ import cat.company.wandervault.domain.usecase.ArchiveTripUseCase
 import cat.company.wandervault.domain.usecase.GetTripsUseCase
 import cat.company.wandervault.domain.usecase.SaveTripUseCase
 import cat.company.wandervault.domain.usecase.ToggleFavoriteTripUseCase
+import cat.company.wandervault.domain.usecase.UnarchiveTripUseCase
 import cat.company.wandervault.domain.usecase.UpdateTripUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -27,6 +28,7 @@ class HomeViewModel(
     private val deleteTrip: DeleteTripUseCase,
     private val toggleFavorite: ToggleFavoriteTripUseCase,
     private val archiveTrip: ArchiveTripUseCase,
+    private val unarchiveTrip: UnarchiveTripUseCase,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -178,7 +180,20 @@ class HomeViewModel(
     fun onArchiveTrip(trip: Trip) {
         viewModelScope.launch {
             archiveTrip(trip.id)
+            _uiState.update { it.copy(pendingArchiveUndo = trip) }
         }
+    }
+
+    fun onUndoArchive() {
+        val trip = _uiState.value.pendingArchiveUndo ?: return
+        _uiState.update { it.copy(pendingArchiveUndo = null) }
+        viewModelScope.launch {
+            unarchiveTrip(trip.id)
+        }
+    }
+
+    fun onDismissArchiveSnackbar() {
+        _uiState.update { it.copy(pendingArchiveUndo = null) }
     }
 
     companion object {
