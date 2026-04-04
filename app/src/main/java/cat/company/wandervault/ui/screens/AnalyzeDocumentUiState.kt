@@ -61,10 +61,11 @@ sealed class AnalyzeDocumentUiState {
 
     /**
      * ML Kit extracted flight information but no flight legs exist in the trip. The user
-     * selects which destination's transport to add a new flight leg to, or skips.
+     * selects which destination to add a new flight leg to (a transport is created for the
+     * destination if one does not already exist), or skips.
      *
      * @param flightInfo The extracted flight details.
-     * @param candidates Destinations with an existing transport, ordered by position.
+     * @param candidates All destinations in the trip, ordered by position.
      */
     data class FlightTransportSelection(
         val flightInfo: FlightInfo,

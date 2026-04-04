@@ -481,10 +481,10 @@ class DocumentInfoViewModel(
      * [AnalyzeDocumentUiState.FlightConfirm] so the user can review and confirm the change.
      * When there is no confident match but there are flight legs, the state transitions to
      * [AnalyzeDocumentUiState.FlightLegSelection] (sorted by relevance) so the user can pick.
-     * When there are no flight legs but there are destinations with transports, the state
-     * transitions to [AnalyzeDocumentUiState.FlightTransportSelection] so the user can pick a
-     * transport to add a new leg to. When there are no transports at all the info is silently
-     * skipped.
+     * When there are no flight legs but there are destinations in the trip, the state transitions
+     * to [AnalyzeDocumentUiState.FlightTransportSelection] so the user can pick a destination to
+     * add a new leg to (creating the transport record if it does not yet exist). When there are no
+     * destinations at all the info is silently skipped.
      */
     private suspend fun applyOrDisambiguateFlightInfo(
         flightInfo: FlightInfo,
@@ -497,16 +497,15 @@ class DocumentInfoViewModel(
             .filter { it.type == TransportType.FLIGHT }
 
         if (allFlightLegs.isEmpty()) {
-            val destinationsWithTransport = allDestinations.filter { it.transport != null }
-            if (destinationsWithTransport.isEmpty()) {
-                Log.d(TAG, "No transport in trip $tripId; skipping flight info from $documentName")
+            if (allDestinations.isEmpty()) {
+                Log.d(TAG, "No destinations in trip $tripId; skipping flight info from $documentName")
                 processNextExtractedInfo()
                 return
             }
             pendingFlightInfo = flightInfo
             _analyzeState.value = AnalyzeDocumentUiState.FlightTransportSelection(
                 flightInfo = flightInfo,
-                candidates = destinationsWithTransport,
+                candidates = allDestinations,
             )
             return
         }
