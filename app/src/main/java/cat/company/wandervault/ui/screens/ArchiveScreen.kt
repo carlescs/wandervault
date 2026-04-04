@@ -141,7 +141,7 @@ internal fun ArchiveContent(
                             if (value == SwipeToDismissBoxValue.EndToStart) {
                                 currentUnarchiveAction()
                             }
-                            value != SwipeToDismissBoxValue.StartToEnd
+                            false
                         },
                     )
                     SwipeToDismissBox(
