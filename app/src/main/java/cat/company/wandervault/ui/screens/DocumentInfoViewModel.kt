@@ -481,10 +481,11 @@ class DocumentInfoViewModel(
      * [AnalyzeDocumentUiState.FlightConfirm] so the user can review and confirm the change.
      * When there is no confident match but there are flight legs, the state transitions to
      * [AnalyzeDocumentUiState.FlightLegSelection] (sorted by relevance) so the user can pick.
-     * When there are no flight legs but there are destinations in the trip, the state transitions
-     * to [AnalyzeDocumentUiState.FlightTransportSelection] so the user can pick a destination to
-     * add a new leg to (creating the transport record if it does not yet exist). When there are no
-     * destinations at all the info is silently skipped.
+     * When there are no flight legs but there are eligible non-terminal destinations in the trip,
+     * the state transitions to [AnalyzeDocumentUiState.FlightTransportSelection] so the user can
+     * pick a destination to add a new leg to (creating the transport record if it does not yet
+     * exist). If the trip has fewer than two destinations, so there is no eligible non-terminal
+     * destination, the info is silently skipped.
      */
     private suspend fun applyOrDisambiguateFlightInfo(
         flightInfo: FlightInfo,
@@ -497,15 +498,18 @@ class DocumentInfoViewModel(
             .filter { it.type == TransportType.FLIGHT }
 
         if (allFlightLegs.isEmpty()) {
-            if (allDestinations.isEmpty()) {
-                Log.d(TAG, "No destinations in trip $tripId; skipping flight info from $documentName")
+            // The last destination (highest position) has no onward transport, so exclude it.
+            val maxPosition = allDestinations.maxOfOrNull { it.position }
+            val nonTerminalDestinations = allDestinations.filter { it.position != maxPosition }
+            if (nonTerminalDestinations.isEmpty()) {
+                Log.d(TAG, "No non-terminal destinations in trip $tripId; skipping flight info from $documentName")
                 processNextExtractedInfo()
                 return
             }
             pendingFlightInfo = flightInfo
             _analyzeState.value = AnalyzeDocumentUiState.FlightTransportSelection(
                 flightInfo = flightInfo,
-                candidates = allDestinations,
+                candidates = nonTerminalDestinations,
             )
             return
         }
