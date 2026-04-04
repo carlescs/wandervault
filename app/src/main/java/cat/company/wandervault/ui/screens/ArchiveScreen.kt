@@ -8,7 +8,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -43,13 +42,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -136,15 +135,20 @@ internal fun ArchiveContent(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(uiState.trips, key = { it.id }) { trip ->
-                    val swipeState = rememberSwipeToDismissBoxState()
+                    val currentUnarchiveAction by rememberUpdatedState(newValue = { onUnarchiveClick(trip) })
+                    val swipeState = rememberSwipeToDismissBoxState(
+                        confirmValueChange = { value ->
+                            if (value == SwipeToDismissBoxValue.EndToStart) {
+                                currentUnarchiveAction()
+                            }
+                            value != SwipeToDismissBoxValue.StartToEnd
+                        },
+                    )
                     SwipeToDismissBox(
                         state = swipeState,
                         enableDismissFromStartToEnd = false,
                         backgroundContent = {
-                            SwipeToUnarchiveBackground(
-                                swipeState = swipeState,
-                                onUnarchiveClick = { onUnarchiveClick(trip) },
-                            )
+                            SwipeToUnarchiveBackground(swipeState = swipeState)
                         },
                         modifier = Modifier.animateItem(),
                     ) {
@@ -213,8 +217,7 @@ private fun ArchivedTripCard(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SwipeToUnarchiveBackground(swipeState: SwipeToDismissBoxState, onUnarchiveClick: () -> Unit) {
-    val isRevealed = swipeState.currentValue == SwipeToDismissBoxValue.EndToStart
+private fun SwipeToUnarchiveBackground(swipeState: SwipeToDismissBoxState) {
     val isActive = swipeState.targetValue == SwipeToDismissBoxValue.EndToStart
     val isSwiping = swipeState.dismissDirection == SwipeToDismissBoxValue.EndToStart
     val containerColor by animateColorAsState(
@@ -235,12 +238,6 @@ private fun SwipeToUnarchiveBackground(swipeState: SwipeToDismissBoxState, onUna
             .fillMaxSize()
             .clip(CardDefaults.shape)
             .background(containerColor)
-            .clickable(
-                enabled = isRevealed,
-                role = Role.Button,
-                onClickLabel = stringResource(R.string.unarchive_trip_content_desc),
-                onClick = onUnarchiveClick,
-            )
             .padding(end = 20.dp),
         contentAlignment = Alignment.CenterEnd,
     ) {
