@@ -50,7 +50,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -158,15 +157,15 @@ internal fun HomeScreenContent(
             ) {
                 items(uiState.trips, key = { it.id }) { trip ->
                     val swipeState = rememberSwipeToDismissBoxState()
-                    LaunchedEffect(swipeState.currentValue) {
-                        if (swipeState.currentValue == SwipeToDismissBoxValue.EndToStart) {
-                            onArchiveClick(trip)
-                        }
-                    }
                     SwipeToDismissBox(
                         state = swipeState,
                         enableDismissFromStartToEnd = false,
-                        backgroundContent = { SwipeToArchiveBackground(swipeState) },
+                        backgroundContent = {
+                            SwipeToArchiveBackground(
+                                swipeState = swipeState,
+                                onArchiveClick = { onArchiveClick(trip) },
+                            )
+                        },
                         modifier = Modifier.animateItem(),
                     ) {
                         TripCard(
@@ -306,7 +305,8 @@ private fun TripCard(trip: Trip, onEditClick: () -> Unit, onDeleteClick: () -> U
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SwipeToArchiveBackground(swipeState: SwipeToDismissBoxState) {
+private fun SwipeToArchiveBackground(swipeState: SwipeToDismissBoxState, onArchiveClick: () -> Unit) {
+    val isRevealed = swipeState.currentValue == SwipeToDismissBoxValue.EndToStart
     val isActive = swipeState.targetValue == SwipeToDismissBoxValue.EndToStart
     val isSwiping = swipeState.dismissDirection == SwipeToDismissBoxValue.EndToStart
     val containerColor by animateColorAsState(
@@ -327,6 +327,17 @@ private fun SwipeToArchiveBackground(swipeState: SwipeToDismissBoxState) {
             .fillMaxSize()
             .clip(CardDefaults.shape)
             .background(containerColor)
+            .then(
+                if (isRevealed) {
+                    Modifier.clickable(
+                        role = Role.Button,
+                        onClickLabel = stringResource(R.string.archive_trip_content_desc),
+                        onClick = onArchiveClick,
+                    )
+                } else {
+                    Modifier
+                }
+            )
             .padding(end = 20.dp),
         contentAlignment = Alignment.CenterEnd,
     ) {
