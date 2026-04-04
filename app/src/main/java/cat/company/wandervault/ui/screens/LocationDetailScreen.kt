@@ -641,10 +641,10 @@ private fun ActivityDraftForm(
         ) { DatePicker(state = state) }
     }
 
-    if (showTimePicker) {
+    if (showTimePicker && draft.dateTime != null) {
         val timeState = rememberTimePickerState(
-            initialHour = draft.dateTime?.hour ?: 0,
-            initialMinute = draft.dateTime?.minute ?: 0,
+            initialHour = draft.dateTime.hour,
+            initialMinute = draft.dateTime.minute,
         )
         AlertDialog(
             onDismissRequest = { showTimePicker = false },
@@ -653,10 +653,12 @@ private fun ActivityDraftForm(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        val date = draft.dateTime?.toLocalDate() ?: LocalDate.now()
-                        val zone = draft.dateTime?.zone ?: ZoneId.systemDefault()
                         onDateTimeChange(
-                            ZonedDateTime.of(date, LocalTime.of(timeState.hour, timeState.minute), zone),
+                            ZonedDateTime.of(
+                                draft.dateTime.toLocalDate(),
+                                LocalTime.of(timeState.hour, timeState.minute),
+                                draft.dateTime.zone,
+                            ),
                         )
                         showTimePicker = false
                     },
@@ -668,6 +670,9 @@ private fun ActivityDraftForm(
                 }
             },
         )
+    } else if (showTimePicker) {
+        // draft.dateTime became null after state restoration – close the dialog.
+        showTimePicker = false
     }
 
     Card(modifier = modifier.fillMaxWidth()) {
