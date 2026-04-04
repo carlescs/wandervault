@@ -189,10 +189,8 @@ internal fun HomeScreenContent(
                         confirmValueChange = { value ->
                             if (value == SwipeToDismissBoxValue.EndToStart) {
                                 currentArchiveAction()
-                                false
-                            } else {
-                                true
                             }
+                            value != SwipeToDismissBoxValue.StartToEnd
                         },
                     )
                     SwipeToDismissBox(

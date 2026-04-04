@@ -140,10 +140,8 @@ internal fun ArchiveContent(
                         confirmValueChange = { value ->
                             if (value == SwipeToDismissBoxValue.EndToStart) {
                                 currentUnarchiveAction()
-                                false
-                            } else {
-                                true
                             }
+                            value != SwipeToDismissBoxValue.StartToEnd
                         },
                     )
                     SwipeToDismissBox(
