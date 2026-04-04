@@ -72,6 +72,7 @@ import cat.company.wandervault.domain.model.TransportType
 import cat.company.wandervault.ui.theme.WanderVaultTheme
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
+import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
@@ -79,7 +80,6 @@ import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.time.temporal.ChronoUnit
-import java.util.concurrent.TimeUnit
 
 /** Tabs shown in the Location Detail bottom navigation bar. */
 private enum class LocationDetailTab(@StringRes val labelRes: Int, val icon: ImageVector) {
@@ -613,7 +613,7 @@ private fun ActivityDraftForm(
     if (showDatePicker) {
         val state = rememberDatePickerState(
             initialSelectedDateMillis = draft.dateTime?.toLocalDate()?.toEpochDay()
-                ?.times(TimeUnit.DAYS.toMillis(1)),
+                ?.times(Duration.ofDays(1).toMillis()),
         )
         DatePickerDialog(
             onDismissRequest = { showDatePicker = false },
@@ -621,7 +621,7 @@ private fun ActivityDraftForm(
                 TextButton(
                     onClick = {
                         state.selectedDateMillis?.let { millis ->
-                            val pickedDate = LocalDate.ofEpochDay(millis / TimeUnit.DAYS.toMillis(1))
+                            val pickedDate = LocalDate.ofEpochDay(millis / Duration.ofDays(1).toMillis())
                             val existingTime = draft.dateTime?.toLocalTime() ?: LocalTime.MIDNIGHT
                             val zone = draft.dateTime?.zone ?: ZoneId.systemDefault()
                             onDateTimeChange(ZonedDateTime.of(pickedDate, existingTime, zone))
