@@ -2,12 +2,16 @@ package cat.company.wandervault.ui.screens
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import cat.company.wandervault.domain.model.Activity
 import cat.company.wandervault.domain.model.Hotel
+import cat.company.wandervault.domain.usecase.DeleteActivityUseCase
 import cat.company.wandervault.domain.usecase.DeleteHotelUseCase
+import cat.company.wandervault.domain.usecase.GetActivitiesForDestinationUseCase
 import cat.company.wandervault.domain.usecase.GetArrivalTransportForDestinationUseCase
 import cat.company.wandervault.domain.usecase.GetDestinationByIdUseCase
 import cat.company.wandervault.domain.usecase.GetDestinationsForTripUseCase
 import cat.company.wandervault.domain.usecase.GetHotelForDestinationUseCase
+import cat.company.wandervault.domain.usecase.SaveActivityUseCase
 import cat.company.wandervault.domain.usecase.SaveHotelUseCase
 import cat.company.wandervault.domain.usecase.UpdateDestinationUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,8 +22,8 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import java.time.ZonedDateTime
 
 /**
  * ViewModel for the Location Detail screen.
@@ -36,6 +40,9 @@ import kotlinx.coroutines.launch
  * @param saveHotel Use-case that persists a hotel record.
  * @param deleteHotel Use-case that removes a hotel record.
  * @param updateDestination Use-case that persists changes to a destination (e.g. notes).
+ * @param getActivitiesForDestination Use-case that fetches activities for a destination.
+ * @param saveActivity Use-case that persists an activity record.
+ * @param deleteActivity Use-case that removes an activity record.
  */
 class LocationDetailViewModel(
     private val getDestinationById: GetDestinationByIdUseCase,
@@ -45,6 +52,9 @@ class LocationDetailViewModel(
     private val saveHotel: SaveHotelUseCase,
     private val deleteHotel: DeleteHotelUseCase,
     private val updateDestination: UpdateDestinationUseCase,
+    private val getActivitiesForDestination: GetActivitiesForDestinationUseCase,
+    private val saveActivity: SaveActivityUseCase,
+    private val deleteActivity: DeleteActivityUseCase,
 ) : ViewModel() {
 
     private val _destinationId = MutableStateFlow<Int?>(null)
@@ -62,6 +72,9 @@ class LocationDetailViewModel(
      */
     private var _hasUnsavedNotesEdits = false
 
+    /** The activity currently being created or edited. `null` means the form is closed. */
+    private val _activityDraft = MutableStateFlow<ActivityEditState?>(null)
+
     private val _uiState = MutableStateFlow<LocationDetailUiState>(LocationDetailUiState.Loading)
     val uiState: StateFlow<LocationDetailUiState> = _uiState.asStateFlow()
 
@@ -74,13 +87,18 @@ class LocationDetailViewModel(
                         getDestinationById(id),
                         getArrivalTransport(id),
                         getHotelForDestination(id),
-                    ) { destination, arrivalTransport, hotel ->
-                        Triple(destination, arrivalTransport, hotel)
-                    }.flatMapLatest { (destination, arrivalTransport, hotel) ->
+                        getActivitiesForDestination(id),
+                    ) { destination, arrivalTransport, hotel, activities ->
+                        Pair(Triple(destination, arrivalTransport, hotel), activities)
+                    }.flatMapLatest { (triple, activities) ->
+                        val (destination, arrivalTransport, hotel) = triple
                         if (destination == null) {
                             flowOf(LocationDetailUiState.Error)
                         } else {
-                            getDestinationsForTrip(destination.tripId).map { tripDestinations ->
+                            combine(
+                                getDestinationsForTrip(destination.tripId),
+                                _activityDraft,
+                            ) { tripDestinations, activityDraft ->
                                 val firstPosition = tripDestinations.firstOrNull()?.position
                                 val lastPosition = tripDestinations.lastOrNull()?.position
                                 val isFirst = destination.position == firstPosition
@@ -106,6 +124,8 @@ class LocationDetailViewModel(
                                     isLast = isLast,
                                     hotelEditState = hotelEditState,
                                     notes = notes,
+                                    activities = activities,
+                                    activityDraft = activityDraft,
                                 )
                             }
                         }
@@ -134,6 +154,7 @@ class LocationDetailViewModel(
             _uiState.value = LocationDetailUiState.Loading
             _hasUnsavedHotelEdits = false
             _hasUnsavedNotesEdits = false
+            _activityDraft.value = null
             _destinationId.value = id
         }
     }
@@ -170,6 +191,80 @@ class LocationDetailViewModel(
             persistNotes()
         }
     }
+
+    // ── Activity draft management ─────────────────────────────────────────────
+
+    /** Opens a blank activity draft form for creating a new activity. */
+    fun onOpenNewActivityDraft() {
+        _activityDraft.value = ActivityEditState()
+    }
+
+    /**
+     * Opens the activity draft form pre-populated with an existing [activity] for editing.
+     */
+    fun onEditActivity(activity: Activity) {
+        _activityDraft.value = ActivityEditState(
+            id = activity.id,
+            title = activity.title,
+            description = activity.description,
+            dateTime = activity.dateTime,
+            confirmationNumber = activity.confirmationNumber,
+        )
+    }
+
+    /** Closes the activity draft form without saving. */
+    fun onCloseActivityDraft() {
+        _activityDraft.value = null
+    }
+
+    /** Updates the title field of the activity draft. */
+    fun onActivityDraftTitleChange(value: String) {
+        _activityDraft.value = _activityDraft.value?.copy(title = value)
+    }
+
+    /** Updates the description field of the activity draft. */
+    fun onActivityDraftDescriptionChange(value: String) {
+        _activityDraft.value = _activityDraft.value?.copy(description = value)
+    }
+
+    /** Updates the date/time field of the activity draft. */
+    fun onActivityDraftDateTimeChange(value: ZonedDateTime?) {
+        _activityDraft.value = _activityDraft.value?.copy(dateTime = value)
+    }
+
+    /** Updates the confirmation number field of the activity draft. */
+    fun onActivityDraftConfirmationNumberChange(value: String) {
+        _activityDraft.value = _activityDraft.value?.copy(confirmationNumber = value)
+    }
+
+    /** Saves the current activity draft to the database and closes the form. */
+    fun onSaveActivityDraft() {
+        val draft = _activityDraft.value ?: return
+        if (draft.title.isBlank()) return
+        val destinationId = (_uiState.value as? LocationDetailUiState.Success)?.destination?.id ?: return
+        viewModelScope.launch {
+            saveActivity(
+                Activity(
+                    id = draft.id,
+                    destinationId = destinationId,
+                    title = draft.title.trim(),
+                    description = draft.description.trim(),
+                    dateTime = draft.dateTime,
+                    confirmationNumber = draft.confirmationNumber.trim(),
+                ),
+            )
+            _activityDraft.value = null
+        }
+    }
+
+    /** Deletes the given [activity] from the database. */
+    fun onDeleteActivity(activity: Activity) {
+        viewModelScope.launch {
+            deleteActivity(activity)
+        }
+    }
+
+    // ── Internal helpers ──────────────────────────────────────────────────────
 
     private suspend fun persistHotel() {
         if (!_hasUnsavedHotelEdits) return
