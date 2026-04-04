@@ -38,9 +38,9 @@ class ArchiveViewModel(
 
     fun onUndoUnarchive() {
         val trip = _uiState.value.pendingUnarchiveUndo ?: return
-        _uiState.update { it.copy(pendingUnarchiveUndo = null) }
         viewModelScope.launch {
             archiveTrip(trip.id)
+            _uiState.update { it.copy(pendingUnarchiveUndo = null) }
         }
     }
 

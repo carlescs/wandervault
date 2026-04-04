@@ -186,9 +186,9 @@ class HomeViewModel(
 
     fun onUndoArchive() {
         val trip = _uiState.value.pendingArchiveUndo ?: return
-        _uiState.update { it.copy(pendingArchiveUndo = null) }
         viewModelScope.launch {
             unarchiveTrip(trip.id)
+            _uiState.update { it.copy(pendingArchiveUndo = null) }
         }
     }
 
