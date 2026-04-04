@@ -79,6 +79,7 @@ import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.time.temporal.ChronoUnit
+import java.util.concurrent.TimeUnit
 
 /** Tabs shown in the Location Detail bottom navigation bar. */
 private enum class LocationDetailTab(@StringRes val labelRes: Int, val icon: ImageVector) {
@@ -612,7 +613,7 @@ private fun ActivityDraftForm(
     if (showDatePicker) {
         val state = rememberDatePickerState(
             initialSelectedDateMillis = draft.dateTime?.toLocalDate()?.toEpochDay()
-                ?.times(MILLIS_PER_DAY),
+                ?.times(TimeUnit.DAYS.toMillis(1)),
         )
         DatePickerDialog(
             onDismissRequest = { showDatePicker = false },
@@ -620,7 +621,7 @@ private fun ActivityDraftForm(
                 TextButton(
                     onClick = {
                         state.selectedDateMillis?.let { millis ->
-                            val pickedDate = LocalDate.ofEpochDay(millis / MILLIS_PER_DAY)
+                            val pickedDate = LocalDate.ofEpochDay(millis / TimeUnit.DAYS.toMillis(1))
                             val existingTime = draft.dateTime?.toLocalTime() ?: LocalTime.MIDNIGHT
                             val zone = draft.dateTime?.zone ?: ZoneId.systemDefault()
                             onDateTimeChange(ZonedDateTime.of(pickedDate, existingTime, zone))
@@ -753,8 +754,6 @@ private fun ActivityDraftForm(
         }
     }
 }
-
-private const val MILLIS_PER_DAY = 86_400_000L
 
 @Composable
 private fun TransportsInfoSection(
