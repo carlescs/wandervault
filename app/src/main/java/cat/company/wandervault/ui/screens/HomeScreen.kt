@@ -327,7 +327,17 @@ private fun SwipeToArchiveBackground(swipeState: SwipeToDismissBoxState, onArchi
             .fillMaxSize()
             .clip(CardDefaults.shape)
             .background(containerColor)
-            .then(if (isRevealed) Modifier.clickable(role = Role.Button, onClickLabel = stringResource(R.string.archive_trip_content_desc), onClick = onArchiveClick) else Modifier)
+            .then(
+                if (isRevealed) {
+                    Modifier.clickable(
+                        role = Role.Button,
+                        onClickLabel = stringResource(R.string.archive_trip_content_desc),
+                        onClick = onArchiveClick,
+                    )
+                } else {
+                    Modifier
+                }
+            )
             .padding(end = 20.dp),
         contentAlignment = Alignment.CenterEnd,
     ) {

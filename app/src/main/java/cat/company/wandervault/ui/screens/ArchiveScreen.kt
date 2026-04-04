@@ -208,7 +208,12 @@ private fun SwipeToUnarchiveBackground(swipeState: SwipeToDismissBoxState, onUna
             .fillMaxSize()
             .clip(CardDefaults.shape)
             .background(containerColor)
-            .then(if (isRevealed) Modifier.clickable(role = Role.Button, onClickLabel = stringResource(R.string.unarchive_trip_content_desc), onClick = onUnarchiveClick) else Modifier)
+            .clickable(
+                enabled = isRevealed,
+                role = Role.Button,
+                onClickLabel = stringResource(R.string.unarchive_trip_content_desc),
+                onClick = onUnarchiveClick,
+            )
             .padding(end = 20.dp),
         contentAlignment = Alignment.CenterEnd,
     ) {
