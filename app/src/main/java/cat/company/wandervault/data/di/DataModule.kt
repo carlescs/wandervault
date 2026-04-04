@@ -52,6 +52,7 @@ val dataModule = module {
             WanderVaultDatabase.MIGRATION_18_19,
             WanderVaultDatabase.MIGRATION_19_20,
             WanderVaultDatabase.MIGRATION_20_21,
+            WanderVaultDatabase.MIGRATION_21_22,
         ).build()
     }
     single { get<WanderVaultDatabase>().tripDao() }

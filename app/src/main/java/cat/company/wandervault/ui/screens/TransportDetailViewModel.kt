@@ -8,6 +8,7 @@ import cat.company.wandervault.domain.model.TransportType
 import cat.company.wandervault.domain.usecase.DeleteTransportUseCase
 import cat.company.wandervault.domain.usecase.DeleteTransportLegUseCase
 import cat.company.wandervault.domain.usecase.GetDestinationByIdUseCase
+import cat.company.wandervault.domain.usecase.GetDocumentByIdUseCase
 import cat.company.wandervault.domain.usecase.GetNextDestinationUseCase
 import cat.company.wandervault.domain.usecase.GetOrCreateTransportForDestinationUseCase
 import cat.company.wandervault.domain.usecase.SaveTransportLegUseCase
@@ -19,6 +20,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -44,6 +46,8 @@ import java.time.ZonedDateTime
  * @param deleteTransport Use-case that removes the parent transport (and all legs via CASCADE).
  * @param updateDestination Use-case that updates a destination (used to sync the first leg's
  *   departure and the last leg's arrival with the corresponding destination date-times).
+ * @param getDocumentById Use-case that resolves a [cat.company.wandervault.domain.model.TripDocument]
+ *   by its ID; used to look up the name of the source document linked to a transport leg.
  */
 class TransportDetailViewModel(
     private val getDestinationById: GetDestinationByIdUseCase,
@@ -54,6 +58,7 @@ class TransportDetailViewModel(
     private val deleteTransportLeg: DeleteTransportLegUseCase,
     private val deleteTransport: DeleteTransportUseCase,
     private val updateDestination: UpdateDestinationUseCase,
+    private val getDocumentById: GetDocumentByIdUseCase,
 ) : ViewModel() {
 
     private val _destinationId = MutableStateFlow<Int?>(null)
@@ -107,11 +112,15 @@ class TransportDetailViewModel(
                         } else {
                             val dbLegs = destination.transport?.legs ?: emptyList()
                             dbLegs.mapIndexed { idx, leg ->
+                                val sourceDocName = leg.sourceDocumentId?.let { docId ->
+                                    getDocumentById(docId).first()?.name
+                                }
                                 leg.toEditState(
                                     isFirst = idx == 0,
                                     destinationDepartureDateTime = destination.departureDateTime,
                                     isLast = idx == dbLegs.lastIndex,
                                     nextArrivalDateTime = nextDestination?.arrivalDateTime,
+                                    sourceDocumentName = sourceDocName,
                                 )
                             }
                         }
@@ -278,6 +287,19 @@ class TransportDetailViewModel(
     }
 
     /**
+     * Removes the source document link for the leg at [index].
+     * The change is persisted immediately if the leg is already saved (has a positive ID).
+     */
+    fun onClearLegSourceDocument(index: Int) {
+        val current = _uiState.value as? TransportDetailUiState.Success ?: return
+        if (index !in current.legs.indices) return
+        val leg = current.legs[index]
+        if (leg.sourceDocumentId == null) return
+        _hasUnsavedEdits = true
+        updateLeg(index) { copy(sourceDocumentId = null, sourceDocumentName = null) }
+    }
+
+    /**
      * Suspending implementation that persists the current list of legs to the database.
      *
      * Being suspending lets [collectLatest] cancel an in-flight save if new edits arrive,
@@ -341,6 +363,7 @@ class TransportDetailViewModel(
                             isDefault = leg.isDefault,
                             departureDateTime = leg.departureDateTime,
                             arrivalDateTime = leg.arrivalDateTime,
+                            sourceDocumentId = leg.sourceDocumentId,
                         ),
                     )
                 }
@@ -409,6 +432,7 @@ private fun TransportLeg.toEditState(
     destinationDepartureDateTime: ZonedDateTime? = null,
     isLast: Boolean = false,
     nextArrivalDateTime: ZonedDateTime? = null,
+    sourceDocumentName: String? = null,
 ) = TransportLegEditState(
     id = id,
     clientKey = id,
@@ -433,5 +457,7 @@ private fun TransportLeg.toEditState(
     } else {
         arrivalDateTime
     },
+    sourceDocumentId = sourceDocumentId,
+    sourceDocumentName = sourceDocumentName,
 )
 

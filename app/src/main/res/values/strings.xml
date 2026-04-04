@@ -398,4 +398,9 @@
         <item quantity="other">Your trip starts in %d days</item>
     </plurals>
     <string name="notification_trip_in_progress">Your trip is in progress</string>
+
+    <!-- Source document link chip (shown on transport legs, hotels, and AI description) -->
+    <string name="source_document_label">Source: %s</string>
+    <string name="source_document_fallback_label">Source document</string>
+    <string name="source_document_remove">Remove document link</string>
 </resources>

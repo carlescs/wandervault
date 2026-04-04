@@ -8,6 +8,7 @@ import cat.company.wandervault.domain.model.Trip
 import cat.company.wandervault.domain.usecase.GenerateTripDescriptionUseCase
 import cat.company.wandervault.domain.usecase.GenerateWhatsNextUseCase
 import cat.company.wandervault.domain.usecase.GetDestinationsForTripUseCase
+import cat.company.wandervault.domain.usecase.GetDocumentByIdUseCase
 import cat.company.wandervault.domain.usecase.GetTripUseCase
 import cat.company.wandervault.domain.usecase.SaveTripDescriptionUseCase
 import cat.company.wandervault.domain.usecase.SaveTripWhatsNextUseCase
@@ -16,6 +17,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.time.ZonedDateTime
 
@@ -29,6 +31,8 @@ import java.time.ZonedDateTime
  * @param saveTripDescriptionUseCase Use-case that persists the AI description (or clears it).
  * @param generateWhatsNextUseCase Use-case that generates the "what's next" notice for the trip.
  * @param saveTripWhatsNextUseCase Use-case that persists the "what's next" notice and its deadline.
+ * @param getDocumentById Use-case that resolves a [cat.company.wandervault.domain.model.TripDocument]
+ *   by its ID; used to look up the name of the source document linked to the AI description.
  */
 class TripDetailViewModel(
     private val tripId: Int,
@@ -38,6 +42,7 @@ class TripDetailViewModel(
     private val saveTripDescriptionUseCase: SaveTripDescriptionUseCase,
     private val generateWhatsNextUseCase: GenerateWhatsNextUseCase,
     private val saveTripWhatsNextUseCase: SaveTripWhatsNextUseCase,
+    private val getDocumentById: GetDocumentByIdUseCase,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<TripDetailUiState>(TripDetailUiState.Loading)
@@ -102,7 +107,16 @@ class TripDetailViewModel(
                     val currentDescription =
                         (_uiState.value as? TripDetailUiState.Success)?.descriptionState
                     val persistedDescription = when {
-                        trip.aiDescription != null -> DescriptionState.Available(trip.aiDescription)
+                        trip.aiDescription != null -> {
+                            val sourceDocName = trip.aiDescriptionSourceDocumentId?.let { docId ->
+                                getDocumentById(docId).first()?.name
+                            }
+                            DescriptionState.Available(
+                                text = trip.aiDescription,
+                                sourceDocumentId = trip.aiDescriptionSourceDocumentId,
+                                sourceDocumentName = sourceDocName,
+                            )
+                        }
                         !aiAvailable -> DescriptionState.Unavailable
                         else -> DescriptionState.None
                     }
@@ -203,6 +217,30 @@ class TripDetailViewModel(
                 if (latest !is TripDetailUiState.Success) return@launch
                 if (latest.descriptionState !is DescriptionState.None) return@launch
                 _uiState.value = latest.copy(descriptionState = previousDescriptionState)
+            }
+        }
+    }
+
+    /**
+     * Removes the source document link from the AI description while keeping the text.
+     * No-op if the description does not have a source document link.
+     */
+    fun onClearDescriptionSource() {
+        val current = _uiState.value as? TripDetailUiState.Success ?: return
+        val descState = current.descriptionState as? DescriptionState.Available ?: return
+        if (descState.sourceDocumentId == null) return
+        val trip = lastTrip ?: return
+        _uiState.value = current.copy(
+            descriptionState = descState.copy(sourceDocumentId = null, sourceDocumentName = null),
+        )
+        viewModelScope.launch {
+            try {
+                saveTripDescriptionUseCase(trip, descState.text, sourceDocumentId = null)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to clear description source document", e)
+                val latest = _uiState.value as? TripDetailUiState.Success ?: return@launch
+                if ((latest.descriptionState as? DescriptionState.Available)?.sourceDocumentId != null) return@launch
+                _uiState.value = latest.copy(descriptionState = descState)
             }
         }
     }

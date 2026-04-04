@@ -26,6 +26,8 @@ import java.time.ZonedDateTime
  *   first leg this matches the parent [Destination.departureDateTime].  `null` when not yet set.
  * @param arrivalDateTime When the traveller arrives at the end of this leg (timezone-aware).
  *   For the last leg this matches the next [Destination.arrivalDateTime].  `null` when not yet set.
+ * @param sourceDocumentId The ID of the [cat.company.wandervault.domain.model.TripDocument] from
+ *   which this leg's information was extracted, or `null` when entered manually.
  */
 data class TransportLeg(
     val id: Int = 0,
@@ -39,4 +41,5 @@ data class TransportLeg(
     val isDefault: Boolean = false,
     val departureDateTime: ZonedDateTime? = null,
     val arrivalDateTime: ZonedDateTime? = null,
+    val sourceDocumentId: Int? = null,
 )

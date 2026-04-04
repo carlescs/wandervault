@@ -39,6 +39,7 @@ private fun HotelEntity.toDomain() = Hotel(
     name = name,
     address = address,
     reservationNumber = reservationNumber,
+    sourceDocumentId = sourceDocumentId,
 )
 
 private fun Hotel.toEntity() = HotelEntity(
@@ -47,4 +48,5 @@ private fun Hotel.toEntity() = HotelEntity(
     name = name,
     address = address,
     reservationNumber = reservationNumber,
+    sourceDocumentId = sourceDocumentId,
 )

@@ -122,6 +122,7 @@ fun TripDetailScreen(
         onNavigateToDocument = onNavigateToDocument,
         onRegenerateDescription = viewModel::regenerateDescription,
         onDeleteDescription = viewModel::deleteDescription,
+        onClearDescriptionSource = viewModel::onClearDescriptionSource,
         onRefreshWhatsNext = viewModel::refreshWhatsNext,
         modifier = modifier,
     )
@@ -148,6 +149,7 @@ internal fun TripDetailContent(
     onNavigateToDocument: (Int) -> Unit = {},
     onRegenerateDescription: () -> Unit = {},
     onDeleteDescription: () -> Unit = {},
+    onClearDescriptionSource: () -> Unit = {},
     onRefreshWhatsNext: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -224,6 +226,8 @@ internal fun TripDetailContent(
                 isImageCoveringTopBar = isImageCoveringTopBar,
                 onRegenerateDescription = onRegenerateDescription,
                 onDeleteDescription = onDeleteDescription,
+                onClearDescriptionSource = onClearDescriptionSource,
+                onNavigateToDocument = onNavigateToDocument,
                 onRefreshWhatsNext = onRefreshWhatsNext,
             )
             TripDetailTab.ITINERARY -> ItineraryTabContent(
@@ -279,6 +283,8 @@ private fun TripDetailsTabContent(
     isImageCoveringTopBar: Boolean = false,
     onRegenerateDescription: () -> Unit = {},
     onDeleteDescription: () -> Unit = {},
+    onClearDescriptionSource: () -> Unit = {},
+    onNavigateToDocument: (Int) -> Unit = {},
     onRefreshWhatsNext: () -> Unit = {},
 ) {
     when (uiState) {
@@ -372,6 +378,8 @@ private fun TripDetailsTabContent(
                                     descriptionState = uiState.descriptionState,
                                     onRegenerate = onRegenerateDescription,
                                     onDelete = onDeleteDescription,
+                                    onClearSource = onClearDescriptionSource,
+                                    onNavigateToDocument = onNavigateToDocument,
                                 )
                             }
                         }
@@ -398,6 +406,8 @@ private fun AiDescriptionSection(
     descriptionState: DescriptionState,
     onRegenerate: () -> Unit = {},
     onDelete: () -> Unit = {},
+    onClearSource: () -> Unit = {},
+    onNavigateToDocument: (Int) -> Unit = {},
 ) {
     ElevatedCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -445,6 +455,14 @@ private fun AiDescriptionSection(
                         text = descriptionState.text,
                         style = MaterialTheme.typography.bodyMedium,
                     )
+                    if (descriptionState.sourceDocumentId != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        SourceDocumentChip(
+                            documentName = descriptionState.sourceDocumentName,
+                            onDocumentClick = { onNavigateToDocument(descriptionState.sourceDocumentId) },
+                            onRemove = onClearSource,
+                        )
+                    }
                 }
                 is DescriptionState.Error -> {
                     Text(
