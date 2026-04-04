@@ -288,7 +288,7 @@ class TransportDetailViewModel(
 
     /**
      * Removes the source document link for the leg at [index].
-     * The change is persisted immediately if the leg is already saved (has a positive ID).
+     * The change is picked up by the auto-save debounce and persisted to the database.
      */
     fun onClearLegSourceDocument(index: Int) {
         val current = _uiState.value as? TransportDetailUiState.Success ?: return

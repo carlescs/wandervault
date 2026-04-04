@@ -239,7 +239,11 @@ class TripDetailViewModel(
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to clear description source document", e)
                 val latest = _uiState.value as? TripDetailUiState.Success ?: return@launch
-                if ((latest.descriptionState as? DescriptionState.Available)?.sourceDocumentId != null) return@launch
+                // Skip rollback if the description is no longer Available (e.g. it was deleted
+                // concurrently), or if something else has already set a new source document link.
+                val latestDesc = latest.descriptionState as? DescriptionState.Available
+                    ?: return@launch
+                if (latestDesc.sourceDocumentId != null) return@launch
                 _uiState.value = latest.copy(descriptionState = descState)
             }
         }
