@@ -7,20 +7,30 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DirectionsRun
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Hotel
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Notes
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -28,10 +38,15 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TimePicker
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -49,6 +64,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cat.company.wandervault.R
+import cat.company.wandervault.domain.model.Activity
 import cat.company.wandervault.domain.model.Destination
 import cat.company.wandervault.domain.model.Transport
 import cat.company.wandervault.domain.model.TransportLeg
@@ -56,7 +72,11 @@ import cat.company.wandervault.domain.model.TransportType
 import cat.company.wandervault.ui.theme.WanderVaultTheme
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
+import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalTime
 import java.time.ZoneId
+import java.time.ZoneOffset
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -66,6 +86,7 @@ import java.time.temporal.ChronoUnit
 private enum class LocationDetailTab(@StringRes val labelRes: Int, val icon: ImageVector) {
     OVERVIEW(R.string.location_detail_tab_overview, Icons.Default.Info),
     HOTEL(R.string.location_detail_tab_hotel, Icons.Default.Hotel),
+    ACTIVITIES(R.string.location_detail_tab_activities, Icons.Default.DirectionsRun),
     NOTES(R.string.location_detail_tab_notes, Icons.Default.Notes),
 }
 
@@ -109,6 +130,15 @@ fun LocationDetailScreen(
         onNotesChange = viewModel::onNotesChange,
         onNavigateToDocument = onNavigateToDocument,
         onClearHotelSourceDocument = viewModel::onClearHotelSourceDocument,
+        onOpenNewActivityDraft = viewModel::onOpenNewActivityDraft,
+        onEditActivity = viewModel::onEditActivity,
+        onCloseActivityDraft = viewModel::onCloseActivityDraft,
+        onActivityDraftTitleChange = viewModel::onActivityDraftTitleChange,
+        onActivityDraftDescriptionChange = viewModel::onActivityDraftDescriptionChange,
+        onActivityDraftDateTimeChange = viewModel::onActivityDraftDateTimeChange,
+        onActivityDraftConfirmationNumberChange = viewModel::onActivityDraftConfirmationNumberChange,
+        onSaveActivityDraft = viewModel::onSaveActivityDraft,
+        onDeleteActivity = viewModel::onDeleteActivity,
         modifier = modifier,
     )
 }
@@ -130,6 +160,15 @@ internal fun LocationDetailContent(
     onNotesChange: (String) -> Unit = {},
     onNavigateToDocument: (Int) -> Unit = {},
     onClearHotelSourceDocument: () -> Unit = {},
+    onOpenNewActivityDraft: () -> Unit = {},
+    onEditActivity: (Activity) -> Unit = {},
+    onCloseActivityDraft: () -> Unit = {},
+    onActivityDraftTitleChange: (String) -> Unit = {},
+    onActivityDraftDescriptionChange: (String) -> Unit = {},
+    onActivityDraftDateTimeChange: (ZonedDateTime?) -> Unit = {},
+    onActivityDraftConfirmationNumberChange: (String) -> Unit = {},
+    onSaveActivityDraft: () -> Unit = {},
+    onDeleteActivity: (Activity) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val title = when (uiState) {
@@ -216,6 +255,19 @@ internal fun LocationDetailContent(
                         onReservationNumberChange = onHotelReservationNumberChange,
                         onNavigateToDocument = onNavigateToDocument,
                         onClearSourceDocument = onClearHotelSourceDocument,
+                    )
+                    LocationDetailTab.ACTIVITIES -> ActivitiesTabContent(
+                        uiState = uiState,
+                        innerPadding = innerPadding,
+                        onOpenNewActivityDraft = onOpenNewActivityDraft,
+                        onEditActivity = onEditActivity,
+                        onCloseActivityDraft = onCloseActivityDraft,
+                        onActivityDraftTitleChange = onActivityDraftTitleChange,
+                        onActivityDraftDescriptionChange = onActivityDraftDescriptionChange,
+                        onActivityDraftDateTimeChange = onActivityDraftDateTimeChange,
+                        onActivityDraftConfirmationNumberChange = onActivityDraftConfirmationNumberChange,
+                        onSaveActivityDraft = onSaveActivityDraft,
+                        onDeleteActivity = onDeleteActivity,
                     )
                     LocationDetailTab.NOTES -> NotesTabContent(
                         uiState = uiState,
@@ -391,6 +443,341 @@ private fun NotesTabContent(
                 .fillMaxWidth()
                 .weight(1f),
         )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ActivitiesTabContent(
+    uiState: LocationDetailUiState.Success,
+    innerPadding: PaddingValues,
+    onOpenNewActivityDraft: () -> Unit,
+    onEditActivity: (Activity) -> Unit,
+    onCloseActivityDraft: () -> Unit,
+    onActivityDraftTitleChange: (String) -> Unit,
+    onActivityDraftDescriptionChange: (String) -> Unit,
+    onActivityDraftDateTimeChange: (ZonedDateTime?) -> Unit,
+    onActivityDraftConfirmationNumberChange: (String) -> Unit,
+    onSaveActivityDraft: () -> Unit,
+    onDeleteActivity: (Activity) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val locale = LocalConfiguration.current.locales[0]
+    val dateFormatter = remember(locale) {
+        DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale)
+    }
+    val timeFormatter = remember(locale) {
+        DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(locale)
+    }
+
+    LazyColumn(
+        modifier = modifier.fillMaxSize(),
+        contentPadding = innerPadding,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        if (uiState.activities.isEmpty() && uiState.activityDraft == null) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = stringResource(R.string.activities_empty),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+
+        items(uiState.activities, key = { it.id }) { activity ->
+            ActivityCard(
+                activity = activity,
+                dateFormatter = dateFormatter,
+                timeFormatter = timeFormatter,
+                onEdit = { onEditActivity(activity) },
+                onDelete = { onDeleteActivity(activity) },
+                modifier = Modifier.padding(horizontal = 16.dp),
+            )
+        }
+
+        // Activity draft form (for adding or editing)
+        if (uiState.activityDraft != null) {
+            item {
+                ActivityDraftForm(
+                    draft = uiState.activityDraft,
+                    onTitleChange = onActivityDraftTitleChange,
+                    onDescriptionChange = onActivityDraftDescriptionChange,
+                    onDateTimeChange = onActivityDraftDateTimeChange,
+                    onConfirmationNumberChange = onActivityDraftConfirmationNumberChange,
+                    onSave = onSaveActivityDraft,
+                    onCancel = onCloseActivityDraft,
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                )
+            }
+        }
+
+        // "Add activity" button
+        if (uiState.activityDraft == null) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                ) {
+                    OutlinedButton(
+                        onClick = onOpenNewActivityDraft,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(stringResource(R.string.activities_add))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ActivityCard(
+    activity: Activity,
+    dateFormatter: DateTimeFormatter,
+    timeFormatter: DateTimeFormatter,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Card(modifier = modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top,
+            ) {
+                Text(
+                    text = activity.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                Row {
+                    IconButton(onClick = onEdit, modifier = Modifier.padding(0.dp)) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = stringResource(R.string.activities_edit),
+                        )
+                    }
+                    IconButton(onClick = onDelete, modifier = Modifier.padding(0.dp)) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = stringResource(R.string.activities_delete),
+                            tint = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                }
+            }
+            if (activity.dateTime != null) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = buildString {
+                        append(activity.dateTime.format(dateFormatter))
+                        append("  ")
+                        append(activity.dateTime.format(timeFormatter))
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (activity.confirmationNumber.isNotBlank()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                LabeledInfoRow(
+                    label = stringResource(R.string.activity_confirmation_number_label),
+                    value = activity.confirmationNumber,
+                )
+            }
+            if (activity.description.isNotBlank()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = activity.description,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ActivityDraftForm(
+    draft: ActivityEditState,
+    onTitleChange: (String) -> Unit,
+    onDescriptionChange: (String) -> Unit,
+    onDateTimeChange: (ZonedDateTime?) -> Unit,
+    onConfirmationNumberChange: (String) -> Unit,
+    onSave: () -> Unit,
+    onCancel: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var showDatePicker by rememberSaveable { mutableStateOf(false) }
+    var showTimePicker by rememberSaveable { mutableStateOf(false) }
+
+    val locale = LocalConfiguration.current.locales[0]
+    val dateFormatter = remember(locale) {
+        DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale)
+    }
+    val timeFormatter = remember(locale) {
+        DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(locale)
+    }
+
+    if (showDatePicker) {
+        val state = rememberDatePickerState(
+            initialSelectedDateMillis = draft.dateTime?.toLocalDate()
+                ?.atStartOfDay(ZoneOffset.UTC)?.toInstant()?.toEpochMilli(),
+        )
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        state.selectedDateMillis?.let { millis ->
+                            val pickedDate = Instant.ofEpochMilli(millis)
+                                .atZone(ZoneOffset.UTC)
+                                .toLocalDate()
+                            val existingTime = draft.dateTime?.toLocalTime() ?: LocalTime.MIDNIGHT
+                            val zone = draft.dateTime?.zone ?: ZoneId.systemDefault()
+                            onDateTimeChange(ZonedDateTime.of(pickedDate, existingTime, zone))
+                        }
+                        showDatePicker = false
+                    },
+                ) { Text(stringResource(R.string.dialog_ok)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) {
+                    Text(stringResource(R.string.dialog_cancel))
+                }
+            },
+        ) { DatePicker(state = state) }
+    }
+
+    if (showTimePicker && draft.dateTime != null) {
+        val timeState = rememberTimePickerState(
+            initialHour = draft.dateTime.hour,
+            initialMinute = draft.dateTime.minute,
+        )
+        AlertDialog(
+            onDismissRequest = { showTimePicker = false },
+            title = { Text(stringResource(R.string.activity_time_label)) },
+            text = { TimePicker(state = timeState) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onDateTimeChange(
+                            ZonedDateTime.of(
+                                draft.dateTime.toLocalDate(),
+                                LocalTime.of(timeState.hour, timeState.minute),
+                                draft.dateTime.zone,
+                            ),
+                        )
+                        showTimePicker = false
+                    },
+                ) { Text(stringResource(R.string.dialog_ok)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showTimePicker = false }) {
+                    Text(stringResource(R.string.dialog_cancel))
+                }
+            },
+        )
+    } else if (showTimePicker) {
+        // draft.dateTime became null after state restoration – close the dialog.
+        showTimePicker = false
+    }
+
+    Card(modifier = modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier
+                .padding(12.dp)
+                .fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            OutlinedTextField(
+                value = draft.title,
+                onValueChange = onTitleChange,
+                label = { Text(stringResource(R.string.activity_title_label)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = draft.description,
+                onValueChange = onDescriptionChange,
+                label = { Text(stringResource(R.string.activity_description_label)) },
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 2,
+            )
+            // Date & time row
+            Column {
+                Text(
+                    text = stringResource(R.string.activity_datetime_label),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = { showDatePicker = true },
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text(
+                            text = draft.dateTime?.format(dateFormatter)
+                                ?: stringResource(R.string.activity_date_not_set),
+                        )
+                    }
+                    OutlinedButton(
+                        onClick = { showTimePicker = true },
+                        enabled = draft.dateTime != null,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text(
+                            text = draft.dateTime?.format(timeFormatter)
+                                ?: stringResource(R.string.activity_time_not_set),
+                        )
+                    }
+                }
+                if (draft.dateTime != null) {
+                    TextButton(
+                        onClick = { onDateTimeChange(null) },
+                        modifier = Modifier.align(Alignment.End),
+                    ) {
+                        Text(stringResource(R.string.activity_clear_datetime))
+                    }
+                }
+            }
+            OutlinedTextField(
+                value = draft.confirmationNumber,
+                onValueChange = onConfirmationNumberChange,
+                label = { Text(stringResource(R.string.activity_confirmation_number_label)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                TextButton(
+                    onClick = onCancel,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text(stringResource(R.string.activities_cancel))
+                }
+                Button(
+                    onClick = onSave,
+                    enabled = draft.title.isNotBlank(),
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text(stringResource(R.string.activities_save))
+                }
+            }
+        }
     }
 }
 
@@ -642,3 +1029,43 @@ private fun LocationDetailHotelTabPreview() {
     }
 }
 
+@Preview(showBackground = true)
+@Composable
+private fun LocationDetailActivitiesTabPreview() {
+    val destination = Destination(
+        id = 2,
+        tripId = 1,
+        name = "Paris",
+        position = 1,
+        arrivalDateTime = ZonedDateTime.of(2024, 6, 1, 12, 30, 0, 0, ZoneId.of("Europe/Paris")),
+        departureDateTime = ZonedDateTime.of(2024, 6, 4, 10, 0, 0, 0, ZoneId.of("Europe/Paris")),
+    )
+    val activities = listOf(
+        Activity(
+            id = 1,
+            destinationId = 2,
+            title = "Eiffel Tower Visit",
+            description = "Skip-the-line ticket",
+            dateTime = ZonedDateTime.of(2024, 6, 2, 10, 0, 0, 0, ZoneId.of("Europe/Paris")),
+            confirmationNumber = "ET-123456",
+        ),
+    )
+    WanderVaultTheme {
+        ActivitiesTabContent(
+            uiState = LocationDetailUiState.Success(
+                destination = destination,
+                activities = activities,
+            ),
+            innerPadding = PaddingValues(0.dp),
+            onOpenNewActivityDraft = {},
+            onEditActivity = {},
+            onCloseActivityDraft = {},
+            onActivityDraftTitleChange = {},
+            onActivityDraftDescriptionChange = {},
+            onActivityDraftDateTimeChange = {},
+            onActivityDraftConfirmationNumberChange = {},
+            onSaveActivityDraft = {},
+            onDeleteActivity = {},
+        )
+    }
+}

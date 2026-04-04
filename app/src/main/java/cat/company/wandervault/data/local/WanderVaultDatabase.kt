@@ -17,8 +17,9 @@ import java.time.ZoneId
         HotelEntity::class,
         TripDocumentFolderEntity::class,
         TripDocumentEntity::class,
+        ActivityEntity::class,
     ],
-    version = 22,
+    version = 23,
 )
 @TypeConverters(DateConverters::class)
 abstract class WanderVaultDatabase : RoomDatabase() {
@@ -29,6 +30,7 @@ abstract class WanderVaultDatabase : RoomDatabase() {
     abstract fun hotelDao(): HotelDao
     abstract fun tripDocumentFolderDao(): TripDocumentFolderDao
     abstract fun tripDocumentDao(): TripDocumentDao
+    abstract fun activityDao(): ActivityDao
 
     companion object {
         const val DATABASE_NAME = "wandervault.db"
@@ -443,6 +445,27 @@ abstract class WanderVaultDatabase : RoomDatabase() {
             }
         }
         val MIGRATION_21_22 = object : Migration(21, 22) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `activities` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `destinationId` INTEGER NOT NULL,
+                        `title` TEXT NOT NULL DEFAULT '',
+                        `description` TEXT NOT NULL DEFAULT '',
+                        `dateTime` TEXT,
+                        `confirmationNumber` TEXT NOT NULL DEFAULT '',
+                        FOREIGN KEY(`destinationId`) REFERENCES `destinations`(`id`)
+                            ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_activities_destinationId` ON `activities` (`destinationId`)",
+                )
+            }
+        }
+        val MIGRATION_22_23 = object : Migration(22, 23) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE `transport_legs` ADD COLUMN `sourceDocumentId` INTEGER")
                 db.execSQL("ALTER TABLE `hotels` ADD COLUMN `sourceDocumentId` INTEGER")
