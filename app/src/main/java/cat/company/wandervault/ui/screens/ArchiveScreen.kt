@@ -81,17 +81,16 @@ fun ArchiveScreen(
 
     val unarchivedMessage = stringResource(R.string.trip_unarchived_snackbar)
     val undoLabel = stringResource(R.string.undo)
-    LaunchedEffect(uiState.pendingUnarchiveUndo) {
-        if (uiState.pendingUnarchiveUndo == null) return@LaunchedEffect
-        val result = snackbarHostState.showSnackbar(
-            message = unarchivedMessage,
-            actionLabel = undoLabel,
-            duration = SnackbarDuration.Short,
-        )
-        if (result == SnackbarResult.ActionPerformed) {
-            viewModel.onUndoUnarchive()
-        } else {
-            viewModel.onDismissUnarchiveSnackbar()
+    LaunchedEffect(Unit) {
+        viewModel.unarchiveUndoEvents.collect { trip ->
+            val result = snackbarHostState.showSnackbar(
+                message = unarchivedMessage,
+                actionLabel = undoLabel,
+                duration = SnackbarDuration.Short,
+            )
+            if (result == SnackbarResult.ActionPerformed) {
+                viewModel.onUndoUnarchive(trip)
+            }
         }
     }
 

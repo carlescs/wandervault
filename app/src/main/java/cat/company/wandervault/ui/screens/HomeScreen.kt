@@ -100,17 +100,16 @@ fun HomeScreen(modifier: Modifier = Modifier, viewModel: HomeViewModel = koinVie
 
     val archivedMessage = stringResource(R.string.trip_archived_snackbar)
     val undoLabel = stringResource(R.string.undo)
-    LaunchedEffect(uiState.pendingArchiveUndo) {
-        if (uiState.pendingArchiveUndo == null) return@LaunchedEffect
-        val result = snackbarHostState.showSnackbar(
-            message = archivedMessage,
-            actionLabel = undoLabel,
-            duration = SnackbarDuration.Short,
-        )
-        if (result == SnackbarResult.ActionPerformed) {
-            viewModel.onUndoArchive()
-        } else {
-            viewModel.onDismissArchiveSnackbar()
+    LaunchedEffect(Unit) {
+        viewModel.archiveUndoEvents.collect { trip ->
+            val result = snackbarHostState.showSnackbar(
+                message = archivedMessage,
+                actionLabel = undoLabel,
+                duration = SnackbarDuration.Short,
+            )
+            if (result == SnackbarResult.ActionPerformed) {
+                viewModel.onUndoArchive(trip)
+            }
         }
     }
 
