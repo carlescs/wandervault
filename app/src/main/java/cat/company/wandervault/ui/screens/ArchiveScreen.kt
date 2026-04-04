@@ -30,12 +30,17 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxState
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -72,13 +77,35 @@ fun ArchiveScreen(
     onTripClick: (Int) -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
 
-    ArchiveContent(
-        uiState = uiState,
-        onTripClick = onTripClick,
-        onUnarchiveClick = viewModel::onUnarchiveTrip,
-        modifier = modifier,
-    )
+    val unarchivedMessage = stringResource(R.string.trip_unarchived_snackbar)
+    val undoLabel = stringResource(R.string.undo)
+    LaunchedEffect(Unit) {
+        viewModel.unarchiveUndoEvents.collect { trip ->
+            val result = snackbarHostState.showSnackbar(
+                message = unarchivedMessage,
+                actionLabel = undoLabel,
+                duration = SnackbarDuration.Short,
+            )
+            if (result == SnackbarResult.ActionPerformed) {
+                viewModel.onUndoUnarchive(trip)
+            }
+        }
+    }
+
+    Box(modifier = modifier.fillMaxSize()) {
+        ArchiveContent(
+            uiState = uiState,
+            onTripClick = onTripClick,
+            onUnarchiveClick = viewModel::onUnarchiveTrip,
+            modifier = Modifier.fillMaxSize(),
+        )
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter),
+        )
+    }
 }
 
 /**

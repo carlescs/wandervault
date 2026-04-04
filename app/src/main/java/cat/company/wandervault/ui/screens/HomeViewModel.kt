@@ -11,10 +11,14 @@ import cat.company.wandervault.domain.usecase.ArchiveTripUseCase
 import cat.company.wandervault.domain.usecase.GetTripsUseCase
 import cat.company.wandervault.domain.usecase.SaveTripUseCase
 import cat.company.wandervault.domain.usecase.ToggleFavoriteTripUseCase
+import cat.company.wandervault.domain.usecase.UnarchiveTripUseCase
 import cat.company.wandervault.domain.usecase.UpdateTripUseCase
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -27,10 +31,14 @@ class HomeViewModel(
     private val deleteTrip: DeleteTripUseCase,
     private val toggleFavorite: ToggleFavoriteTripUseCase,
     private val archiveTrip: ArchiveTripUseCase,
+    private val unarchiveTrip: UnarchiveTripUseCase,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
+
+    private val _archiveUndoEvents = Channel<Trip>(Channel.UNLIMITED)
+    val archiveUndoEvents: Flow<Trip> = _archiveUndoEvents.receiveAsFlow()
 
     init {
         viewModelScope.launch {
@@ -178,7 +186,19 @@ class HomeViewModel(
     fun onArchiveTrip(trip: Trip) {
         viewModelScope.launch {
             archiveTrip(trip.id)
+            _archiveUndoEvents.send(trip)
         }
+    }
+
+    fun onUndoArchive(trip: Trip) {
+        viewModelScope.launch {
+            unarchiveTrip(trip.id)
+        }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        _archiveUndoEvents.close()
     }
 
     companion object {
