@@ -1,7 +1,9 @@
 package cat.company.wandervault.ui.screens
 
+import cat.company.wandervault.domain.model.Activity
 import cat.company.wandervault.domain.model.Destination
 import cat.company.wandervault.domain.model.Transport
+import java.time.ZonedDateTime
 
 /**
  * Represents the current in-memory editing state for a hotel record.
@@ -16,6 +18,23 @@ data class HotelEditState(
     val name: String = "",
     val address: String = "",
     val reservationNumber: String = "",
+)
+
+/**
+ * Represents the current in-memory editing state for an activity record.
+ *
+ * @param id Database ID of the existing activity record, or 0 if not yet persisted.
+ * @param title The activity title.
+ * @param description An optional description or notes.
+ * @param dateTime The optional date and time of the activity.
+ * @param confirmationNumber The optional booking or confirmation code.
+ */
+data class ActivityEditState(
+    val id: Int = 0,
+    val title: String = "",
+    val description: String = "",
+    val dateTime: ZonedDateTime? = null,
+    val confirmationNumber: String = "",
 )
 
 /**
@@ -38,6 +57,10 @@ sealed class LocationDetailUiState {
         val hotelEditState: HotelEditState = HotelEditState(),
         /** The current (possibly dirty) notes text. */
         val notes: String = "",
+        /** The persisted list of activities for this destination. */
+        val activities: List<Activity> = emptyList(),
+        /** The activity currently being created or edited, or `null` if the form is closed. */
+        val activityDraft: ActivityEditState? = null,
     ) : LocationDetailUiState()
 
     /** An error occurred (e.g. destination not found). */

@@ -4,6 +4,7 @@ import cat.company.wandervault.domain.usecase.AskDocumentQuestionUseCase
 import cat.company.wandervault.domain.usecase.AutoOrganizeDocumentsUseCase
 import cat.company.wandervault.domain.usecase.CopyDocumentToInternalStorageUseCase
 import cat.company.wandervault.domain.usecase.ArchiveTripUseCase
+import cat.company.wandervault.domain.usecase.DeleteActivityUseCase
 import cat.company.wandervault.domain.usecase.GenerateWhatsNextUseCase
 import cat.company.wandervault.domain.usecase.GetArchivedTripsUseCase
 import cat.company.wandervault.domain.usecase.GetFavoriteTripsUseCase
@@ -19,6 +20,7 @@ import cat.company.wandervault.domain.usecase.DeleteTransportLegUseCase
 import cat.company.wandervault.domain.usecase.DeleteTransportUseCase
 import cat.company.wandervault.domain.usecase.DeleteTripUseCase
 import cat.company.wandervault.domain.usecase.GenerateTripDescriptionUseCase
+import cat.company.wandervault.domain.usecase.GetActivitiesForDestinationUseCase
 import cat.company.wandervault.domain.usecase.GetArrivalTransportForDestinationUseCase
 import cat.company.wandervault.domain.usecase.GetDestinationByIdUseCase
 import cat.company.wandervault.domain.usecase.GetDestinationsForTripUseCase
@@ -39,6 +41,7 @@ import cat.company.wandervault.domain.usecase.SaveHotelUseCase
 import cat.company.wandervault.domain.usecase.GetTripUseCase
 import cat.company.wandervault.domain.usecase.GetTripsUseCase
 import cat.company.wandervault.domain.usecase.RestoreBackupUseCase
+import cat.company.wandervault.domain.usecase.SaveActivityUseCase
 import cat.company.wandervault.domain.usecase.SaveDestinationUseCase
 import cat.company.wandervault.domain.usecase.SaveTransportLegUseCase
 import cat.company.wandervault.domain.usecase.SaveTripDescriptionUseCase
@@ -89,6 +92,9 @@ val domainModule = module {
     factory { GetHotelsForDestinationsUseCase(get()) }
     factory { SaveHotelUseCase(get()) }
     factory { DeleteHotelUseCase(get()) }
+    factory { GetActivitiesForDestinationUseCase(get()) }
+    factory { SaveActivityUseCase(get()) }
+    factory { DeleteActivityUseCase(get()) }
     factory { GetRootFoldersUseCase(get()) }
     factory { GetSubFoldersUseCase(get()) }
     factory { GetAllFoldersForTripUseCase(get()) }
