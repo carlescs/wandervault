@@ -22,6 +22,9 @@
     <string name="archive_empty">No archived trips yet.\nTap the archive icon on any trip to move it here.</string>
     <string name="archive_trip_content_desc">Archive trip</string>
     <string name="unarchive_trip_content_desc">Unarchive trip</string>
+    <string name="trip_archived_snackbar">Trip archived</string>
+    <string name="trip_unarchived_snackbar">Trip unarchived</string>
+    <string name="undo">Undo</string>
 
     <!-- Profile screen -->
     <string name="profile_title">My Profile</string>
