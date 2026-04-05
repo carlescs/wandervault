@@ -10,11 +10,19 @@ An Android travel planning app powered by ML Kit and Gemini Nano that helps you 
 - **Itinerary Planning** – Add destinations to a trip, set arrival and departure times, and view them in chronological order.
 - **Transport Tracking** – Record transport legs between destinations (flight, train, bus, ferry, driving, cycling, walking) with carrier, flight number, and booking reference details.
 - **Accommodation** – Attach hotel information (name, address, reservation number) to each destination.
+- **Activities** – Log per-destination activities (title, description, date/time, confirmation number) to keep track of excursions and bookings.
 - **Document Organisation** – Upload and organise travel documents (PDFs, images, plain text) into a folder hierarchy per trip.
 - **AI Document Extraction** – On-device OCR + Gemini Nano automatically extracts flight details (airline, flight number, booking reference, route) and hotel details (name, check-in/out dates, booking reference) from uploaded documents, and matches them to your itinerary.
+- **AI Document Q&A** – Ask free-form questions about any uploaded document; Gemini Nano answers on-device without an internet connection.
+- **AI Auto-Organize** – Gemini Nano suggests a folder structure for a trip's documents and moves them automatically.
 - **AI Trip Descriptions** – Gemini Nano generates short, engaging trip summaries based on your itinerary, with no internet connection required.
+- **AI What's Next** – Gemini Nano produces a concise "what's next" notice for the current moment in an active trip.
+- **Calendar View** – Browse all trip events on a monthly calendar.
 - **Share-to-App** – Share a document directly from any app to WanderVault; it is saved to your chosen trip and analysed automatically.
 - **Favourites** – Mark trips as favourites for quick access.
+- **Archive** – Archive completed trips to keep the main list tidy while retaining all data.
+- **Notifications** – Daily trip reminders delivered via WorkManager.
+- **Settings** – Toggle trip-reminder notifications and manage app preferences.
 - **Backup & Restore** – Export and import the full database for safe storage.
 - **Adaptive Layout** – Material 3 UI scales to phones and tablets.
 
@@ -35,7 +43,7 @@ cat.company.wandervault/
 │   ├── di/                  # DomainModule (Koin)
 │   ├── model/               # Pure Kotlin domain models
 │   ├── repository/          # Repository interfaces
-│   └── usecase/             # 40+ single-responsibility use cases
+│   └── usecase/             # 50+ single-responsibility use cases
 └── ui/
     ├── di/                  # PresentationModule (Koin, ViewModels)
     ├── navigation/          # NavHost and route definitions
@@ -65,6 +73,7 @@ cat.company.wandervault/
 | Image loading     | Coil                                       | 2.7.0          |
 | On-device AI      | ML Kit GenAI (Gemini Nano Prompt API)      | 1.0.0-beta1    |
 | OCR               | ML Kit Text Recognition                    | 16.0.1         |
+| Background work   | WorkManager                                | 2.10.1         |
 | Coroutines        | kotlinx-coroutines                         | 1.10.2         |
 | Symbol processing | KSP                                        | 2.3.2          |
 | Min SDK           | 26 (Android 8.0)                           | –              |
@@ -122,11 +131,13 @@ cd wandervault
 | `Transport`             | Transport from a destination, composed of one or more `TransportLeg`s |
 | `TransportLeg`          | Individual leg: type (flight, train…), carrier, flight number, booking ref |
 | `Hotel`                 | Accommodation attached to a destination                          |
+| `Activity`              | A planned activity at a destination: title, description, date/time, confirmation number |
 | `TripDocument`          | An uploaded file (PDF, image, text) with an optional AI summary  |
 | `TripDocumentFolder`    | Hierarchical folder for organising documents                     |
 | `DocumentExtractionResult` | AI extraction output: summary, `FlightInfo`, `HotelInfo`     |
 | `FlightInfo`            | Extracted flight data: airline, flight number, route, booking ref |
 | `HotelInfo`             | Extracted hotel data: name, address, booking ref, check-in/out dates |
+| `OrganizationPlan`      | AI-suggested folder structure for a trip's documents             |
 
 ---
 
@@ -135,6 +146,18 @@ cd wandervault
 ### Gemini Nano – Trip Descriptions (`TripDescriptionRepositoryImpl`)
 
 Uses the **ML Kit GenAI Prompt API** to generate 2–3 sentence trip summaries on-device. The repository checks model availability, triggers a download if needed, and streams the response asynchronously.
+
+### Gemini Nano – "What's Next" (`TripDescriptionRepositoryImpl`)
+
+Generates a concise notice describing the traveller's current or imminent itinerary item. The prompt includes all destination arrival/departure times so the model can take time zones into account. The result is displayed on the trip detail screen and stored for offline access. Trip Descriptions and "What's Next" share `TripDescriptionRepositoryImpl` because both features use the same Gemini Nano session and on-device model lifecycle.
+
+### Gemini Nano – Document Q&A (`DocumentSummaryRepositoryImpl`)
+
+After a document is processed, users can ask free-form questions about it. The extracted document text and the user's question are sent to Gemini Nano, which answers on-device without an internet connection. Document Q&A and Auto-Organize both use `DocumentSummaryRepositoryImpl` because they share the same document-text pipeline and Gemini Nano session management.
+
+### Gemini Nano – Auto-Organize (`DocumentSummaryRepositoryImpl`)
+
+Analyses all documents in a trip and suggests a folder hierarchy. The model returns a `folderName → [document]` mapping (`OrganizationPlan`) that the app applies automatically when the user confirms.
 
 ### Gemini Nano + OCR – Document Intelligence (`DocumentSummaryRepositoryImpl`)
 
@@ -148,9 +171,9 @@ Supports **PDF**, **image**, and **plain-text** files:
 
 ## Database
 
-Room database with **16 schema versions** (`WanderVaultDatabase`). All migrations are explicit; `fallbackToDestructiveMigration()` is only allowed in debug builds.
+Room database with **23 schema versions** (`WanderVaultDatabase`). All migrations are explicit; `fallbackToDestructiveMigration()` is only allowed in debug builds.
 
-Entities: `TripEntity`, `DestinationEntity`, `TransportEntity`, `TransportLegEntity`, `HotelEntity`, `TripDocumentEntity`, `TripDocumentFolderEntity`.
+Entities: `TripEntity`, `DestinationEntity`, `TransportEntity`, `TransportLegEntity`, `HotelEntity`, `ActivityEntity`, `TripDocumentEntity`, `TripDocumentFolderEntity`.
 
 ---
 
