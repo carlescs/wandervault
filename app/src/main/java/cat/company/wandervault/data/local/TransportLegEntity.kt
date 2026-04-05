@@ -52,4 +52,9 @@ data class TransportLegEntity(
     val departureDateTime: ZonedDateTime? = null,
     /** When the traveller arrives at the end of this leg.  Stored as ISO-8601 string via [DateConverters]. */
     val arrivalDateTime: ZonedDateTime? = null,
+    /**
+     * The [cat.company.wandervault.data.local.TripDocumentEntity.id] of the document from which
+     * this leg's information was extracted, or `null` when the leg was entered manually.
+     */
+    val sourceDocumentId: Int? = null,
 )

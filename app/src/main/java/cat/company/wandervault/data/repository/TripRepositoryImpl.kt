@@ -118,6 +118,7 @@ private fun TripEntity.toDomain(destinations: List<DestinationDateProjection>): 
         nextStep = nextStep,
         nextStepDeadline = nextStepDeadline,
         isArchived = isArchived,
+        aiDescriptionSourceDocumentId = aiDescriptionSourceDocumentId,
     )
 }
 
@@ -131,4 +132,5 @@ private fun Trip.toEntity() = TripEntity(
     nextStep = nextStep,
     nextStepDeadline = nextStepDeadline,
     isArchived = isArchived,
+    aiDescriptionSourceDocumentId = aiDescriptionSourceDocumentId,
 )

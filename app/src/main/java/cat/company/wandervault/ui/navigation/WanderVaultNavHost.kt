@@ -117,6 +117,7 @@ internal fun WanderVaultNavHost(
                 destinationId = destinationId,
                 onNavigateUp = { navController.navigateUp() },
                 onTransportClick = { navController.navigate(AppRoutes.transportDetail(it)) },
+                onNavigateToDocument = { navController.navigate(AppRoutes.documentInfo(it)) },
                 modifier = Modifier.fillMaxSize(),
             )
         }
@@ -132,6 +133,7 @@ internal fun WanderVaultNavHost(
             TransportDetailScreen(
                 destinationId = destinationId,
                 onNavigateUp = { navController.navigateUp() },
+                onNavigateToDocument = { navController.navigate(AppRoutes.documentInfo(it)) },
                 modifier = Modifier.fillMaxSize(),
             )
         }

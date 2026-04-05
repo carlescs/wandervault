@@ -10,6 +10,7 @@ import cat.company.wandervault.domain.usecase.GetActivitiesForDestinationUseCase
 import cat.company.wandervault.domain.usecase.GetArrivalTransportForDestinationUseCase
 import cat.company.wandervault.domain.usecase.GetDestinationByIdUseCase
 import cat.company.wandervault.domain.usecase.GetDestinationsForTripUseCase
+import cat.company.wandervault.domain.usecase.GetDocumentByIdUseCase
 import cat.company.wandervault.domain.usecase.GetHotelForDestinationUseCase
 import cat.company.wandervault.domain.usecase.SaveActivityUseCase
 import cat.company.wandervault.domain.usecase.SaveHotelUseCase
@@ -20,6 +21,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
@@ -40,6 +42,8 @@ import java.time.ZonedDateTime
  * @param saveHotel Use-case that persists a hotel record.
  * @param deleteHotel Use-case that removes a hotel record.
  * @param updateDestination Use-case that persists changes to a destination (e.g. notes).
+ * @param getDocumentById Use-case that resolves a [cat.company.wandervault.domain.model.TripDocument]
+ *   by its ID; used to look up the name of the source document linked to a hotel record.
  * @param getActivitiesForDestination Use-case that fetches activities for a destination.
  * @param saveActivity Use-case that persists an activity record.
  * @param deleteActivity Use-case that removes an activity record.
@@ -52,6 +56,7 @@ class LocationDetailViewModel(
     private val saveHotel: SaveHotelUseCase,
     private val deleteHotel: DeleteHotelUseCase,
     private val updateDestination: UpdateDestinationUseCase,
+    private val getDocumentById: GetDocumentByIdUseCase,
     private val getActivitiesForDestination: GetActivitiesForDestinationUseCase,
     private val saveActivity: SaveActivityUseCase,
     private val deleteActivity: DeleteActivityUseCase,
@@ -108,7 +113,10 @@ class LocationDetailViewModel(
                                 ) {
                                     (_uiState.value as LocationDetailUiState.Success).hotelEditState
                                 } else {
-                                    hotel?.toEditState() ?: HotelEditState()
+                                    val sourceDocName = hotel?.sourceDocumentId?.let { docId ->
+                                        getDocumentById(docId).first()?.name
+                                    }
+                                    hotel?.toEditState(sourceDocName) ?: HotelEditState()
                                 }
                                 val notes = if (_hasUnsavedNotesEdits &&
                                     _uiState.value is LocationDetailUiState.Success
@@ -190,6 +198,17 @@ class LocationDetailViewModel(
             persistHotel()
             persistNotes()
         }
+    }
+
+    /**
+     * Removes the source document link from the hotel record.
+     * The change will be persisted via the auto-save debounce.
+     */
+    fun onClearHotelSourceDocument() {
+        val current = _uiState.value as? LocationDetailUiState.Success ?: return
+        if (current.hotelEditState.sourceDocumentId == null) return
+        _hasUnsavedHotelEdits = true
+        updateHotelEditState { copy(sourceDocumentId = null, sourceDocumentName = null) }
     }
 
     // ── Activity draft management ─────────────────────────────────────────────
@@ -286,6 +305,7 @@ class LocationDetailViewModel(
                     name = edit.name.trim(),
                     address = edit.address.trim(),
                     reservationNumber = edit.reservationNumber.trim(),
+                    sourceDocumentId = edit.sourceDocumentId,
                 ),
             )
         } else if (edit.id > 0) {
@@ -312,10 +332,12 @@ class LocationDetailViewModel(
     }
 }
 
-private fun Hotel.toEditState() = HotelEditState(
+private fun Hotel.toEditState(sourceDocumentName: String? = null) = HotelEditState(
     id = id,
     name = name,
     address = address,
     reservationNumber = reservationNumber,
+    sourceDocumentId = sourceDocumentId,
+    sourceDocumentName = sourceDocumentName,
 )
 

@@ -8,6 +8,8 @@ package cat.company.wandervault.domain.model
  * @param name The hotel name.
  * @param address The hotel address.
  * @param reservationNumber The booking or reservation confirmation code.
+ * @param sourceDocumentId The ID of the [TripDocument] from which this hotel's information
+ *   was extracted, or `null` when entered manually.
  */
 data class Hotel(
     val id: Int = 0,
@@ -15,4 +17,5 @@ data class Hotel(
     val name: String = "",
     val address: String = "",
     val reservationNumber: String = "",
+    val sourceDocumentId: Int? = null,
 )

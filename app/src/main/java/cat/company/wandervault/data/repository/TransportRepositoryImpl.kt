@@ -55,6 +55,7 @@ internal fun TransportLegEntity.toDomain() = TransportLeg(
     isDefault = isDefault,
     departureDateTime = departureDateTime,
     arrivalDateTime = arrivalDateTime,
+    sourceDocumentId = sourceDocumentId,
 )
 
 private fun Transport.toEntity() = TransportEntity(
@@ -74,4 +75,5 @@ private fun TransportLeg.toEntity() = TransportLegEntity(
     isDefault = isDefault,
     departureDateTime = departureDateTime,
     arrivalDateTime = arrivalDateTime,
+    sourceDocumentId = sourceDocumentId,
 )

@@ -12,12 +12,18 @@ import java.time.ZonedDateTime
  * @param name The hotel name.
  * @param address The hotel address.
  * @param reservationNumber The booking or reservation confirmation code.
+ * @param sourceDocumentId The ID of the document from which this hotel's information was
+ *   extracted, or `null` when entered manually.
+ * @param sourceDocumentName The display name of the source document, or `null` when not sourced
+ *   from a document or the document could not be resolved.
  */
 data class HotelEditState(
     val id: Int = 0,
     val name: String = "",
     val address: String = "",
     val reservationNumber: String = "",
+    val sourceDocumentId: Int? = null,
+    val sourceDocumentName: String? = null,
 )
 
 /**

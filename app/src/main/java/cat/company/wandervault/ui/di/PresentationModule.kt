@@ -33,7 +33,18 @@ val presentationModule = module {
     }
     viewModel { SettingsViewModel(get()) }
     viewModel { ArchiveViewModel(get(), get(), get()) }
-    viewModel { params -> TripDetailViewModel(params.get(), get(), get(), get(), get(), get(), get()) }
+    viewModel { params ->
+        TripDetailViewModel(
+            tripId = params.get(),
+            getTripUseCase = get(),
+            getDestinationsForTripUseCase = get(),
+            generateTripDescriptionUseCase = get(),
+            saveTripDescriptionUseCase = get(),
+            generateWhatsNextUseCase = get(),
+            saveTripWhatsNextUseCase = get(),
+            getDocumentById = get(),
+        )
+    }
     viewModel { params ->
         ItineraryViewModel(
             tripId = params.get(),
@@ -53,6 +64,7 @@ val presentationModule = module {
             saveHotel = get(),
             deleteHotel = get(),
             updateDestination = get(),
+            getDocumentById = get(),
             getActivitiesForDestination = get(),
             saveActivity = get(),
             deleteActivity = get(),
@@ -68,6 +80,7 @@ val presentationModule = module {
             deleteTransportLeg = get(),
             deleteTransport = get(),
             updateDestination = get(),
+            getDocumentById = get(),
         )
     }
     viewModel { DataAdminViewModel(androidApplication(), get(), get()) }

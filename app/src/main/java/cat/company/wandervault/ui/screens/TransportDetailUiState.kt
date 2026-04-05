@@ -18,6 +18,10 @@ import java.time.ZonedDateTime
  * @param isDefault When `true` this leg's icon is shown in the itinerary timeline.
  * @param departureDateTime When the traveller departs for this leg (timezone-aware).
  * @param arrivalDateTime When the traveller arrives at the end of this leg (timezone-aware).
+ * @param sourceDocumentId The ID of the document from which this leg's information was
+ *   extracted, or `null` when entered manually.
+ * @param sourceDocumentName The display name of the source document, or `null` when not sourced
+ *   from a document or the document could not be resolved.
  */
 data class TransportLegEditState(
     val id: Int = 0,
@@ -30,6 +34,8 @@ data class TransportLegEditState(
     val isDefault: Boolean = false,
     val departureDateTime: ZonedDateTime? = null,
     val arrivalDateTime: ZonedDateTime? = null,
+    val sourceDocumentId: Int? = null,
+    val sourceDocumentName: String? = null,
 )
 
 /**

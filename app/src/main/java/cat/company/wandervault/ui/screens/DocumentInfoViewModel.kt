@@ -435,7 +435,7 @@ class DocumentInfoViewModel(
                 if (trip == null) {
                     Log.w(TAG, "Trip $tripId not found after user confirmation; skipping description update")
                 } else if (trip.aiDescription == null) {
-                    saveTripDescription(trip, state.relevantTripInfo)
+                    saveTripDescription(trip, state.relevantTripInfo, sourceDocumentId = documentId)
                 }
                 dismissAnalyze()
             } catch (e: Exception) {
@@ -655,7 +655,7 @@ class DocumentInfoViewModel(
      *   changed, the *next* destination's [Destination.arrivalDateTime] is updated to match.
      */
     private suspend fun applyFlightInfoToLeg(flightInfo: FlightInfo, leg: TransportLeg) {
-        val updatedLeg = leg.applyFlightInfo(flightInfo)
+        val updatedLeg = leg.applyFlightInfo(flightInfo).copy(sourceDocumentId = documentId)
         if (updatedLeg == leg) return
         updateTransportLeg(updatedLeg)
 
@@ -752,6 +752,7 @@ class DocumentInfoViewModel(
                 address = existingHotel.address.ifBlank { null } ?: hotelInfo.address.orEmpty(),
                 reservationNumber = existingHotel.reservationNumber.ifBlank { null }
                     ?: hotelInfo.bookingReference.orEmpty(),
+                sourceDocumentId = documentId,
             )
             if (updatedHotel != existingHotel) {
                 saveHotel(updatedHotel)
@@ -768,6 +769,7 @@ class DocumentInfoViewModel(
                     name = hotelInfo.name ?: "",
                     address = hotelInfo.address ?: "",
                     reservationNumber = hotelInfo.bookingReference ?: "",
+                    sourceDocumentId = documentId,
                 ),
             )
         }

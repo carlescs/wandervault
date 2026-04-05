@@ -98,6 +98,7 @@ private enum class LocationDetailTab(@StringRes val labelRes: Int, val icon: Ima
  * @param destinationId The ID of the destination whose details are displayed.
  * @param onNavigateUp Called when the user taps the back/up button.
  * @param onTransportClick Called with the destination ID when the user taps the transport row.
+ * @param onNavigateToDocument Called with the document ID when the user taps the source document chip.
  * @param modifier Optional [Modifier].
  */
 @Composable
@@ -105,6 +106,7 @@ fun LocationDetailScreen(
     destinationId: Int,
     onNavigateUp: () -> Unit,
     onTransportClick: (Int) -> Unit = {},
+    onNavigateToDocument: (Int) -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: LocationDetailViewModel = koinViewModel(key = "LocationDetailViewModel:$destinationId", parameters = { parametersOf(destinationId) }),
 ) {
@@ -126,6 +128,8 @@ fun LocationDetailScreen(
         onHotelAddressChange = viewModel::onHotelAddressChange,
         onHotelReservationNumberChange = viewModel::onHotelReservationNumberChange,
         onNotesChange = viewModel::onNotesChange,
+        onNavigateToDocument = onNavigateToDocument,
+        onClearHotelSourceDocument = viewModel::onClearHotelSourceDocument,
         onOpenNewActivityDraft = viewModel::onOpenNewActivityDraft,
         onEditActivity = viewModel::onEditActivity,
         onCloseActivityDraft = viewModel::onCloseActivityDraft,
@@ -154,6 +158,8 @@ internal fun LocationDetailContent(
     onHotelAddressChange: (String) -> Unit = {},
     onHotelReservationNumberChange: (String) -> Unit = {},
     onNotesChange: (String) -> Unit = {},
+    onNavigateToDocument: (Int) -> Unit = {},
+    onClearHotelSourceDocument: () -> Unit = {},
     onOpenNewActivityDraft: () -> Unit = {},
     onEditActivity: (Activity) -> Unit = {},
     onCloseActivityDraft: () -> Unit = {},
@@ -247,6 +253,8 @@ internal fun LocationDetailContent(
                         onNameChange = onHotelNameChange,
                         onAddressChange = onHotelAddressChange,
                         onReservationNumberChange = onHotelReservationNumberChange,
+                        onNavigateToDocument = onNavigateToDocument,
+                        onClearSourceDocument = onClearHotelSourceDocument,
                     )
                     LocationDetailTab.ACTIVITIES -> ActivitiesTabContent(
                         uiState = uiState,
@@ -349,6 +357,8 @@ private fun HotelTabContent(
     onNameChange: (String) -> Unit,
     onAddressChange: (String) -> Unit,
     onReservationNumberChange: (String) -> Unit,
+    onNavigateToDocument: (Int) -> Unit = {},
+    onClearSourceDocument: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val hotel = uiState.hotelEditState
@@ -400,6 +410,14 @@ private fun HotelTabContent(
                 stringResource(R.string.hotel_nights_not_available)
             },
         )
+        hotel.sourceDocumentId?.let { sourceDocumentId ->
+            HorizontalDivider()
+            SourceDocumentChip(
+                documentName = hotel.sourceDocumentName,
+                onDocumentClick = { onNavigateToDocument(sourceDocumentId) },
+                onRemove = onClearSourceDocument,
+            )
+        }
     }
 }
 

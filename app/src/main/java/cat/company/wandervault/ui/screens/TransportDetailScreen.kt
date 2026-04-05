@@ -125,6 +125,7 @@ private enum class TransportDetailTab(@StringRes val labelRes: Int, val icon: Im
 fun TransportDetailScreen(
     destinationId: Int,
     onNavigateUp: () -> Unit,
+    onNavigateToDocument: (Int) -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: TransportDetailViewModel = koinViewModel(
         key = "TransportDetailViewModel:$destinationId",
@@ -157,6 +158,8 @@ fun TransportDetailScreen(
         onSetDefaultLeg = viewModel::onSetDefaultLeg,
         onDepartureDateTimeChange = viewModel::onDepartureDateTimeChange,
         onArrivalDateTimeChange = viewModel::onArrivalDateTimeChange,
+        onNavigateToDocument = onNavigateToDocument,
+        onClearLegSourceDocument = viewModel::onClearLegSourceDocument,
         modifier = modifier,
     )
 }
@@ -184,6 +187,8 @@ internal fun TransportDetailContent(
     onSetDefaultLeg: (Int) -> Unit = {},
     onDepartureDateTimeChange: (Int, ZonedDateTime?) -> Unit = { _, _ -> },
     onArrivalDateTimeChange: (Int, ZonedDateTime?) -> Unit = { _, _ -> },
+    onNavigateToDocument: (Int) -> Unit = {},
+    onClearLegSourceDocument: (Int) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var selectedTab by rememberSaveable { mutableStateOf(TransportDetailTab.DETAILS) }
@@ -257,6 +262,8 @@ internal fun TransportDetailContent(
                         onSetDefaultLeg = onSetDefaultLeg,
                         onDepartureDateTimeChange = onDepartureDateTimeChange,
                         onArrivalDateTimeChange = onArrivalDateTimeChange,
+                        onNavigateToDocument = onNavigateToDocument,
+                        onClearLegSourceDocument = onClearLegSourceDocument,
                         innerPadding = innerPadding,
                     )
                 }
@@ -477,6 +484,8 @@ private fun TransportLegsTabContent(
     onSetDefaultLeg: (Int) -> Unit,
     onDepartureDateTimeChange: (Int, ZonedDateTime?) -> Unit,
     onArrivalDateTimeChange: (Int, ZonedDateTime?) -> Unit,
+    onNavigateToDocument: (Int) -> Unit = {},
+    onClearLegSourceDocument: (Int) -> Unit = {},
     innerPadding: PaddingValues,
     modifier: Modifier = Modifier,
 ) {
@@ -537,6 +546,8 @@ private fun TransportLegsTabContent(
                     onSetDefault = { onSetDefaultLeg(index) },
                     onDepartureDateTimeChange = { dt -> onDepartureDateTimeChange(index, dt) },
                     onArrivalDateTimeChange = { dt -> onArrivalDateTimeChange(index, dt) },
+                    onNavigateToDocument = onNavigateToDocument,
+                    onClearSourceDocument = { onClearLegSourceDocument(index) },
                     minDateMillis = minDateMillis,
                     maxDateMillis = maxDateMillis,
                     defaultDepartureZoneId = defaultDepartureZoneId,
@@ -684,6 +695,8 @@ private fun TransportLegSection(
     onSetDefault: () -> Unit,
     onDepartureDateTimeChange: (ZonedDateTime?) -> Unit,
     onArrivalDateTimeChange: (ZonedDateTime?) -> Unit,
+    onNavigateToDocument: (Int) -> Unit = {},
+    onClearSourceDocument: () -> Unit = {},
     minDateMillis: Long? = null,
     maxDateMillis: Long? = null,
     defaultDepartureZoneId: ZoneId = ZoneId.systemDefault(),
@@ -850,6 +863,15 @@ private fun TransportLegSection(
                     label = stringResource(R.string.transport_confirmation_label),
                     modifier = Modifier.fillMaxWidth(),
                 )
+
+                leg.sourceDocumentId?.let { sourceDocumentId ->
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                    SourceDocumentChip(
+                        documentName = leg.sourceDocumentName,
+                        onDocumentClick = { onNavigateToDocument(sourceDocumentId) },
+                        onRemove = onClearSourceDocument,
+                    )
+                }
             }
         }
     }

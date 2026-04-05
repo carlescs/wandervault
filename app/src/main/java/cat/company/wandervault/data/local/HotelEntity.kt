@@ -23,4 +23,9 @@ data class HotelEntity(
     val name: String = "",
     val address: String = "",
     val reservationNumber: String = "",
+    /**
+     * The [cat.company.wandervault.data.local.TripDocumentEntity.id] of the document from which
+     * this hotel's information was extracted, or `null` when entered manually.
+     */
+    val sourceDocumentId: Int? = null,
 )

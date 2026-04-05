@@ -78,6 +78,12 @@ class ShareViewModel(
     private var selectedTripId: Int = NO_TRIP_SELECTED
 
     /**
+     * The database ID of the document that was saved for this share session.
+     * Set after the document is persisted so it can be linked to extracted itinerary items.
+     */
+    private var savedDocumentId: Int = 0
+
+    /**
      * Queue of flight infos extracted from the shared document that have not yet been processed.
      * Populated when ML extraction completes and consumed one item at a time.
      */
@@ -149,6 +155,7 @@ class ShareViewModel(
                     // Persist the extracted summary on the saved document record.
                     val savedDoc = getRootDocuments(tripId).first().find { it.uri == internalUri }
                     if (savedDoc != null) {
+                        savedDocumentId = savedDoc.id
                         updateDocument(savedDoc.copy(summary = result.summary))
                     }
 
@@ -162,7 +169,7 @@ class ShareViewModel(
                         if (relevantInfo != null) {
                             val trip = getTrip(tripId).first()
                             if (trip != null && trip.aiDescription == null) {
-                                saveTripDescription(trip, relevantInfo)
+                                saveTripDescription(trip, relevantInfo, sourceDocumentId = savedDocumentId.takeIf { it > 0 })
                             }
                         }
                         _uiState.value = ShareUiState.Done
@@ -448,7 +455,9 @@ class ShareViewModel(
     }
 
     private suspend fun applyFlightInfoToLeg(flightInfo: FlightInfo, leg: TransportLeg) {
-        val updatedLeg = leg.applyFlightInfo(flightInfo)
+        val applied = leg.applyFlightInfo(flightInfo)
+        val docId = savedDocumentId.takeIf { it > 0 }
+        val updatedLeg = if (docId != null) applied.copy(sourceDocumentId = docId) else applied
         if (updatedLeg == leg) return
         updateTransportLeg(updatedLeg)
 
@@ -476,13 +485,16 @@ class ShareViewModel(
 
     private suspend fun applyHotelInfoToDestination(hotelInfo: HotelInfo, destination: Destination) {
         val existingHotel = getHotelForDestination(destination.id).first()
+        val docId = savedDocumentId.takeIf { it > 0 }
         if (existingHotel != null) {
             val updatedHotel = existingHotel.copy(
                 name = existingHotel.name.ifBlank { null } ?: hotelInfo.name.orEmpty(),
                 address = existingHotel.address.ifBlank { null } ?: hotelInfo.address.orEmpty(),
                 reservationNumber = existingHotel.reservationNumber.ifBlank { null }
                     ?: hotelInfo.bookingReference.orEmpty(),
-            )
+            ).let { hotel ->
+                if (docId != null) hotel.copy(sourceDocumentId = docId) else hotel
+            }
             if (updatedHotel != existingHotel) {
                 saveHotel(updatedHotel)
             }
@@ -498,6 +510,7 @@ class ShareViewModel(
                     name = hotelInfo.name ?: "",
                     address = hotelInfo.address ?: "",
                     reservationNumber = hotelInfo.bookingReference ?: "",
+                    sourceDocumentId = docId,
                 ),
             )
         }
