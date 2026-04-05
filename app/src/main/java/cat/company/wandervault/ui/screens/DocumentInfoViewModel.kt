@@ -208,6 +208,34 @@ class DocumentInfoViewModel(
      * No-op when the document is not yet loaded.
      */
     fun analyzeDocument() {
+        startAnalysis(updateSummary = true)
+    }
+
+    /**
+     * Runs ML Kit analysis on the current document to extract trip-relevant information
+     * (flights, hotels, etc.) and applies it to the trip, **without** overwriting the
+     * existing AI description (summary).
+     *
+     * Sets [AnalyzeDocumentUiState.Loading] immediately while the document is being read.
+     * If the Gemini Nano model needs to be downloaded first, transitions to
+     * [AnalyzeDocumentUiState.Downloading] with live byte-count updates.
+     * On success, directly begins processing proposed trip changes.
+     * On permanent unavailability sets [AnalyzeDocumentUiState.Unavailable].
+     * On transient failure sets [AnalyzeDocumentUiState.Error].
+     *
+     * No-op when the document is not yet loaded.
+     */
+    fun analyzeDocumentForTripUpdates() {
+        startAnalysis(updateSummary = false)
+    }
+
+    /**
+     * Shared implementation for [analyzeDocument] and [analyzeDocumentForTripUpdates].
+     *
+     * @param updateSummary When `true`, the extracted summary is persisted to the document record.
+     *   When `false`, the existing summary is preserved and only trip elements are processed.
+     */
+    private fun startAnalysis(updateSummary: Boolean) {
         val document = (uiState.value as? DocumentInfoUiState.Success)?.document ?: return
         val tripId = document.tripId
         analyzeJob?.cancel()
@@ -230,17 +258,19 @@ class DocumentInfoViewModel(
                 return@launch
             }
 
-            // Reload the latest document before updating to avoid clobbering concurrent changes
-            // (e.g. rename/move) that may have happened while analysis was running (best-effort).
-            try {
-                val latestDocument = getDocumentById(documentId).first()
-                if (latestDocument != null) {
-                    updateDocument(latestDocument.copy(summary = result.summary))
+            if (updateSummary) {
+                // Reload the latest document before updating to avoid clobbering concurrent changes
+                // (e.g. rename/move) that may have happened while analysis was running (best-effort).
+                try {
+                    val latestDocument = getDocumentById(documentId).first()
+                    if (latestDocument != null) {
+                        updateDocument(latestDocument.copy(summary = result.summary))
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to persist refreshed summary for ${document.name}", e)
+                    _analyzeState.value = AnalyzeDocumentUiState.Error(e.message ?: e.toString())
+                    return@launch
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to persist refreshed summary for ${document.name}", e)
-                _analyzeState.value = AnalyzeDocumentUiState.Error(e.message ?: e.toString())
-                return@launch
             }
 
             // Directly process any proposed trip changes; the summary is already visible in the

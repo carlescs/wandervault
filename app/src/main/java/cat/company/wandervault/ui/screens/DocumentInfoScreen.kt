@@ -126,6 +126,7 @@ fun DocumentInfoScreen(
         onNavigateUp = onNavigateUp,
         onOpenDocument = { document -> openTripDocument(context, document) },
         onAnalyzeDocument = viewModel::analyzeDocument,
+        onAnalyzeForTripUpdates = viewModel::analyzeDocumentForTripUpdates,
         onDeleteAiDescription = viewModel::deleteAiDescription,
         onNavigateToChat = onNavigateToChat,
         onAnalyzeFlightLegSelected = viewModel::onFlightLegSelected,
@@ -151,6 +152,7 @@ internal fun DocumentInfoContent(
     onNavigateUp: () -> Unit,
     onOpenDocument: (TripDocument) -> Unit = {},
     onAnalyzeDocument: () -> Unit = {},
+    onAnalyzeForTripUpdates: () -> Unit = {},
     onDeleteAiDescription: () -> Unit = {},
     onNavigateToChat: () -> Unit = {},
     onAnalyzeFlightLegSelected: (TransportLeg) -> Unit = {},
@@ -237,6 +239,7 @@ internal fun DocumentInfoContent(
                     uiState = uiState,
                     innerPadding = innerPadding,
                     onAnalyzeDocument = onAnalyzeDocument,
+                    onAnalyzeForTripUpdates = onAnalyzeForTripUpdates,
                     onDeleteAiDescription = onDeleteAiDescription,
                     onAnalyzeDismiss = onAnalyzeDismiss,
                 )
@@ -271,6 +274,7 @@ private fun DocumentInfoSuccessContent(
     uiState: DocumentInfoUiState.Success,
     innerPadding: PaddingValues,
     onAnalyzeDocument: () -> Unit,
+    onAnalyzeForTripUpdates: () -> Unit,
     onDeleteAiDescription: () -> Unit,
     onAnalyzeDismiss: () -> Unit = {},
     modifier: Modifier = Modifier,
@@ -296,6 +300,7 @@ private fun DocumentInfoSuccessContent(
                 DocumentInfoSheetContent(
                     uiState = uiState,
                     onAnalyzeDocument = onAnalyzeDocument,
+                    onAnalyzeForTripUpdates = onAnalyzeForTripUpdates,
                     onDeleteAiDescription = onDeleteAiDescription,
                     onAnalyzeDismiss = onAnalyzeDismiss,
                 )
@@ -348,6 +353,7 @@ private fun DocumentInfoSuccessContent(
 private fun DocumentInfoSheetContent(
     uiState: DocumentInfoUiState.Success,
     onAnalyzeDocument: () -> Unit,
+    onAnalyzeForTripUpdates: () -> Unit,
     onDeleteAiDescription: () -> Unit,
     onAnalyzeDismiss: () -> Unit = {},
     modifier: Modifier = Modifier,
@@ -461,9 +467,10 @@ private fun DocumentInfoSheetContent(
 
         val showGenerateButton = uiState.isAiAvailable && summary.isNullOrBlank() && !isAnalysisInProgress
         val showReanalyzeButton = uiState.isAiAvailable && !summary.isNullOrBlank() && !isAnalysisInProgress
+        val showUpdateTripFromDocumentButton = uiState.isAiAvailable && !summary.isNullOrBlank() && !isAnalysisInProgress
         val showDeleteButton = !summary.isNullOrBlank()
 
-        if (showGenerateButton || showReanalyzeButton || showDeleteButton) {
+        if (showGenerateButton || showReanalyzeButton || showUpdateTripFromDocumentButton || showDeleteButton) {
             Spacer(modifier = Modifier.height(8.dp))
 
             if (showGenerateButton) {
@@ -490,6 +497,19 @@ private fun DocumentInfoSheetContent(
                         modifier = Modifier.padding(end = 8.dp),
                     )
                     Text(stringResource(R.string.document_info_reanalyze_ai_description))
+                }
+            }
+            if (showUpdateTripFromDocumentButton) {
+                OutlinedButton(
+                    onClick = onAnalyzeForTripUpdates,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.FindInPage,
+                        contentDescription = null,
+                        modifier = Modifier.padding(end = 8.dp),
+                    )
+                    Text(stringResource(R.string.document_info_update_trip_from_document))
                 }
             }
             if (showDeleteButton) {
@@ -1023,6 +1043,7 @@ private fun DocumentInfoAnalyzingPreview() {
                 analyzeState = AnalyzeDocumentUiState.Loading,
             ),
             onAnalyzeDocument = {},
+            onAnalyzeForTripUpdates = {},
             onDeleteAiDescription = {},
         )
     }
@@ -1048,6 +1069,7 @@ private fun DocumentInfoDownloadingPreview() {
                 analyzeState = AnalyzeDocumentUiState.Downloading(bytesDownloaded = 12_345_678L),
             ),
             onAnalyzeDocument = {},
+            onAnalyzeForTripUpdates = {},
             onDeleteAiDescription = {},
         )
     }
