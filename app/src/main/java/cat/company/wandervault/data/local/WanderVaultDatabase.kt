@@ -19,7 +19,7 @@ import java.time.ZoneId
         TripDocumentEntity::class,
         ActivityEntity::class,
     ],
-    version = 23,
+    version = 24,
 )
 @TypeConverters(DateConverters::class)
 abstract class WanderVaultDatabase : RoomDatabase() {
@@ -470,6 +470,11 @@ abstract class WanderVaultDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE `transport_legs` ADD COLUMN `sourceDocumentId` INTEGER")
                 db.execSQL("ALTER TABLE `hotels` ADD COLUMN `sourceDocumentId` INTEGER")
                 db.execSQL("ALTER TABLE `trips` ADD COLUMN `aiDescriptionSourceDocumentId` INTEGER")
+            }
+        }
+        val MIGRATION_23_24 = object : Migration(23, 24) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `activities` ADD COLUMN `sourceDocumentId` INTEGER")
             }
         }
     }

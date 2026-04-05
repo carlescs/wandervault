@@ -944,6 +944,7 @@ class DocumentInfoViewModel(
                         description = state.activityInfo.description ?: "",
                         dateTime = dateTime,
                         confirmationNumber = state.activityInfo.confirmationNumber ?: "",
+                        sourceDocumentId = documentId,
                     ),
                 )
             } catch (e: Exception) {
