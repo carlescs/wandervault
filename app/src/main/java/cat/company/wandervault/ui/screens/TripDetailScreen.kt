@@ -3,6 +3,7 @@ package cat.company.wandervault.ui.screens
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.annotation.StringRes
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -367,7 +368,11 @@ private fun TripDetailsTabContent(
                                 )
                             }
                             Spacer(modifier = Modifier.height(16.dp))
-                            UpcomingEventsSection(events = uiState.upcomingEvents)
+                            UpcomingEventsSection(
+                                events = uiState.upcomingEvents,
+                                onNavigateToDestination = onNavigateToDestination,
+                                onNavigateToTransport = onNavigateToTransport,
+                            )
                             WhatsNextSection(
                                 whatsNextState = uiState.whatsNextState,
                                 onRefresh = onRefreshWhatsNext,
@@ -489,10 +494,16 @@ private fun AiDescriptionSection(
  * Renders the "Next Up" section, listing the upcoming itinerary events sorted by time.
  *
  * The section is hidden when [events] is empty. Each event shows its date/time and a label
- * indicating whether it is an arrival or departure and the destination name.
+ * indicating whether it is an arrival or departure and the destination name. Tapping an arrival
+ * event navigates to the destination detail; tapping a departure event navigates to the transport
+ * detail.
  */
 @Composable
-private fun UpcomingEventsSection(events: List<UpcomingEvent>) {
+private fun UpcomingEventsSection(
+    events: List<UpcomingEvent>,
+    onNavigateToDestination: (Int) -> Unit = {},
+    onNavigateToTransport: (Int) -> Unit = {},
+) {
     if (events.isEmpty()) return
 
     val dateFormatter = DETAIL_DATE_FORMATTER
@@ -512,6 +523,17 @@ private fun UpcomingEventsSection(events: List<UpcomingEvent>) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            when (event.eventType) {
+                                UpcomingEvent.EventType.ARRIVAL ->
+                                    onNavigateToDestination(event.destinationId)
+                                UpcomingEvent.EventType.DEPARTURE ->
+                                    onNavigateToTransport(event.destinationId)
+                            }
+                        }
+                        .padding(vertical = 4.dp),
                 ) {
                     Icon(
                         imageVector = when (event.eventType) {
@@ -760,16 +782,19 @@ private fun TripDetailNextUpPreview() {
                     UpcomingEvent(
                         dateTime = ZonedDateTime.parse("2024-09-02T10:30:00+09:00[Asia/Tokyo]"),
                         destinationName = "Tokyo",
+                        destinationId = 1,
                         eventType = UpcomingEvent.EventType.ARRIVAL,
                     ),
                     UpcomingEvent(
                         dateTime = ZonedDateTime.parse("2024-09-10T14:00:00+09:00[Asia/Tokyo]"),
                         destinationName = "Tokyo",
+                        destinationId = 1,
                         eventType = UpcomingEvent.EventType.DEPARTURE,
                     ),
                     UpcomingEvent(
                         dateTime = ZonedDateTime.parse("2024-09-10T18:30:00+09:00[Asia/Tokyo]"),
                         destinationName = "Osaka",
+                        destinationId = 2,
                         eventType = UpcomingEvent.EventType.ARRIVAL,
                     ),
                 ),
