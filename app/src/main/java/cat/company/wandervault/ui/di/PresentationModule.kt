@@ -109,6 +109,7 @@ val presentationModule = module {
             updateDestination = get(),
             getOrCreateTransport = get(),
             saveTransportLeg = get(),
+            saveActivity = get(),
         )
     }
     viewModel { params ->

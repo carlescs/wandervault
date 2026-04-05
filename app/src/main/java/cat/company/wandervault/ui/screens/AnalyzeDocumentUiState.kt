@@ -1,5 +1,6 @@
 package cat.company.wandervault.ui.screens
 
+import cat.company.wandervault.domain.model.ActivityInfo
 import cat.company.wandervault.domain.model.Destination
 import cat.company.wandervault.domain.model.FlightInfo
 import cat.company.wandervault.domain.model.Hotel
@@ -118,6 +119,31 @@ sealed class AnalyzeDocumentUiState {
      * @param relevantTripInfo The extracted general trip info text that will be saved.
      */
     data class TripInfoConfirm(val relevantTripInfo: String) : AnalyzeDocumentUiState()
+
+    /**
+     * ML Kit extracted activity/experience information. The user must select one of [candidates]
+     * to attach the activity to, or skip.
+     *
+     * @param activityInfo The extracted activity details.
+     * @param candidates Destinations available in the selected trip, pre-filtered by the activity
+     *   date when available (falls back to all destinations when no date is found).
+     */
+    data class ActivityDestinationSelection(
+        val activityInfo: ActivityInfo,
+        val candidates: List<Destination>,
+    ) : AnalyzeDocumentUiState()
+
+    /**
+     * The user has selected a destination for the extracted activity.
+     * The user reviews what will be created and confirms or cancels.
+     *
+     * @param activityInfo The extracted activity details.
+     * @param destination The destination the new activity will be attached to.
+     */
+    data class ActivityConfirm(
+        val activityInfo: ActivityInfo,
+        val destination: Destination,
+    ) : AnalyzeDocumentUiState()
 }
 
 /**

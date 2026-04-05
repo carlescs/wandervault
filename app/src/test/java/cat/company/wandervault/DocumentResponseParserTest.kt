@@ -478,6 +478,142 @@ class DocumentResponseParserTest {
         )
     }
 
+    // ── ACTIVITY marker ───────────────────────────────────────────────────────
+
+    @Test
+    fun `activity marker on first line parses all fields correctly`() {
+        val raw = """
+            This is a museum ticket for the Louvre.
+            ---
+            ACTIVITY|Louvre Museum visit|Skip-the-line entry ticket|2024-06-16|09:00|TICK123
+        """.trimIndent()
+
+        val result = parseDocumentResponse(raw)
+
+        assertEquals(1, result.activityInfoList.size)
+        assertTrue(result.flightInfoList.isEmpty())
+        assertTrue(result.hotelInfoList.isEmpty())
+        assertNull(result.relevantTripInfo)
+
+        val ai = result.activityInfoList[0]
+        assertEquals("Louvre Museum visit", ai.title)
+        assertEquals("Skip-the-line entry ticket", ai.description)
+        assertEquals(LocalDate.of(2024, 6, 16), ai.date)
+        assertEquals(LocalTime.of(9, 0), ai.time)
+        assertEquals("TICK123", ai.confirmationNumber)
+    }
+
+    @Test
+    fun `activity marker parsed case-insensitively`() {
+        val raw = "Summary.\n---\nactivity|City tour|Guided walking tour|2024-08-01\n"
+
+        val result = parseDocumentResponse(raw)
+
+        assertEquals(1, result.activityInfoList.size)
+        assertEquals("City tour", result.activityInfoList[0].title)
+    }
+
+    @Test
+    fun `activity marker with missing optional fields produces nulls`() {
+        val raw = "Summary.\n---\nACTIVITY|Wine tasting||||"
+
+        val result = parseDocumentResponse(raw)
+
+        assertEquals(1, result.activityInfoList.size)
+        val ai = result.activityInfoList[0]
+        assertEquals("Wine tasting", ai.title)
+        assertNull(ai.description)
+        assertNull(ai.date)
+        assertNull(ai.time)
+        assertNull(ai.confirmationNumber)
+    }
+
+    @Test
+    fun `activity marker with no fields at all produces all nulls`() {
+        val raw = "Summary.\n---\nACTIVITY|\n"
+
+        val result = parseDocumentResponse(raw)
+
+        assertEquals(1, result.activityInfoList.size)
+        val ai = result.activityInfoList[0]
+        assertNull(ai.title)
+        assertNull(ai.description)
+        assertNull(ai.date)
+        assertNull(ai.time)
+        assertNull(ai.confirmationNumber)
+    }
+
+    @Test
+    fun `multiple activity lines are all parsed into activityInfoList`() {
+        val raw = """
+            Booking with two activities.
+            ---
+            ACTIVITY|Eiffel Tower|Summit access|2024-07-10|14:00|ACT001
+            ACTIVITY|Seine River Cruise|Evening cruise|2024-07-10|20:30|ACT002
+        """.trimIndent()
+
+        val result = parseDocumentResponse(raw)
+
+        assertEquals(2, result.activityInfoList.size)
+        assertTrue(result.flightInfoList.isEmpty())
+        assertTrue(result.hotelInfoList.isEmpty())
+        assertNull(result.relevantTripInfo)
+
+        assertEquals("Eiffel Tower", result.activityInfoList[0].title)
+        assertEquals(LocalTime.of(14, 0), result.activityInfoList[0].time)
+        assertEquals("Seine River Cruise", result.activityInfoList[1].title)
+        assertEquals(LocalTime.of(20, 30), result.activityInfoList[1].time)
+    }
+
+    @Test
+    fun `document with flight, hotel and activity lines produces all three lists`() {
+        val raw = """
+            Full travel itinerary.
+            ---
+            FLIGHT|Iberia|IB3456|FLREF|Madrid|Barcelona|2025-05-10|07:00|08:15
+            HOTEL|Hotel BCN|Las Ramblas|HTLREF|2025-05-10|2025-05-13
+            ACTIVITY|Sagrada Familia|Guided tour|2025-05-11|10:00|ACTREF
+        """.trimIndent()
+
+        val result = parseDocumentResponse(raw)
+
+        assertEquals(1, result.flightInfoList.size)
+        assertEquals(1, result.hotelInfoList.size)
+        assertEquals(1, result.activityInfoList.size)
+        assertNull(result.relevantTripInfo)
+
+        assertEquals("Iberia", result.flightInfoList[0].airline)
+        assertEquals("Hotel BCN", result.hotelInfoList[0].name)
+        assertEquals("Sagrada Familia", result.activityInfoList[0].title)
+        assertEquals("ACTREF", result.activityInfoList[0].confirmationNumber)
+    }
+
+    @Test
+    fun `activity marker with invalid date field produces null date`() {
+        val raw = "Summary.\n---\nACTIVITY|Art Museum||15/06/2024\n"
+
+        val result = parseDocumentResponse(raw)
+
+        assertEquals(1, result.activityInfoList.size)
+        assertNull(result.activityInfoList[0].date)
+    }
+
+    @Test
+    fun `activity marker detected when model emits prefix before marker line`() {
+        val raw = """
+            Activity voucher for a sightseeing tour.
+            ---
+            Booking confirmation for a guided city tour.
+            ACTIVITY|City Sightseeing Bus||2024-09-05||BUSP99
+        """.trimIndent()
+
+        val result = parseDocumentResponse(raw)
+
+        assertEquals(1, result.activityInfoList.size)
+        assertEquals("City Sightseeing Bus", result.activityInfoList[0].title)
+        assertEquals("BUSP99", result.activityInfoList[0].confirmationNumber)
+    }
+
     // ── normalizeSuggestedFilename ─────────────────────────────────────────────
 
     @Test

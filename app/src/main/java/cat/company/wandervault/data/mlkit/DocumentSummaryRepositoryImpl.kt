@@ -299,7 +299,12 @@ class DocumentSummaryRepositoryImpl(
                 "${HOTEL_MARKER}<hotel name>|<address>|<booking reference>|<check-in date (YYYY-MM-DD)>|<check-out date (YYYY-MM-DD)>",
         )
         appendLine(
-            "- A document may contain multiple FLIGHT lines, multiple HOTEL lines, or both.",
+            "- If it contains ACTIVITY information (tour booking, museum ticket, restaurant reservation, " +
+                "experience or attraction confirmation), output one line per activity: " +
+                "${ACTIVITY_MARKER}<title>|<description>|<date (YYYY-MM-DD)>|<time (HH:MM)>|<confirmation number>",
+        )
+        appendLine(
+            "- A document may contain multiple FLIGHT lines, multiple HOTEL lines, multiple ACTIVITY lines, or a combination of these.",
         )
         appendLine(
             "- Otherwise, list any trip-relevant info (travel dates, destinations, " +

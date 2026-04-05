@@ -31,6 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import cat.company.wandervault.R
+import cat.company.wandervault.domain.model.ActivityInfo
 import cat.company.wandervault.domain.model.Destination
 import cat.company.wandervault.domain.model.FlightInfo
 import cat.company.wandervault.domain.model.HotelInfo
@@ -59,17 +60,21 @@ import java.time.format.FormatStyle
  *   destination; "Apply" button adds a new leg to that transport.
  * - [AnalyzeDocumentUiState.TripInfoConfirm]: extracted general trip info text; "Apply" button
  *   saves it as the trip description.
- * - [AnalyzeDocumentUiState.FlightLegSelection] / [AnalyzeDocumentUiState.HotelDestinationSelection]:
- *   scrollable candidate list; tapping an item applies the changes and dismisses. Tapping an item
- *   in [AnalyzeDocumentUiState.FlightTransportSelection] advances to
+ * - [AnalyzeDocumentUiState.FlightLegSelection] / [AnalyzeDocumentUiState.HotelDestinationSelection] /
+ *   [AnalyzeDocumentUiState.ActivityDestinationSelection]: scrollable candidate list; tapping an
+ *   item applies the changes and dismisses. Tapping an item in
+ *   [AnalyzeDocumentUiState.FlightTransportSelection] advances to
  *   [AnalyzeDocumentUiState.FlightAddLegConfirm].
+ * - [AnalyzeDocumentUiState.ActivityConfirm]: extracted activity info alongside the selected
+ *   destination; "Apply" button creates the new activity.
  *
  * @param onDismiss Called to cancel and close the entire dialog (back button, outside tap, or
  *   "Cancel" during [AnalyzeDocumentUiState.Error] or [AnalyzeDocumentUiState.Unavailable]).
  * @param onSkipItem Called when the user taps "Skip" or "Cancel" during a per-item step
  *   ([AnalyzeDocumentUiState.FlightLegSelection], [AnalyzeDocumentUiState.FlightTransportSelection],
  *   [AnalyzeDocumentUiState.HotelDestinationSelection], [AnalyzeDocumentUiState.FlightConfirm],
- *   [AnalyzeDocumentUiState.FlightAddLegConfirm], or [AnalyzeDocumentUiState.HotelConfirm]).
+ *   [AnalyzeDocumentUiState.FlightAddLegConfirm], [AnalyzeDocumentUiState.HotelConfirm],
+ *   [AnalyzeDocumentUiState.ActivityDestinationSelection], or [AnalyzeDocumentUiState.ActivityConfirm]).
  *   Advances to the next pending item rather than closing the dialog entirely.
  */
 @Composable
@@ -82,6 +87,8 @@ internal fun AnalyzeDocumentDialog(
     onHotelDestinationSelected: (Destination) -> Unit,
     onHotelConfirmed: () -> Unit,
     onTripInfoConfirmed: () -> Unit,
+    onActivityDestinationSelected: (Destination) -> Unit,
+    onActivityConfirmed: () -> Unit,
     onDismiss: () -> Unit,
     onSkipItem: () -> Unit = onDismiss,
 ) {
@@ -95,6 +102,8 @@ internal fun AnalyzeDocumentDialog(
         is AnalyzeDocumentUiState.FlightAddLegConfirm -> R.string.documents_analyze_confirm_add_leg_title
         is AnalyzeDocumentUiState.HotelConfirm -> R.string.documents_analyze_confirm_hotel_title
         is AnalyzeDocumentUiState.TripInfoConfirm -> R.string.documents_analyze_confirm_trip_info_title
+        is AnalyzeDocumentUiState.ActivityDestinationSelection -> R.string.documents_analyze_activity_selection_title
+        is AnalyzeDocumentUiState.ActivityConfirm -> R.string.documents_analyze_confirm_activity_title
         else -> R.string.documents_analyze_title
     }
 
@@ -102,7 +111,8 @@ internal fun AnalyzeDocumentDialog(
     val scrollState = rememberScrollState()
     val useScroll = analyzeState !is AnalyzeDocumentUiState.FlightLegSelection &&
         analyzeState !is AnalyzeDocumentUiState.FlightTransportSelection &&
-        analyzeState !is AnalyzeDocumentUiState.HotelDestinationSelection
+        analyzeState !is AnalyzeDocumentUiState.HotelDestinationSelection &&
+        analyzeState !is AnalyzeDocumentUiState.ActivityDestinationSelection
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -378,6 +388,43 @@ internal fun AnalyzeDocumentDialog(
                         )
                     }
 
+                    is AnalyzeDocumentUiState.ActivityDestinationSelection -> {
+                        AnalyzeActivityInfoSummary(activityInfo = analyzeState.activityInfo)
+                        Text(
+                            text = stringResource(R.string.documents_analyze_activity_selection_message),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        LazyColumn(modifier = Modifier.heightIn(max = 280.dp)) {
+                            items(analyzeState.candidates) { destination ->
+                                DestinationListItem(
+                                    destination = destination,
+                                    dateFormatter = dateFormatter,
+                                    onClick = { onActivityDestinationSelected(destination) },
+                                )
+                                HorizontalDivider()
+                            }
+                        }
+                    }
+
+                    is AnalyzeDocumentUiState.ActivityConfirm -> {
+                        AnalyzeActivityInfoSummary(activityInfo = analyzeState.activityInfo)
+                        Text(
+                            text = stringResource(
+                                R.string.documents_analyze_confirm_activity_message,
+                                analyzeState.destination.name,
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        HorizontalDivider()
+                        DestinationListItem(
+                            destination = analyzeState.destination,
+                            dateFormatter = dateFormatter,
+                            onClick = null,
+                        )
+                    }
+
                     is AnalyzeDocumentUiState.Downloading,
                     is AnalyzeDocumentUiState.Loading,
                     -> Unit
@@ -406,6 +453,11 @@ internal fun AnalyzeDocumentDialog(
                         Text(stringResource(R.string.documents_analyze_confirm_apply))
                     }
                 }
+                analyzeState is AnalyzeDocumentUiState.ActivityConfirm -> {
+                    TextButton(onClick = onActivityConfirmed) {
+                        Text(stringResource(R.string.documents_analyze_confirm_apply))
+                    }
+                }
             }
         },
         dismissButton = {
@@ -416,12 +468,15 @@ internal fun AnalyzeDocumentDialog(
                 analyzeState is AnalyzeDocumentUiState.HotelDestinationSelection ||
                 analyzeState is AnalyzeDocumentUiState.FlightConfirm ||
                 analyzeState is AnalyzeDocumentUiState.FlightAddLegConfirm ||
-                analyzeState is AnalyzeDocumentUiState.HotelConfirm
+                analyzeState is AnalyzeDocumentUiState.HotelConfirm ||
+                analyzeState is AnalyzeDocumentUiState.ActivityDestinationSelection ||
+                analyzeState is AnalyzeDocumentUiState.ActivityConfirm
             TextButton(onClick = if (isPerItemState) onSkipItem else onDismiss) {
                 val labelRes = when (analyzeState) {
                     is AnalyzeDocumentUiState.FlightLegSelection,
                     is AnalyzeDocumentUiState.FlightTransportSelection,
                     is AnalyzeDocumentUiState.HotelDestinationSelection,
+                    is AnalyzeDocumentUiState.ActivityDestinationSelection,
                     -> R.string.share_skip
                     else -> R.string.dialog_cancel
                 }
@@ -486,6 +541,39 @@ internal fun AnalyzeHotelInfoSummary(hotelInfo: HotelInfo, modifier: Modifier = 
             if (!hotelInfo.bookingReference.isNullOrBlank()) {
                 Text(
                     text = stringResource(R.string.documents_analyze_ref, hotelInfo.bookingReference),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+internal fun AnalyzeActivityInfoSummary(activityInfo: ActivityInfo, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = Icons.Default.Place,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(end = 8.dp),
+        )
+        Column {
+            val activityLabel = activityInfo.title?.ifBlank { null }
+                ?: stringResource(R.string.documents_analyze_activity_unknown)
+            Text(
+                text = activityLabel,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Bold,
+            )
+            if (!activityInfo.confirmationNumber.isNullOrBlank()) {
+                Text(
+                    text = stringResource(R.string.documents_analyze_ref, activityInfo.confirmationNumber),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
