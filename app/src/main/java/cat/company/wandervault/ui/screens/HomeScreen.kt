@@ -190,7 +190,7 @@ internal fun HomeScreenContent(
                             if (value == SwipeToDismissBoxValue.EndToStart) {
                                 currentArchiveAction()
                             }
-                            value != SwipeToDismissBoxValue.StartToEnd
+                            false
                         },
                     )
                     SwipeToDismissBox(
