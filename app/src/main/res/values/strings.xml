@@ -377,6 +377,8 @@
     <string name="document_info_pdf_next_page">Next page</string>
     <string name="document_info_pdf_page_indicator">Page %1$d of %2$d</string>
     <string name="document_info_generate_ai_description">Generate AI description</string>
+    <string name="document_info_reanalyze_ai_description">Re-analyze document</string>
+    <string name="document_info_update_trip_from_document">Update trip from document</string>
     <string name="document_info_delete_ai_description">Delete AI description</string>
     <string name="documents_info_action">Info</string>
     <string name="documents_view_info_content_desc">View info: %s</string>
