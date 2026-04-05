@@ -460,9 +460,10 @@ private fun DocumentInfoSheetContent(
         }
 
         val showGenerateButton = uiState.isAiAvailable && summary.isNullOrBlank() && !isAnalysisInProgress
+        val showReanalyzeButton = uiState.isAiAvailable && !summary.isNullOrBlank() && !isAnalysisInProgress
         val showDeleteButton = !summary.isNullOrBlank()
 
-        if (showGenerateButton || showDeleteButton) {
+        if (showGenerateButton || showReanalyzeButton || showDeleteButton) {
             Spacer(modifier = Modifier.height(8.dp))
 
             if (showGenerateButton) {
@@ -476,6 +477,19 @@ private fun DocumentInfoSheetContent(
                         modifier = Modifier.padding(end = 8.dp),
                     )
                     Text(stringResource(R.string.document_info_generate_ai_description))
+                }
+            }
+            if (showReanalyzeButton) {
+                OutlinedButton(
+                    onClick = onAnalyzeDocument,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.FindInPage,
+                        contentDescription = null,
+                        modifier = Modifier.padding(end = 8.dp),
+                    )
+                    Text(stringResource(R.string.document_info_reanalyze_ai_description))
                 }
             }
             if (showDeleteButton) {

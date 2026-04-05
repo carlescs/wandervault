@@ -202,11 +202,13 @@ class DocumentInfoViewModel(
      * On permanent unavailability sets [AnalyzeDocumentUiState.Unavailable].
      * On transient failure sets [AnalyzeDocumentUiState.Error].
      *
-     * No-op when the document is not yet loaded or already has an AI description.
+     * Can be called even when the document already has an AI description, allowing the user
+     * to re-analyze the document and overwrite the existing summary.
+     *
+     * No-op when the document is not yet loaded.
      */
     fun analyzeDocument() {
         val document = (uiState.value as? DocumentInfoUiState.Success)?.document ?: return
-        if (!document.summary.isNullOrBlank()) return
         val tripId = document.tripId
         analyzeJob?.cancel()
         _analyzeState.value = AnalyzeDocumentUiState.Loading
