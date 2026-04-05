@@ -252,6 +252,8 @@ class DocumentInfoViewModel(
                     return@launch
                 }
                 analysisResult
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.w(TAG, "Document analysis failed for ${document.name}", e)
                 _analyzeState.value = AnalyzeDocumentUiState.Error(e.message ?: e.toString())
@@ -266,6 +268,8 @@ class DocumentInfoViewModel(
                     if (latestDocument != null) {
                         updateDocument(latestDocument.copy(summary = result.summary))
                     }
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to persist refreshed summary for ${document.name}", e)
                     _analyzeState.value = AnalyzeDocumentUiState.Error(e.message ?: e.toString())

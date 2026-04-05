@@ -468,7 +468,7 @@ private fun DocumentInfoSheetContent(
         val showGenerateButton = uiState.isAiAvailable && summary.isNullOrBlank() && !isAnalysisInProgress
         val showReanalyzeButton = uiState.isAiAvailable && !summary.isNullOrBlank() && !isAnalysisInProgress
         val showUpdateTripFromDocumentButton = uiState.isAiAvailable && !summary.isNullOrBlank() && !isAnalysisInProgress
-        val showDeleteButton = !summary.isNullOrBlank()
+        val showDeleteButton = !summary.isNullOrBlank() && !isAnalysisInProgress
 
         if (showGenerateButton || showReanalyzeButton || showUpdateTripFromDocumentButton || showDeleteButton) {
             Spacer(modifier = Modifier.height(8.dp))
