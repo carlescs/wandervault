@@ -4,7 +4,9 @@ import cat.company.wandervault.domain.model.Destination
 import cat.company.wandervault.domain.model.Hotel
 import cat.company.wandervault.domain.model.HotelInfo
 import cat.company.wandervault.ui.screens.overlapsHotelDates
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -389,7 +391,7 @@ class HotelMatchingTest {
         }
 
         // The hotel is from a different document, so it is included and matches.
-        assertTrue(confidentMatch != null)
+        assertNotNull(confidentMatch)
     }
 
     @Test
@@ -427,7 +429,7 @@ class HotelMatchingTest {
         }
 
         // dest1's hotel is excluded (already linked to this document); dest2's hotel matches.
-        assertTrue(confidentMatch != null)
-        assertTrue(confidentMatch!!.second == unlinkedHotel)
+        assertNotNull(confidentMatch)
+        assertEquals(unlinkedHotel, confidentMatch!!.second)
     }
 }

@@ -5,6 +5,8 @@ import cat.company.wandervault.domain.model.FlightInfo
 import cat.company.wandervault.domain.model.TransportLeg
 import cat.company.wandervault.domain.model.TransportType
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
@@ -235,8 +237,8 @@ class FlightLegMatchingTest {
 
         // Even though the flight number matches, the leg is excluded because it was already
         // sourced from this document.
-        assertFalse(availableLegs.isNotEmpty())
-        assertTrue(confidentMatch == null)
+        assertTrue(availableLegs.isEmpty())
+        assertNull(confidentMatch)
     }
 
     @Test
@@ -259,8 +261,8 @@ class FlightLegMatchingTest {
                 ) == true
         }
 
-        assertFalse(availableLegs.isNotEmpty())
-        assertTrue(confidentMatch == null)
+        assertTrue(availableLegs.isEmpty())
+        assertNull(confidentMatch)
     }
 
     @Test
@@ -304,8 +306,8 @@ class FlightLegMatchingTest {
         }
 
         // Neither matches — disambiguation dialog will be shown with secondLeg as the candidate.
-        assertTrue(matchByFlightNumber == null)
-        assertTrue(matchByBookingRef == null)
+        assertNull(matchByFlightNumber)
+        assertNull(matchByBookingRef)
     }
 
     @Test
@@ -329,6 +331,6 @@ class FlightLegMatchingTest {
 
         // The leg is from a different document, so it is included and matches.
         assertTrue(availableLegs.isNotEmpty())
-        assertTrue(confidentMatch != null)
+        assertNotNull(confidentMatch)
     }
 }
