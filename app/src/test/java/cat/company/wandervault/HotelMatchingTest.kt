@@ -308,4 +308,126 @@ class HotelMatchingTest {
         )
         assertTrue(dest.overlapsHotelDates(hotelInfo))
     }
+
+    // ── source-document exclusion from confident match ────────────────────────
+    //
+    // Hotels that were already sourced from the current document (sourceDocumentId == documentId)
+    // must be excluded from the confident-match search. This prevents multiple hotel bookings in
+    // a single document from re-matching the same destination once the first hotel is applied.
+
+    private val documentId = 42
+
+    @Test
+    fun `hotel already sourced from this document is excluded from confident match by bookingReference`() {
+        val dest = destination(arrival = LocalDate.of(2024, 6, 10))
+        val alreadyLinkedHotel = Hotel(
+            id = 1,
+            destinationId = 1,
+            name = "Hotel Paris",
+            reservationNumber = "BOOK1",
+            sourceDocumentId = documentId,
+        )
+        val hotelInfo = HotelInfo(bookingReference = "BOOK1")
+
+        val destinationHotels = listOf(dest to alreadyLinkedHotel)
+
+        // Simulates the confident-match logic with source-document exclusion:
+        // hotels with sourceDocumentId == documentId are excluded.
+        val confidentMatch = destinationHotels.firstOrNull { (_, h) ->
+            h != null && h.sourceDocumentId != documentId &&
+                hotelInfo.bookingReference != null &&
+                h.reservationNumber.equals(hotelInfo.bookingReference, ignoreCase = true)
+        }
+
+        // Even though the booking reference matches, the hotel is excluded because it was
+        // already sourced from this document.
+        assertNull(confidentMatch)
+    }
+
+    @Test
+    fun `hotel already sourced from this document is excluded from confident match by name`() {
+        val dest = destination(arrival = LocalDate.of(2024, 6, 10))
+        val alreadyLinkedHotel = Hotel(
+            id = 1,
+            destinationId = 1,
+            name = "Hotel Paris",
+            reservationNumber = "",
+            sourceDocumentId = documentId,
+        )
+        val hotelInfo = HotelInfo(name = "Hotel Paris")
+
+        val destinationHotels = listOf(dest to alreadyLinkedHotel)
+
+        val confidentMatch = destinationHotels.firstOrNull { (_, h) ->
+            h != null && h.sourceDocumentId != documentId &&
+                hotelInfo.name != null &&
+                h.name.equals(hotelInfo.name, ignoreCase = true)
+        }
+
+        assertNull(confidentMatch)
+    }
+
+    @Test
+    fun `hotel sourced from a different document is not excluded from confident match`() {
+        val otherDocumentId = 99
+        val dest = destination(arrival = LocalDate.of(2024, 6, 10))
+        val hotelFromOtherDoc = Hotel(
+            id = 1,
+            destinationId = 1,
+            name = "Hotel Paris",
+            reservationNumber = "BOOK1",
+            sourceDocumentId = otherDocumentId,
+        )
+        val hotelInfo = HotelInfo(bookingReference = "BOOK1")
+
+        val destinationHotels = listOf(dest to hotelFromOtherDoc)
+
+        val confidentMatch = destinationHotels.firstOrNull { (_, h) ->
+            h != null && h.sourceDocumentId != documentId &&
+                hotelInfo.bookingReference != null &&
+                h.reservationNumber.equals(hotelInfo.bookingReference, ignoreCase = true)
+        }
+
+        // The hotel is from a different document, so it is included and matches.
+        assertTrue(confidentMatch != null)
+    }
+
+    @Test
+    fun `second destination hotel not yet linked to this document is found as confident match after first is excluded`() {
+        val dest1 = destination(arrival = LocalDate.of(2024, 6, 10))
+        val dest2 = Destination(
+            id = 2,
+            tripId = 1,
+            name = "Dest 2",
+            position = 1,
+            arrivalDateTime = LocalDate.of(2024, 6, 15).atStartOfDay(ZoneOffset.UTC),
+        )
+        val alreadyLinkedHotel = Hotel(
+            id = 1,
+            destinationId = 1,
+            name = "Hotel A",
+            reservationNumber = "BOOK1",
+            sourceDocumentId = documentId,
+        )
+        val unlinkedHotel = Hotel(
+            id = 2,
+            destinationId = 2,
+            name = "Hotel B",
+            reservationNumber = "BOOK2",
+            sourceDocumentId = null,
+        )
+        val secondHotelInfo = HotelInfo(bookingReference = "BOOK2")
+
+        val destinationHotels = listOf(dest1 to alreadyLinkedHotel, dest2 to unlinkedHotel)
+
+        val confidentMatch = destinationHotels.firstOrNull { (_, h) ->
+            h != null && h.sourceDocumentId != documentId &&
+                secondHotelInfo.bookingReference != null &&
+                h.reservationNumber.equals(secondHotelInfo.bookingReference, ignoreCase = true)
+        }
+
+        // dest1's hotel is excluded (already linked to this document); dest2's hotel matches.
+        assertTrue(confidentMatch != null)
+        assertTrue(confidentMatch!!.second == unlinkedHotel)
+    }
 }

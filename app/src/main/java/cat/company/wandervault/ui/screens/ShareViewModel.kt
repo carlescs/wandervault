@@ -326,26 +326,40 @@ class ShareViewModel(
     /**
      * Checks [flightInfo] against all FLIGHT-type legs in the selected trip.
      *
+     * Legs already sourced from this document (i.e. [TransportLeg.sourceDocumentId] matches
+     * [savedDocumentId]) are excluded from matching so that multiple flights in a single document
+     * that share a booking reference do not all match the same leg.
+     *
      * A *confident* match requires the flight number **or** booking reference to match exactly
-     * (case-insensitive).  When there is no confident match but there are candidates, the state
-     * transitions to [ShareUiState.FlightLegSelection] with candidates sorted by relevance
-     * (closest partial match first).  When there are no flight legs at all the info is skipped.
+     * (case-insensitive) among the available (non-excluded) legs.  When there is no confident
+     * match but there are available candidates, the state transitions to
+     * [ShareUiState.FlightLegSelection] with candidates sorted by relevance (closest partial
+     * match first).  When there are no available legs the info is skipped.
      */
     private suspend fun handleFlightInfo(flightInfo: FlightInfo) {
         val allFlightLegs = getDestinationsForTrip(selectedTripId).first()
             .flatMap { dest -> dest.transport?.legs.orEmpty() }
             .filter { it.type == TransportType.FLIGHT }
 
-        if (allFlightLegs.isEmpty()) {
-            Log.d(TAG, "No flight legs in trip $selectedTripId; skipping extracted flight info")
+        // Exclude legs already sourced from this document in the current session so that
+        // multiple flights sharing a booking reference don't all re-match the same leg.
+        val docId = savedDocumentId.takeIf { it > 0 }
+        val availableFlightLegs = if (docId != null) {
+            allFlightLegs.filter { it.sourceDocumentId != docId }
+        } else {
+            allFlightLegs
+        }
+
+        if (availableFlightLegs.isEmpty()) {
+            Log.d(TAG, "No available flight legs in trip $selectedTripId; skipping extracted flight info")
             handleNextExtractedInfo()
             return
         }
 
-        val confidentMatch = allFlightLegs.firstOrNull { leg ->
+        val confidentMatch = availableFlightLegs.firstOrNull { leg ->
             flightInfo.flightNumber != null &&
                 leg.flightNumber?.equals(flightInfo.flightNumber, ignoreCase = true) == true
-        } ?: allFlightLegs.firstOrNull { leg ->
+        } ?: availableFlightLegs.firstOrNull { leg ->
             flightInfo.bookingReference != null &&
                 leg.reservationConfirmationNumber?.equals(
                     flightInfo.bookingReference,
@@ -361,7 +375,7 @@ class ShareViewModel(
         } else {
             // Sort candidates by relevance: loose flight-number/booking-ref matches go first,
             // then airline substring matches, then the rest in their original (stable) order.
-            val sortedCandidates = allFlightLegs
+            val sortedCandidates = availableFlightLegs
                 .withIndex()
                 .sortedWith(
                     compareByDescending<IndexedValue<TransportLeg>> { indexed ->
@@ -399,16 +413,20 @@ class ShareViewModel(
     /**
      * Checks [hotelInfo] against all destinations in the selected trip.
      *
-     * A *confident* match requires that the destination already has a hotel record and that
-     * the booking reference **or** hotel name matches that existing hotel exactly
-     * (case-insensitive). The check-in date is intentionally excluded from the confident-match
-     * criteria: an arrival date coincidence is not reliable enough to auto-apply changes because
-     * two different hotels can share the same check-in date, which would silently match the wrong
-     * destination and suppress the selection dialog. When there is no confident match but there
-     * are destinations, the state transitions to [ShareUiState.HotelDestinationSelection] with
-     * the candidates filtered to destinations whose stay period overlaps with the extracted hotel
-     * dates (or all destinations when no dates are available). When there are no destinations at
-     * all the info is silently skipped.
+     * Hotels already sourced from this document (i.e. [Hotel.sourceDocumentId] matches
+     * [savedDocumentId]) are excluded from confident matching so that multiple hotels in a
+     * single document that share a name or booking reference do not all match the same destination.
+     *
+     * A *confident* match requires that the destination already has a hotel record (not yet
+     * linked to this document) and that the booking reference **or** hotel name matches that
+     * existing hotel exactly (case-insensitive). The check-in date is intentionally excluded
+     * from the confident-match criteria: an arrival date coincidence is not reliable enough to
+     * auto-apply changes because two different hotels can share the same check-in date, which
+     * would silently match the wrong destination and suppress the selection dialog. When there
+     * is no confident match but there are destinations, the state transitions to
+     * [ShareUiState.HotelDestinationSelection] with the candidates filtered to destinations
+     * whose stay period overlaps with the extracted hotel dates (or all destinations when no
+     * dates are available). When there are no destinations at all the info is silently skipped.
      */
     private suspend fun handleHotelInfo(hotelInfo: HotelInfo) {
         val destinations = getDestinationsForTrip(selectedTripId).first()
@@ -423,11 +441,16 @@ class ShareViewModel(
             dest to getHotelForDestination(dest.id).first()
         }
 
+        // Exclude hotels already sourced from this document in the current session so that
+        // multiple hotels sharing a name or booking reference don't all re-match the same destination.
+        val docId = savedDocumentId.takeIf { it > 0 }
         val confidentMatch = destinationHotels.firstOrNull { (_, hotel) ->
-            hotel != null && hotelInfo.bookingReference != null &&
+            hotel != null && (docId == null || hotel.sourceDocumentId != docId) &&
+                hotelInfo.bookingReference != null &&
                 hotel.reservationNumber.equals(hotelInfo.bookingReference, ignoreCase = true)
         } ?: destinationHotels.firstOrNull { (_, hotel) ->
-            hotel != null && hotelInfo.name != null &&
+            hotel != null && (docId == null || hotel.sourceDocumentId != docId) &&
+                hotelInfo.name != null &&
                 hotel.name.equals(hotelInfo.name, ignoreCase = true)
         }
 

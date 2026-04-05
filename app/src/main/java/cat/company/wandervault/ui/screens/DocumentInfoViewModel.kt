@@ -476,12 +476,18 @@ class DocumentInfoViewModel(
     /**
      * Checks [flightInfo] against all FLIGHT-type legs in the given trip.
      *
+     * Legs already sourced from this document (i.e. [TransportLeg.sourceDocumentId] matches
+     * [documentId]) are excluded from matching so that multiple flights in a single document
+     * that share a booking reference do not all match the same leg.
+     *
      * A *confident* match requires the flight number **or** booking reference to match exactly
-     * (case-insensitive). When there is a confident match the state transitions to
-     * [AnalyzeDocumentUiState.FlightConfirm] so the user can review and confirm the change.
-     * When there is no confident match but there are flight legs, the state transitions to
-     * [AnalyzeDocumentUiState.FlightLegSelection] (sorted by relevance) so the user can pick.
-     * When there are no flight legs but there are eligible non-terminal destinations in the trip,
+     * (case-insensitive) among the available (non-excluded) legs. When there is a confident
+     * match the state transitions to [AnalyzeDocumentUiState.FlightConfirm] so the user can
+     * review and confirm the change.
+     * When there is no confident match but there are available flight legs, the state transitions
+     * to [AnalyzeDocumentUiState.FlightLegSelection] (sorted by relevance) so the user can pick.
+     * When there are no available legs (either no legs at all, or all existing legs were already
+     * sourced from this document), and there are eligible non-terminal destinations in the trip,
      * the state transitions to [AnalyzeDocumentUiState.FlightTransportSelection] so the user can
      * pick a destination to add a new leg to (creating the transport record if it does not yet
      * exist). If the trip has fewer than two destinations, so there is no eligible non-terminal
@@ -497,8 +503,16 @@ class DocumentInfoViewModel(
             .flatMap { dest -> dest.transport?.legs.orEmpty() }
             .filter { it.type == TransportType.FLIGHT }
 
-        if (allFlightLegs.isEmpty()) {
-            // The last destination (highest position) has no onward transport, so exclude it.
+        // Exclude legs already sourced from this document in the current session.
+        // When multiple flights in a document share a booking reference (e.g. a multi-leg
+        // itinerary), applying the first flight sets that booking ref on the matched leg.
+        // Without this filter the second flight would re-match the same leg via the booking
+        // reference instead of moving on to a different leg.
+        val availableFlightLegs = allFlightLegs.filter { it.sourceDocumentId != documentId }
+
+        if (availableFlightLegs.isEmpty()) {
+            // Either no flight legs exist at all, or all existing legs have already been
+            // sourced from this document — offer to add a new leg instead.
             val maxPosition = allDestinations.maxOfOrNull { it.position }
             val nonTerminalDestinations = allDestinations.filter { it.position != maxPosition }
             if (nonTerminalDestinations.isEmpty()) {
@@ -514,10 +528,10 @@ class DocumentInfoViewModel(
             return
         }
 
-        val confidentMatch = allFlightLegs.firstOrNull { leg ->
+        val confidentMatch = availableFlightLegs.firstOrNull { leg ->
             flightInfo.flightNumber != null &&
                 leg.flightNumber?.equals(flightInfo.flightNumber, ignoreCase = true) == true
-        } ?: allFlightLegs.firstOrNull { leg ->
+        } ?: availableFlightLegs.firstOrNull { leg ->
             flightInfo.bookingReference != null &&
                 leg.reservationConfirmationNumber?.equals(
                     flightInfo.bookingReference,
@@ -531,7 +545,7 @@ class DocumentInfoViewModel(
                 matchedLeg = confidentMatch,
             )
         } else {
-            val sortedCandidates = allFlightLegs
+            val sortedCandidates = availableFlightLegs
                 .withIndex()
                 .sortedWith(
                     compareByDescending<IndexedValue<TransportLeg>> { indexed ->
@@ -610,6 +624,9 @@ class DocumentInfoViewModel(
      * Creates a new FLIGHT-type [TransportLeg] populated from [flightInfo] and appends it to
      * the transport belonging to [destination], creating the transport record if needed.
      *
+     * The new leg's [TransportLeg.sourceDocumentId] is set to [documentId] so that it is
+     * excluded from subsequent confident-match attempts during the same analysis session.
+     *
      * When the new leg is the first leg (position 0) and a departure datetime can be derived from
      * the extracted document, [Destination.departureDateTime] is also updated to keep the
      * itinerary timeline in sync (matching the convention in [TransportDetailViewModel]).
@@ -633,6 +650,7 @@ class DocumentInfoViewModel(
                 reservationConfirmationNumber = flightInfo.bookingReference,
                 stopName = flightInfo.arrivalPlace,
                 departureDateTime = departureDateTime,
+                sourceDocumentId = documentId,
             ),
         )
         // Sync the destination departure time when this is the first leg and a time was extracted.
@@ -683,10 +701,15 @@ class DocumentInfoViewModel(
     /**
      * Checks [hotelInfo] against all destinations in the given trip.
      *
+     * Hotels already sourced from this document (i.e. [Hotel.sourceDocumentId] matches
+     * [documentId]) are excluded from confident matching so that multiple hotels in a single
+     * document that share a name or booking reference do not all match the same destination.
+     *
      * A *confident* match requires that there is already an existing [Hotel] record for a
-     * destination in this trip, and that the booking reference **or** hotel name matches that
-     * record exactly (case-insensitive). When there is such a confident match the state transitions
-     * to [AnalyzeDocumentUiState.HotelConfirm] so the user can review and confirm the change.
+     * destination in this trip (not yet linked to this document), and that the booking reference
+     * **or** hotel name matches that record exactly (case-insensitive). When there is such a
+     * confident match the state transitions to [AnalyzeDocumentUiState.HotelConfirm] so the user
+     * can review and confirm the change.
      * When there is no existing hotel record or no confident match, the state transitions to
      * [AnalyzeDocumentUiState.HotelDestinationSelection] with candidates filtered to destinations
      * whose stay period overlaps the hotel dates (or all destinations when no dates are available),
@@ -710,10 +733,12 @@ class DocumentInfoViewModel(
         }
 
         val confidentMatch = destinationHotels.firstOrNull { (_, hotel) ->
-            hotel != null && hotelInfo.bookingReference != null &&
+            hotel != null && hotel.sourceDocumentId != documentId &&
+                hotelInfo.bookingReference != null &&
                 hotel.reservationNumber.equals(hotelInfo.bookingReference, ignoreCase = true)
         } ?: destinationHotels.firstOrNull { (_, hotel) ->
-            hotel != null && hotelInfo.name != null &&
+            hotel != null && hotel.sourceDocumentId != documentId &&
+                hotelInfo.name != null &&
                 hotel.name.equals(hotelInfo.name, ignoreCase = true)
         }
 
