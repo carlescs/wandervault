@@ -864,11 +864,11 @@ private fun TransportLegSection(
                     modifier = Modifier.fillMaxWidth(),
                 )
 
-                if (leg.sourceDocumentId != null) {
+                leg.sourceDocumentId?.let { sourceDocumentId ->
                     HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                     SourceDocumentChip(
                         documentName = leg.sourceDocumentName,
-                        onDocumentClick = { onNavigateToDocument(leg.sourceDocumentId) },
+                        onDocumentClick = { onNavigateToDocument(sourceDocumentId) },
                         onRemove = onClearSourceDocument,
                     )
                 }

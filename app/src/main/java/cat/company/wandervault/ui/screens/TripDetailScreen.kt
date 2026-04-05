@@ -455,11 +455,12 @@ private fun AiDescriptionSection(
                         text = descriptionState.text,
                         style = MaterialTheme.typography.bodyMedium,
                     )
-                    if (descriptionState.sourceDocumentId != null) {
+                    val docId = descriptionState.sourceDocumentId
+                    if (docId != null) {
                         Spacer(modifier = Modifier.height(8.dp))
                         SourceDocumentChip(
                             documentName = descriptionState.sourceDocumentName,
-                            onDocumentClick = { onNavigateToDocument(descriptionState.sourceDocumentId) },
+                            onDocumentClick = { onNavigateToDocument(docId) },
                             onRemove = onClearSource,
                         )
                     }

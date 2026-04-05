@@ -410,11 +410,11 @@ private fun HotelTabContent(
                 stringResource(R.string.hotel_nights_not_available)
             },
         )
-        if (hotel.sourceDocumentId != null) {
+        hotel.sourceDocumentId?.let { sourceDocumentId ->
             HorizontalDivider()
             SourceDocumentChip(
                 documentName = hotel.sourceDocumentName,
-                onDocumentClick = { onNavigateToDocument(hotel.sourceDocumentId) },
+                onDocumentClick = { onNavigateToDocument(sourceDocumentId) },
                 onRemove = onClearSourceDocument,
             )
         }

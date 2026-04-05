@@ -455,8 +455,9 @@ class ShareViewModel(
     }
 
     private suspend fun applyFlightInfoToLeg(flightInfo: FlightInfo, leg: TransportLeg) {
-        val updatedLeg = leg.applyFlightInfo(flightInfo)
-            .copy(sourceDocumentId = savedDocumentId.takeIf { it > 0 })
+        val applied = leg.applyFlightInfo(flightInfo)
+        val docId = savedDocumentId.takeIf { it > 0 }
+        val updatedLeg = if (docId != null) applied.copy(sourceDocumentId = docId) else applied
         if (updatedLeg == leg) return
         updateTransportLeg(updatedLeg)
 
@@ -491,8 +492,9 @@ class ShareViewModel(
                 address = existingHotel.address.ifBlank { null } ?: hotelInfo.address.orEmpty(),
                 reservationNumber = existingHotel.reservationNumber.ifBlank { null }
                     ?: hotelInfo.bookingReference.orEmpty(),
-                sourceDocumentId = docId,
-            )
+            ).let { hotel ->
+                if (docId != null) hotel.copy(sourceDocumentId = docId) else hotel
+            }
             if (updatedHotel != existingHotel) {
                 saveHotel(updatedHotel)
             }
