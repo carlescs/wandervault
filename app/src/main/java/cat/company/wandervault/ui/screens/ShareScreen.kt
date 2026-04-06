@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AirplanemodeActive
+import androidx.compose.material.icons.filled.EventNote
 import androidx.compose.material.icons.filled.Hotel
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material3.AlertDialog
@@ -819,7 +820,7 @@ private fun ActivityInfoSummary(activityInfo: ActivityInfo, modifier: Modifier =
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
-            imageVector = Icons.Default.Place,
+            imageVector = Icons.Default.EventNote,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(20.dp),
