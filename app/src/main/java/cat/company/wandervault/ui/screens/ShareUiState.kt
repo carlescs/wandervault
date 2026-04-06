@@ -128,7 +128,7 @@ sealed class ShareUiState {
      *
      * @param activityInfo The extracted activity details.
      * @param candidates Destinations available in the selected trip, pre-filtered by the activity
-     *   date when available (falls back to all destinations when no date is found).
+     *   date when available (falls back to all destinations if date-based filtering finds no matches).
      */
     data class ActivityDestinationSelection(
         val activityInfo: ActivityInfo,

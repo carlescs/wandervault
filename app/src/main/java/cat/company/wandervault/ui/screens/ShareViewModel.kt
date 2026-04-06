@@ -385,10 +385,6 @@ class ShareViewModel(
         }
     }
 
-    // -----------------------------------------------------------------
-    // Private helpers
-    // -----------------------------------------------------------------
-
     /**
      * Called when the user picks a [Destination] from the transport selection dialog (shown when no
      * unmatched flight legs remain). Transitions to [ShareUiState.FlightAddLegConfirm] so the user
@@ -425,6 +421,10 @@ class ShareViewModel(
             handleNextExtractedInfo()
         }
     }
+
+    // -----------------------------------------------------------------
+    // Private helpers
+    // -----------------------------------------------------------------
 
     /**
      * Processes the next pending item from the queues. Dequeues the first available
