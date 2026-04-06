@@ -937,13 +937,21 @@ class DocumentInfoViewModel(
         viewModelScope.launch {
             try {
                 val dateTime = state.activityInfo.toZonedDateTime()
+                val title = state.activityInfo.title.orEmpty()
+                val description = state.activityInfo.description.orEmpty()
+                val confirmationNumber = state.activityInfo.confirmationNumber.orEmpty()
+                if (title.isBlank() && description.isBlank() && confirmationNumber.isBlank() && dateTime == null) {
+                    Log.w(TAG, "Skipping activity save: all extracted fields are empty")
+                    processNextExtractedInfo()
+                    return@launch
+                }
                 saveActivity(
                     Activity(
                         destinationId = state.destination.id,
-                        title = state.activityInfo.title ?: "",
-                        description = state.activityInfo.description ?: "",
+                        title = title,
+                        description = description,
                         dateTime = dateTime,
-                        confirmationNumber = state.activityInfo.confirmationNumber ?: "",
+                        confirmationNumber = confirmationNumber,
                         sourceDocumentId = documentId,
                     ),
                 )

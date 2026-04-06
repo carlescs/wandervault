@@ -62,9 +62,10 @@ import java.time.format.FormatStyle
  *   saves it as the trip description.
  * - [AnalyzeDocumentUiState.FlightLegSelection] / [AnalyzeDocumentUiState.HotelDestinationSelection] /
  *   [AnalyzeDocumentUiState.ActivityDestinationSelection]: scrollable candidate list; tapping an
- *   item applies the changes and dismisses. Tapping an item in
- *   [AnalyzeDocumentUiState.FlightTransportSelection] advances to
- *   [AnalyzeDocumentUiState.FlightAddLegConfirm].
+ *   item advances to [AnalyzeDocumentUiState.FlightConfirm],
+ *   [AnalyzeDocumentUiState.HotelConfirm], or [AnalyzeDocumentUiState.ActivityConfirm]
+ *   respectively. Tapping an item in [AnalyzeDocumentUiState.FlightTransportSelection] advances
+ *   to [AnalyzeDocumentUiState.FlightAddLegConfirm].
  * - [AnalyzeDocumentUiState.ActivityConfirm]: extracted activity info alongside the selected
  *   destination; "Apply" button creates the new activity.
  *
