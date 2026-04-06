@@ -618,6 +618,7 @@ private fun ShareFlightTransportSelectionDialog(
                 }
             }
         },
+        // Confirm action is triggered by tapping a list item, not a button.
         confirmButton = {},
         dismissButton = {
             TextButton(onClick = onSkip) {

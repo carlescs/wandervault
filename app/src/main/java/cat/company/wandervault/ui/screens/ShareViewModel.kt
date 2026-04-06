@@ -493,6 +493,11 @@ class ShareViewModel(
             // DocumentInfoViewModel behaviour so that every extracted flight is treated.
             val allDestinations = getDestinationsForTrip(selectedTripId).first()
             val maxPosition = allDestinations.maxOfOrNull { it.position }
+            // The transport model attaches legs to non-terminal destinations (each leg
+            // represents travel departing from that destination towards the next one).
+            // The last destination (highest position) cannot hold a transport, so it is
+            // excluded from the candidate list. A trip with a single destination therefore
+            // has no valid attachment point and the flight is silently skipped.
             val nonTerminalDestinations = allDestinations.filter { it.position != maxPosition }
             if (nonTerminalDestinations.isEmpty()) {
                 Log.d(TAG, "No non-terminal destinations in trip $selectedTripId; skipping flight info")
@@ -734,6 +739,9 @@ class ShareViewModel(
         // is accurate even if the snapshot in the UI state is stale.
         val currentDestination = getDestinationsForTrip(destination.tripId).first()
             .firstOrNull { it.id == destination.id }
+        if (currentDestination == null) {
+            Log.w(TAG, "Destination ${destination.id} not found after user selection; position defaults to 0")
+        }
         val position = currentDestination?.transport?.legs?.size ?: 0
         val departureDateTime = flightInfo.toZonedDeparture()
         val docId = savedDocumentId.takeIf { it != NO_DOCUMENT_ID }
