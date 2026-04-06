@@ -41,6 +41,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cat.company.wandervault.R
+import cat.company.wandervault.domain.model.ActivityInfo
 import cat.company.wandervault.domain.model.Destination
 import cat.company.wandervault.domain.model.FlightInfo
 import cat.company.wandervault.domain.model.Hotel
@@ -177,6 +178,24 @@ private fun ShareScreenContent(shareIntent: Intent, sharedUri: String, onDismiss
                 destination = state.destination,
                 existingHotel = state.existingHotel,
                 onConfirm = viewModel::onHotelConfirmed,
+                onDismiss = viewModel::onConfirmCancelled,
+            )
+        }
+
+        is ShareUiState.ActivityDestinationSelection -> {
+            ShareActivityDestinationSelectionDialog(
+                activityInfo = state.activityInfo,
+                candidates = state.candidates,
+                onDestinationSelected = viewModel::onActivityDestinationSelected,
+                onSkip = viewModel::onDisambiguationSkipped,
+            )
+        }
+
+        is ShareUiState.ActivityConfirm -> {
+            ShareActivityConfirmDialog(
+                activityInfo = state.activityInfo,
+                destination = state.destination,
+                onConfirm = viewModel::onActivityConfirmed,
                 onDismiss = viewModel::onConfirmCancelled,
             )
         }
@@ -693,6 +712,139 @@ private fun DestinationItem(
 }
 
 @Composable
+private fun ShareActivityDestinationSelectionDialog(
+    activityInfo: ActivityInfo,
+    candidates: List<Destination>,
+    onDestinationSelected: (Destination) -> Unit,
+    onSkip: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onSkip,
+        title = { Text(stringResource(R.string.documents_analyze_activity_selection_title)) },
+        text = {
+            Column {
+                ActivityInfoSummary(activityInfo = activityInfo)
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = stringResource(R.string.documents_analyze_activity_selection_message),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(8.dp))
+                LazyColumn(modifier = Modifier.heightIn(max = 280.dp)) {
+                    items(candidates) { destination ->
+                        DestinationItem(
+                            destination = destination,
+                            onClick = { onDestinationSelected(destination) },
+                        )
+                        HorizontalDivider()
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onSkip) {
+                Text(stringResource(R.string.share_skip))
+            }
+        },
+    )
+}
+
+@Composable
+private fun ShareActivityConfirmDialog(
+    activityInfo: ActivityInfo,
+    destination: Destination,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.documents_analyze_confirm_activity_title)) },
+        text = {
+            Column {
+                ActivityInfoSummary(activityInfo = activityInfo)
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = stringResource(
+                        R.string.documents_analyze_confirm_activity_message,
+                        destination.name,
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Place,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.size(20.dp),
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        text = destination.name,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(stringResource(R.string.documents_analyze_confirm_apply))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.dialog_cancel))
+            }
+        },
+    )
+}
+
+@Composable
+private fun ActivityInfoSummary(activityInfo: ActivityInfo, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = Icons.Default.Place,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(20.dp),
+        )
+        Spacer(Modifier.width(8.dp))
+        Column {
+            val activityLabel = activityInfo.title?.ifBlank { null }
+                ?: stringResource(R.string.documents_analyze_activity_unknown)
+            Text(
+                text = activityLabel,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Bold,
+            )
+            if (!activityInfo.confirmationNumber.isNullOrBlank()) {
+                Text(
+                    text = stringResource(R.string.share_booking_ref, activityInfo.confirmationNumber),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun ShareErrorDialog(onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -819,6 +971,48 @@ private fun ShareHotelConfirmDialogPreview() {
                 name = "Hotel Colosseum",
                 address = "",
                 reservationNumber = "HTL-99887",
+            ),
+            onConfirm = {},
+            onDismiss = {},
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun ShareActivitySelectionDialogPreview() {
+    WanderVaultTheme {
+        ShareActivityDestinationSelectionDialog(
+            activityInfo = ActivityInfo(
+                title = "Eiffel Tower tour",
+                confirmationNumber = "ACT-12345",
+            ),
+            candidates = listOf(
+                Destination(id = 1, tripId = 1, name = "Paris", position = 0),
+                Destination(id = 2, tripId = 1, name = "Lyon", position = 1),
+            ),
+            onDestinationSelected = {},
+            onSkip = {},
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun ShareActivityConfirmDialogPreview() {
+    WanderVaultTheme {
+        ShareActivityConfirmDialog(
+            activityInfo = ActivityInfo(
+                title = "Eiffel Tower tour",
+                confirmationNumber = "ACT-12345",
+            ),
+            destination = Destination(
+                id = 1,
+                tripId = 1,
+                name = "Paris",
+                position = 0,
+                arrivalDateTime = LocalDate.of(2025, 7, 10).atStartOfDay(ZoneId.systemDefault()),
+                departureDateTime = LocalDate.of(2025, 7, 14).atStartOfDay(ZoneId.systemDefault()),
             ),
             onConfirm = {},
             onDismiss = {},
