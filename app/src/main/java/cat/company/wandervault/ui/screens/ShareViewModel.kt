@@ -100,7 +100,7 @@ class ShareViewModel(
      * The database ID of the document that was saved for this share session.
      * Set after the document is persisted so it can be linked to extracted itinerary items.
      */
-    private var savedDocumentId: Int = 0
+    private var savedDocumentId: Int = NO_DOCUMENT_ID
 
     /**
      * Queue of flight infos extracted from the shared document that have not yet been processed.
@@ -366,7 +366,7 @@ class ShareViewModel(
                 if (title.isBlank() && description.isBlank() && confirmationNumber.isBlank() && dateTime == null) {
                     Log.w(TAG, "Skipping activity save: all extracted fields are empty")
                 } else {
-                    val docId = savedDocumentId.takeIf { it > 0 }
+                    val docId = savedDocumentId.takeIf { it != NO_DOCUMENT_ID }
                     saveActivity(
                         Activity(
                             destinationId = state.destination.id,
@@ -449,7 +449,7 @@ class ShareViewModel(
                             saveTripDescription(
                                 trip,
                                 relevantInfo,
-                                sourceDocumentId = savedDocumentId.takeIf { it > 0 },
+                                sourceDocumentId = savedDocumentId.takeIf { it != NO_DOCUMENT_ID },
                             )
                         }
                     } catch (e: Exception) {
@@ -481,7 +481,7 @@ class ShareViewModel(
 
         // Exclude legs already sourced from this document in the current session so that
         // multiple flights sharing a booking reference don't all re-match the same leg.
-        val docId = savedDocumentId.takeIf { it > 0 }
+        val docId = savedDocumentId.takeIf { it != NO_DOCUMENT_ID }
         val availableFlightLegs = if (docId != null) {
             allFlightLegs.filter { it.sourceDocumentId != docId }
         } else {
@@ -594,7 +594,7 @@ class ShareViewModel(
 
         // Exclude hotels already sourced from this document in the current session so that
         // multiple hotels sharing a name or booking reference don't all re-match the same destination.
-        val docId = savedDocumentId.takeIf { it > 0 }
+        val docId = savedDocumentId.takeIf { it != NO_DOCUMENT_ID }
         val confidentMatch = destinationHotels.firstOrNull { (_, hotel) ->
             hotel != null && (docId == null || hotel.sourceDocumentId != docId) &&
                 hotelInfo.bookingReference != null &&
@@ -658,7 +658,7 @@ class ShareViewModel(
 
     private suspend fun applyFlightInfoToLeg(flightInfo: FlightInfo, leg: TransportLeg) {
         val applied = leg.applyFlightInfo(flightInfo)
-        val docId = savedDocumentId.takeIf { it > 0 }
+        val docId = savedDocumentId.takeIf { it != NO_DOCUMENT_ID }
         val updatedLeg = if (docId != null) applied.copy(sourceDocumentId = docId) else applied
         if (updatedLeg == leg) return
         updateTransportLeg(updatedLeg)
@@ -687,7 +687,7 @@ class ShareViewModel(
 
     private suspend fun applyHotelInfoToDestination(hotelInfo: HotelInfo, destination: Destination) {
         val existingHotel = getHotelForDestination(destination.id).first()
-        val docId = savedDocumentId.takeIf { it > 0 }
+        val docId = savedDocumentId.takeIf { it != NO_DOCUMENT_ID }
         if (existingHotel != null) {
             val updatedHotel = existingHotel.copy(
                 name = existingHotel.name.ifBlank { null } ?: hotelInfo.name.orEmpty(),
@@ -736,7 +736,7 @@ class ShareViewModel(
             .firstOrNull { it.id == destination.id }
         val position = currentDestination?.transport?.legs?.size ?: 0
         val departureDateTime = flightInfo.toZonedDeparture()
-        val docId = savedDocumentId.takeIf { it > 0 }
+        val docId = savedDocumentId.takeIf { it != NO_DOCUMENT_ID }
         saveTransportLeg(
             TransportLeg(
                 id = 0,
@@ -761,5 +761,11 @@ class ShareViewModel(
     companion object {
         private const val TAG = "ShareViewModel"
         private const val NO_TRIP_SELECTED = -1
+
+        /**
+         * Sentinel for [savedDocumentId] before the document has been persisted.
+         * Room auto-generates IDs starting from 1, so 0 is safe to use as "not yet saved".
+         */
+        private const val NO_DOCUMENT_ID = 0
     }
 }
