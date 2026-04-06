@@ -15,12 +15,12 @@ import cat.company.wandervault.domain.model.Trip
  * 1. [Loading] – retrieving the trip list.
  * 2. [TripSelection] – user picks which trip to attach the document to.
  * 3. [Processing] – document is being copied and analysed by ML Kit.
- * 4. (optional) [FlightLegSelection], [HotelDestinationSelection], or
+ * 4. (optional) [FlightLegSelection], [FlightTransportSelection], [HotelDestinationSelection], or
  *    [ActivityDestinationSelection] – ML Kit found structured info but cannot confidently
  *    determine which itinerary element to update; user must choose.
- * 5. (optional) [FlightConfirm], [HotelConfirm], or [ActivityConfirm] – user reviews the
- *    proposed changes before they are saved; reached either from a confident AI match or from
- *    a user selection above.
+ * 5. (optional) [FlightConfirm], [FlightAddLegConfirm], [HotelConfirm], or [ActivityConfirm] –
+ *    user reviews the proposed changes before they are saved; reached either from a confident
+ *    AI match or from a user selection above.
  * 6. [Done] – everything applied; the sheet can be dismissed.
  * 7. [Error] – a non-recoverable error occurred.
  */
@@ -69,6 +69,31 @@ sealed class ShareUiState {
     data class FlightConfirm(
         val flightInfo: FlightInfo,
         val matchedLeg: TransportLeg,
+    ) : ShareUiState()
+
+    /**
+     * All existing flight legs in the selected trip have already been matched from this document,
+     * or the trip has no flight legs at all. The user selects which destination to add a new leg
+     * to, or skips.
+     *
+     * @param flightInfo The extracted flight details.
+     * @param candidates Non-terminal destinations in the selected trip.
+     */
+    data class FlightTransportSelection(
+        val flightInfo: FlightInfo,
+        val candidates: List<Destination>,
+    ) : ShareUiState()
+
+    /**
+     * The user has selected a destination to add a new flight leg to. The user reviews the
+     * proposed new leg and confirms or cancels.
+     *
+     * @param flightInfo The extracted flight details.
+     * @param destination The destination the new leg will be added to.
+     */
+    data class FlightAddLegConfirm(
+        val flightInfo: FlightInfo,
+        val destination: Destination,
     ) : ShareUiState()
 
     /**

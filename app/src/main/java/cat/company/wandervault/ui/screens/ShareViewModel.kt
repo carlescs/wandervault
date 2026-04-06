@@ -18,6 +18,8 @@ import cat.company.wandervault.domain.usecase.GetHotelForDestinationUseCase
 import cat.company.wandervault.domain.usecase.GetRootDocumentsUseCase
 import cat.company.wandervault.domain.usecase.GetTripUseCase
 import cat.company.wandervault.domain.usecase.GetTripsUseCase
+import cat.company.wandervault.domain.usecase.GetOrCreateTransportForDestinationUseCase
+import cat.company.wandervault.domain.usecase.SaveTransportLegUseCase
 import cat.company.wandervault.domain.usecase.SaveActivityUseCase
 import cat.company.wandervault.domain.usecase.SaveDocumentUseCase
 import cat.company.wandervault.domain.usecase.SaveHotelUseCase
@@ -40,9 +42,9 @@ import kotlinx.coroutines.launch
  * time (via Koin parameters) and proceeds through the following states:
  * 1. [ShareUiState.Loading] → [ShareUiState.TripSelection]: trips are loaded, user picks one.
  * 2. [ShareUiState.Processing]: document is copied and analysed by ML Kit.
- * 3. (optional) [ShareUiState.FlightLegSelection], [ShareUiState.HotelDestinationSelection], or
- *    [ShareUiState.ActivityDestinationSelection]: no confident itinerary match; user selects the
- *    target element.
+ * 3. (optional) [ShareUiState.FlightLegSelection], [ShareUiState.FlightTransportSelection],
+ *    [ShareUiState.HotelDestinationSelection], or [ShareUiState.ActivityDestinationSelection]:
+ *    no confident itinerary match; user selects the target element.
  * 4. [ShareUiState.Done]: all data applied; the caller should dismiss the share UI.
  * 5. [ShareUiState.Error]: a non-recoverable error occurred.
  *
@@ -66,6 +68,8 @@ class ShareViewModel(
     private val getHotelForDestination: GetHotelForDestinationUseCase,
     private val saveHotel: SaveHotelUseCase,
     private val saveActivity: SaveActivityUseCase,
+    private val getOrCreateTransport: GetOrCreateTransportForDestinationUseCase,
+    private val saveTransportLeg: SaveTransportLegUseCase,
     private val updateTransportLeg: UpdateTransportLegUseCase,
     private val updateDestination: UpdateDestinationUseCase,
 ) : ViewModel() {
@@ -265,6 +269,7 @@ class ShareViewModel(
     fun onDisambiguationSkipped() {
         val current = _uiState.value
         if (current is ShareUiState.FlightLegSelection ||
+            current is ShareUiState.FlightTransportSelection ||
             current is ShareUiState.HotelDestinationSelection ||
             current is ShareUiState.ActivityDestinationSelection
         ) {
@@ -385,6 +390,43 @@ class ShareViewModel(
     // -----------------------------------------------------------------
 
     /**
+     * Called when the user picks a [Destination] from the transport selection dialog (shown when no
+     * unmatched flight legs remain). Transitions to [ShareUiState.FlightAddLegConfirm] so the user
+     * can review the proposed new leg before it is saved.
+     */
+    fun onFlightTransportSelected(destination: Destination) {
+        val flightInfo = pendingFlightInfo ?: run {
+            viewModelScope.launch { handleNextExtractedInfo() }
+            return
+        }
+        pendingFlightInfo = null
+        _uiState.value = ShareUiState.FlightAddLegConfirm(
+            flightInfo = flightInfo,
+            destination = destination,
+        )
+    }
+
+    /**
+     * Called when the user confirms adding a new flight leg from the
+     * [ShareUiState.FlightAddLegConfirm] dialog. Creates and persists the new leg, then advances
+     * to the next pending item via [handleNextExtractedInfo].
+     */
+    fun onFlightAddLegConfirmed() {
+        val state = _uiState.value as? ShareUiState.FlightAddLegConfirm ?: run {
+            viewModelScope.launch { handleNextExtractedInfo() }
+            return
+        }
+        viewModelScope.launch {
+            try {
+                addFlightLegToTransport(state.flightInfo, state.destination)
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to add flight leg to transport for destination ${state.destination.id}", e)
+            }
+            handleNextExtractedInfo()
+        }
+    }
+
+    /**
      * Processes the next pending item from the queues. Dequeues the first available
      * [FlightInfo] and calls [handleFlightInfo], or the first available [HotelInfo] and calls
      * [handleHotelInfo], or the first available [ActivityInfo] and calls [handleActivityInfo].
@@ -447,8 +489,21 @@ class ShareViewModel(
         }
 
         if (availableFlightLegs.isEmpty()) {
-            Log.d(TAG, "No available flight legs in trip $selectedTripId; skipping extracted flight info")
-            handleNextExtractedInfo()
+            // No unmatched legs remain — offer to add a new leg instead, mirroring the
+            // DocumentInfoViewModel behaviour so that every extracted flight is treated.
+            val allDestinations = getDestinationsForTrip(selectedTripId).first()
+            val maxPosition = allDestinations.maxOfOrNull { it.position }
+            val nonTerminalDestinations = allDestinations.filter { it.position != maxPosition }
+            if (nonTerminalDestinations.isEmpty()) {
+                Log.d(TAG, "No non-terminal destinations in trip $selectedTripId; skipping flight info")
+                handleNextExtractedInfo()
+                return
+            }
+            pendingFlightInfo = flightInfo
+            _uiState.value = ShareUiState.FlightTransportSelection(
+                flightInfo = flightInfo,
+                candidates = nonTerminalDestinations,
+            )
             return
         }
 
@@ -660,6 +715,46 @@ class ShareViewModel(
                     sourceDocumentId = docId,
                 ),
             )
+        }
+    }
+
+    /**
+     * Creates a new FLIGHT-type [TransportLeg] populated from [flightInfo] and appends it to
+     * the transport belonging to [destination], creating the transport record if needed.
+     *
+     * The new leg's [TransportLeg.sourceDocumentId] is set to [savedDocumentId] so that it is
+     * excluded from subsequent confident-match attempts during the same analysis session.
+     *
+     * When the new leg is the first leg (position 0) and a departure datetime can be derived,
+     * [Destination.departureDateTime] is also updated to keep the itinerary timeline in sync.
+     */
+    private suspend fun addFlightLegToTransport(flightInfo: FlightInfo, destination: Destination) {
+        val transportId = getOrCreateTransport(destination.id)
+        // Re-fetch the destination to get the current leg count so that the new leg's position
+        // is accurate even if the snapshot in the UI state is stale.
+        val currentDestination = getDestinationsForTrip(destination.tripId).first()
+            .firstOrNull { it.id == destination.id }
+        val position = currentDestination?.transport?.legs?.size ?: 0
+        val departureDateTime = flightInfo.toZonedDeparture()
+        val docId = savedDocumentId.takeIf { it > 0 }
+        saveTransportLeg(
+            TransportLeg(
+                id = 0,
+                transportId = transportId,
+                type = TransportType.FLIGHT,
+                position = position,
+                company = flightInfo.airline,
+                flightNumber = flightInfo.flightNumber,
+                reservationConfirmationNumber = flightInfo.bookingReference,
+                stopName = flightInfo.arrivalPlace,
+                departureDateTime = departureDateTime,
+                sourceDocumentId = docId,
+            ),
+        )
+        // Sync destination departure time when this is the first leg and a time was extracted.
+        if (position == 0 && departureDateTime != null) {
+            val destToUpdate = currentDestination ?: destination
+            updateDestination(destToUpdate.copy(departureDateTime = departureDateTime))
         }
     }
 

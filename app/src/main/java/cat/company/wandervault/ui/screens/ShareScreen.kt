@@ -164,6 +164,24 @@ private fun ShareScreenContent(shareIntent: Intent, sharedUri: String, onDismiss
             )
         }
 
+        is ShareUiState.FlightTransportSelection -> {
+            ShareFlightTransportSelectionDialog(
+                flightInfo = state.flightInfo,
+                candidates = state.candidates,
+                onDestinationSelected = viewModel::onFlightTransportSelected,
+                onSkip = viewModel::onDisambiguationSkipped,
+            )
+        }
+
+        is ShareUiState.FlightAddLegConfirm -> {
+            ShareFlightAddLegConfirmDialog(
+                flightInfo = state.flightInfo,
+                destination = state.destination,
+                onConfirm = viewModel::onFlightAddLegConfirmed,
+                onDismiss = viewModel::onConfirmCancelled,
+            )
+        }
+
         is ShareUiState.HotelDestinationSelection -> {
             ShareHotelDestinationSelectionDialog(
                 hotelInfo = state.hotelInfo,
@@ -554,6 +572,83 @@ private fun ShareFlightConfirmDialog(
                     Spacer(Modifier.width(12.dp))
                     FlightLegDetails(leg = matchedLeg)
                 }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(stringResource(R.string.documents_analyze_confirm_apply))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.dialog_cancel))
+            }
+        },
+    )
+}
+
+@Composable
+private fun ShareFlightTransportSelectionDialog(
+    flightInfo: FlightInfo,
+    candidates: List<Destination>,
+    onDestinationSelected: (Destination) -> Unit,
+    onSkip: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onSkip,
+        title = { Text(stringResource(R.string.documents_analyze_transport_selection_title)) },
+        text = {
+            Column {
+                FlightInfoSummary(flightInfo = flightInfo)
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = stringResource(R.string.documents_analyze_transport_selection_message),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(8.dp))
+                LazyColumn(modifier = Modifier.heightIn(max = 280.dp)) {
+                    items(candidates) { destination ->
+                        DestinationItem(
+                            destination = destination,
+                            onClick = { onDestinationSelected(destination) },
+                        )
+                        HorizontalDivider()
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onSkip) {
+                Text(stringResource(R.string.share_skip))
+            }
+        },
+    )
+}
+
+@Composable
+private fun ShareFlightAddLegConfirmDialog(
+    flightInfo: FlightInfo,
+    destination: Destination,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.documents_analyze_confirm_add_leg_title)) },
+        text = {
+            Column {
+                FlightInfoSummary(flightInfo = flightInfo)
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = stringResource(
+                        R.string.documents_analyze_confirm_add_leg_message,
+                        destination.name,
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         },
         confirmButton = {
