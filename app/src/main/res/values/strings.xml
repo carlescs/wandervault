@@ -124,6 +124,8 @@
     <string name="trip_detail_next_up_title">Next Up</string>
     <string name="trip_detail_next_up_arrive">Arrive in %s</string>
     <string name="trip_detail_next_up_depart">Depart from %s</string>
+    <string name="trip_detail_next_up_open_destination">Open destination details</string>
+    <string name="trip_detail_next_up_open_transport">Open transport details</string>
 
     <!-- Calendar tab -->
     <string name="calendar_previous_month">Previous month</string>

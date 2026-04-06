@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -55,6 +56,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -525,7 +527,16 @@ private fun UpcomingEventsSection(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable {
+                        .heightIn(min = 48.dp)
+                        .clickable(
+                            role = Role.Button,
+                            onClickLabel = when (event.eventType) {
+                                UpcomingEvent.EventType.ARRIVAL ->
+                                    stringResource(R.string.trip_detail_next_up_open_destination)
+                                UpcomingEvent.EventType.DEPARTURE ->
+                                    stringResource(R.string.trip_detail_next_up_open_transport)
+                            },
+                        ) {
                             when (event.eventType) {
                                 UpcomingEvent.EventType.ARRIVAL ->
                                     onNavigateToDestination(event.destinationId)
