@@ -75,11 +75,15 @@ sealed class WhatsNextState {
  *
  * @param dateTime The timezone-aware moment when the event occurs.
  * @param destinationName The name of the destination the event is associated with.
+ * @param destinationId The database ID of the destination. Used to navigate to the destination
+ *   detail page for arrival events and to the transport detail page for departure events (transport
+ *   is identified by the source destination's ID).
  * @param eventType Whether this is an arrival or departure event.
  */
 data class UpcomingEvent(
     val dateTime: ZonedDateTime,
     val destinationName: String,
+    val destinationId: Int,
     val eventType: EventType,
 ) {
     /** The kind of itinerary event. */

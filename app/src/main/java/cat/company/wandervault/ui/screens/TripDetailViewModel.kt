@@ -368,12 +368,12 @@ class TripDetailViewModel(
                 buildList {
                     dest.arrivalDateTime?.let { dt ->
                         if (dt.isAfter(now)) add(
-                            UpcomingEvent(dt, dest.name, UpcomingEvent.EventType.ARRIVAL),
+                            UpcomingEvent(dt, dest.name, dest.id, UpcomingEvent.EventType.ARRIVAL),
                         )
                     }
                     dest.departureDateTime?.let { dt ->
                         if (dt.isAfter(now)) add(
-                            UpcomingEvent(dt, dest.name, UpcomingEvent.EventType.DEPARTURE),
+                            UpcomingEvent(dt, dest.name, dest.id, UpcomingEvent.EventType.DEPARTURE),
                         )
                     }
                 }
