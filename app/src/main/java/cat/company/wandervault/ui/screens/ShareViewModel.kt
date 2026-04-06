@@ -740,7 +740,7 @@ class ShareViewModel(
         val currentDestination = getDestinationsForTrip(destination.tripId).first()
             .firstOrNull { it.id == destination.id }
         if (currentDestination == null) {
-            Log.w(TAG, "Destination ${destination.id} not found after user selection; position defaults to 0")
+            Log.w(TAG, "Destination ${destination.id} not found after user selection; new leg position defaults to 0")
         }
         val position = currentDestination?.transport?.legs?.size ?: 0
         val departureDateTime = flightInfo.toZonedDeparture()
