@@ -32,6 +32,7 @@ private fun ActivityEntity.toDomain() = Activity(
     description = description,
     dateTime = dateTime,
     confirmationNumber = confirmationNumber,
+    sourceDocumentId = sourceDocumentId,
 )
 
 private fun Activity.toEntity() = ActivityEntity(
@@ -41,4 +42,5 @@ private fun Activity.toEntity() = ActivityEntity(
     description = description,
     dateTime = dateTime,
     confirmationNumber = confirmationNumber,
+    sourceDocumentId = sourceDocumentId,
 )

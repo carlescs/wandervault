@@ -344,6 +344,11 @@
     <string name="documents_analyze_confirm_apply">Apply</string>
     <string name="documents_analyze_confirm_trip_info_title">Update trip description?</string>
     <string name="documents_analyze_confirm_trip_info_message">The following information will be saved as the trip description:</string>
+    <string name="documents_analyze_activity_selection_title">Add activity</string>
+    <string name="documents_analyze_activity_selection_message">Select which destination to add the extracted activity to:</string>
+    <string name="documents_analyze_confirm_activity_title">Add activity?</string>
+    <string name="documents_analyze_confirm_activity_message">A new activity will be created for destination "%s".</string>
+    <string name="documents_analyze_activity_unknown">Unknown activity</string>
     <plurals name="documents_selection_count">
         <item quantity="one">%d selected</item>
         <item quantity="other">%d selected</item>

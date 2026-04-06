@@ -25,4 +25,9 @@ data class ActivityEntity(
     val description: String = "",
     val dateTime: ZonedDateTime? = null,
     val confirmationNumber: String = "",
+    /**
+     * The [cat.company.wandervault.data.local.TripDocumentEntity.id] of the document from which
+     * this activity's information was extracted, or `null` when entered manually.
+     */
+    val sourceDocumentId: Int? = null,
 )

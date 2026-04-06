@@ -1,5 +1,6 @@
 package cat.company.wandervault.data.mlkit
 
+import cat.company.wandervault.domain.model.ActivityInfo
 import cat.company.wandervault.domain.model.DocumentExtractionResult
 import cat.company.wandervault.domain.model.FolderAssignment
 import cat.company.wandervault.domain.model.FlightInfo
@@ -13,6 +14,7 @@ import java.time.format.DateTimeParseException
 private const val SECTION_SEPARATOR = "---"
 internal const val FLIGHT_MARKER = "FLIGHT|"
 internal const val HOTEL_MARKER = "HOTEL|"
+internal const val ACTIVITY_MARKER = "ACTIVITY|"
 
 /**
  * Parses the two-section Gemini Nano response into a [DocumentExtractionResult].
@@ -31,17 +33,24 @@ internal const val HOTEL_MARKER = "HOTEL|"
  * HOTEL|<hotel name>|<address>|<booking ref>|<check-in (YYYY-MM-DD)>|<check-out (YYYY-MM-DD)>
  * HOTEL|<hotel name>|<address>|<booking ref>|<check-in (YYYY-MM-DD)>|<check-out (YYYY-MM-DD)>
  * ```
- * or a mix of both, or
+ * or
+ * ```
+ * <summary text>
+ * ---
+ * ACTIVITY|<title>|<description>|<date (YYYY-MM-DD)>|<time (HH:MM)>|<confirmation number>
+ * ACTIVITY|<title>|<description>|<date (YYYY-MM-DD)>|<time (HH:MM)>|<confirmation number>
+ * ```
+ * or a mix of any of the above, or
  * ```
  * <summary text>
  * ---
  * <general trip info text or "None">
  * ```
  *
- * The parser scans **all non-blank lines** of section 2 for FLIGHT and HOTEL markers, so
- * a model that emits prefix text before the structured lines (common for non-standard document
+ * The parser scans **all non-blank lines** of section 2 for FLIGHT, HOTEL and ACTIVITY markers,
+ * so a model that emits prefix text before the structured lines (common for non-standard document
  * layouts) still produces a valid extraction. **All** matching lines are collected, enabling
- * multi-leg itineraries and multi-hotel bookings to be fully represented.
+ * multi-leg itineraries, multi-hotel bookings and multi-activity documents to be fully represented.
  *
  * Section 2 values of "None" (case-insensitive, with optional trailing punctuation) are
  * treated as absent and result in a [DocumentExtractionResult] with no structured info.
@@ -100,11 +109,27 @@ internal fun parseDocumentResponse(raw: String): DocumentExtractionResult {
             )
         }
 
-    if (flightInfoList.isNotEmpty() || hotelInfoList.isNotEmpty()) {
+    val activityInfoList = nonBlankLines
+        .filter { it.startsWith(ACTIVITY_MARKER, ignoreCase = true) }
+        .map { line ->
+            val fields = line.substring(ACTIVITY_MARKER.length).split("|")
+            ActivityInfo(
+                title = fields.getOrNull(0)?.trim()?.ifBlank { null },
+                description = fields.getOrNull(1)?.trim()?.ifBlank { null },
+                date = fields.getOrNull(2)?.trim()?.ifBlank { null }
+                    ?.parseLocalDateOrNull(),
+                time = fields.getOrNull(3)?.trim()?.ifBlank { null }
+                    ?.parseLocalTimeOrNull(),
+                confirmationNumber = fields.getOrNull(4)?.trim()?.ifBlank { null },
+            )
+        }
+
+    if (flightInfoList.isNotEmpty() || hotelInfoList.isNotEmpty() || activityInfoList.isNotEmpty()) {
         return DocumentExtractionResult(
             summary = summary,
             flightInfoList = flightInfoList,
             hotelInfoList = hotelInfoList,
+            activityInfoList = activityInfoList,
         )
     }
 

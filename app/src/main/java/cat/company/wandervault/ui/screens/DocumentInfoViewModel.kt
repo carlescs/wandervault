@@ -4,6 +4,8 @@ import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import cat.company.wandervault.domain.model.ActivityInfo
+import cat.company.wandervault.domain.model.Activity
 import cat.company.wandervault.domain.model.Destination
 import cat.company.wandervault.domain.model.FlightInfo
 import cat.company.wandervault.domain.model.Hotel
@@ -17,6 +19,7 @@ import cat.company.wandervault.domain.usecase.GetHotelForDestinationUseCase
 import cat.company.wandervault.domain.usecase.GetHotelsForDestinationsUseCase
 import cat.company.wandervault.domain.usecase.GetOrCreateTransportForDestinationUseCase
 import cat.company.wandervault.domain.usecase.GetTripUseCase
+import cat.company.wandervault.domain.usecase.SaveActivityUseCase
 import cat.company.wandervault.domain.usecase.SaveHotelUseCase
 import cat.company.wandervault.domain.usecase.SaveTransportLegUseCase
 import cat.company.wandervault.domain.usecase.SaveTripDescriptionUseCase
@@ -40,6 +43,8 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.time.ZoneId
+import java.time.ZonedDateTime
 
 /**
  * ViewModel for the Document Info screen.
@@ -65,6 +70,7 @@ import java.io.File
  *   leg's datetime when flight info is applied from a document).
  * @param getOrCreateTransport Use-case that returns the transport ID for a destination, creating one if needed.
  * @param saveTransportLeg Use-case that persists a new transport leg.
+ * @param saveActivity Use-case that persists a new activity record.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class DocumentInfoViewModel(
@@ -83,6 +89,7 @@ class DocumentInfoViewModel(
     private val updateDestination: UpdateDestinationUseCase,
     private val getOrCreateTransport: GetOrCreateTransportForDestinationUseCase,
     private val saveTransportLeg: SaveTransportLegUseCase,
+    private val saveActivity: SaveActivityUseCase,
 ) : ViewModel() {
 
     /** Current document analysis state; updated independently from the DB-driven document flow. */
@@ -103,6 +110,9 @@ class DocumentInfoViewModel(
     /** Pending hotel info kept alive across the [AnalyzeDocumentUiState.HotelDestinationSelection] dialog. */
     private var pendingHotelInfo: HotelInfo? = null
 
+    /** Pending activity info kept alive across the [AnalyzeDocumentUiState.ActivityDestinationSelection] dialog. */
+    private var pendingActivityInfo: ActivityInfo? = null
+
     /**
      * Queue of flight infos extracted from the current document that have not yet been processed.
      * Populated by [analyzeDocument] and consumed one item at a time by
@@ -116,6 +126,13 @@ class DocumentInfoViewModel(
      * [processNextExtractedInfo].
      */
     private val remainingHotelInfos = ArrayDeque<HotelInfo>()
+
+    /**
+     * Queue of activity infos extracted from the current document that have not yet been processed.
+     * Populated by [analyzeDocument] and consumed one item at a time by
+     * [processNextExtractedInfo].
+     */
+    private val remainingActivityInfos = ArrayDeque<ActivityInfo>()
 
     /** Trip ID for the document currently being analysed; stored for use in [processNextExtractedInfo]. */
     private var pendingAnalysisTripId: Int = NO_TRIP_PENDING
@@ -286,6 +303,8 @@ class DocumentInfoViewModel(
             remainingFlightInfos.addAll(result.flightInfoList)
             remainingHotelInfos.clear()
             remainingHotelInfos.addAll(result.hotelInfoList)
+            remainingActivityInfos.clear()
+            remainingActivityInfos.addAll(result.activityInfoList)
             processNextExtractedInfo()
         }
     }
@@ -307,11 +326,12 @@ class DocumentInfoViewModel(
     }
 
     /**
-     * Processes the next pending extracted item (flight or hotel) from the queues.
+     * Processes the next pending extracted item (flight, hotel, or activity) from the queues.
      *
      * Dequeues the first available [FlightInfo] and runs flight matching/disambiguation,
-     * or the first available [HotelInfo] and runs hotel matching/disambiguation.
-     * When both queues are empty, shows the general trip-info confirmation (if any) or
+     * or the first available [HotelInfo] and runs hotel matching/disambiguation,
+     * or the first available [ActivityInfo] and shows destination selection.
+     * When all queues are empty, shows the general trip-info confirmation (if any) or
      * dismisses the dialog.
      */
     private fun processNextExtractedInfo() {
@@ -336,6 +356,17 @@ class DocumentInfoViewModel(
                         applyOrDisambiguateHotelInfo(hotelInfo, documentName, tripId)
                     } catch (e: Exception) {
                         Log.e(TAG, "Failed to apply hotel info for trip $tripId", e)
+                        _analyzeState.value = AnalyzeDocumentUiState.Error(e.message ?: e.toString())
+                    }
+                }
+            }
+            remainingActivityInfos.isNotEmpty() -> {
+                val activityInfo = remainingActivityInfos.removeFirst()
+                viewModelScope.launch {
+                    try {
+                        showActivityDestinationSelection(activityInfo, documentName, tripId)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to show activity destination selection for trip $tripId", e)
                         _analyzeState.value = AnalyzeDocumentUiState.Error(e.message ?: e.toString())
                     }
                 }
@@ -490,22 +521,25 @@ class DocumentInfoViewModel(
         analyzeJob = null
         pendingFlightInfo = null
         pendingHotelInfo = null
+        pendingActivityInfo = null
         remainingFlightInfos.clear()
         remainingHotelInfos.clear()
+        remainingActivityInfos.clear()
         pendingRelevantTripInfo = null
         _analyzeState.value = null
     }
 
     /**
-     * Skips the current per-item step (flight or hotel disambiguation/confirm) and advances to
-     * the next pending item without closing the dialog. Called when the user taps "Skip" or
-     * "Cancel" during a per-item state.
+     * Skips the current per-item step (flight, hotel, or activity disambiguation/confirm) and
+     * advances to the next pending item without closing the dialog. Called when the user taps
+     * "Skip" or "Cancel" during a per-item state.
      *
      * If there are no more pending items, dismisses the dialog entirely via [dismissAnalyze].
      */
     fun skipCurrentAnalysisItem() {
         pendingFlightInfo = null
         pendingHotelInfo = null
+        pendingActivityInfo = null
         processNextExtractedInfo()
     }
 
@@ -836,10 +870,131 @@ class DocumentInfoViewModel(
         }
     }
 
+    /**
+     * Shows the destination selection dialog for the given [activityInfo].
+     *
+     * When the activity has a date, only destinations whose stay period contains that date are
+     * offered as candidates (falls back to all destinations when none match). When no date is
+     * available all destinations are listed. If the trip has no destinations the activity is
+     * silently skipped.
+     */
+    private suspend fun showActivityDestinationSelection(
+        activityInfo: ActivityInfo,
+        documentName: String,
+        tripId: Int,
+    ) {
+        val destinations = getDestinationsForTrip(tripId).first()
+        if (destinations.isEmpty()) {
+            Log.d(TAG, "No destinations in trip $tripId; skipping activity info from $documentName")
+            processNextExtractedInfo()
+            return
+        }
+
+        val candidates = if (activityInfo.date != null) {
+            destinations.filter { dest ->
+                dest.containsActivityDate(activityInfo)
+            }.takeUnless { it.isEmpty() } ?: destinations
+        } else {
+            destinations
+        }
+
+        pendingActivityInfo = activityInfo
+        _analyzeState.value = AnalyzeDocumentUiState.ActivityDestinationSelection(
+            activityInfo = activityInfo,
+            candidates = candidates,
+        )
+    }
+
+    /**
+     * Called when the user picks a [Destination] from the activity destination selection dialog.
+     * Transitions to [AnalyzeDocumentUiState.ActivityConfirm] so the user can review the new
+     * activity before it is saved.
+     */
+    fun onActivityDestinationSelected(destination: Destination) {
+        val activityInfo = pendingActivityInfo ?: run {
+            Log.w(TAG, "onActivityDestinationSelected called with no pending activity info; dismissing")
+            dismissAnalyze()
+            return
+        }
+        pendingActivityInfo = null
+        _analyzeState.value = AnalyzeDocumentUiState.ActivityConfirm(
+            activityInfo = activityInfo,
+            destination = destination,
+        )
+    }
+
+    /**
+     * Called when the user confirms the activity from the [AnalyzeDocumentUiState.ActivityConfirm]
+     * dialog. Creates and persists the new activity, then advances to the next pending item via
+     * [processNextExtractedInfo].
+     */
+    fun onActivityConfirmed() {
+        val state = _analyzeState.value as? AnalyzeDocumentUiState.ActivityConfirm ?: run {
+            Log.w(TAG, "onActivityConfirmed called when not in ActivityConfirm state; dismissing")
+            dismissAnalyze()
+            return
+        }
+        viewModelScope.launch {
+            try {
+                val dateTime = state.activityInfo.toZonedDateTime()
+                val title = state.activityInfo.title.orEmpty()
+                val description = state.activityInfo.description.orEmpty()
+                val confirmationNumber = state.activityInfo.confirmationNumber.orEmpty()
+                if (title.isBlank() && description.isBlank() && confirmationNumber.isBlank() && dateTime == null) {
+                    Log.w(TAG, "Skipping activity save: all extracted fields are empty")
+                    processNextExtractedInfo()
+                    return@launch
+                }
+                saveActivity(
+                    Activity(
+                        destinationId = state.destination.id,
+                        title = title,
+                        description = description,
+                        dateTime = dateTime,
+                        confirmationNumber = confirmationNumber,
+                        sourceDocumentId = documentId,
+                    ),
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to save activity for destination ${state.destination.id}", e)
+                _analyzeState.value = AnalyzeDocumentUiState.Error(e.message ?: e.toString())
+                return@launch
+            }
+            processNextExtractedInfo()
+        }
+    }
+
     companion object {
         private const val TAG = "DocumentInfoViewModel"
 
         /** Sentinel value for [pendingAnalysisTripId] when no analysis is in progress. */
         private const val NO_TRIP_PENDING = -1
+    }
+}
+
+/**
+ * Returns `true` when [activityInfo] has a date that falls within the destination's stay period
+ * (between arrival and departure). Missing bounds on either side are treated as open (no constraint).
+ */
+private fun Destination.containsActivityDate(activityInfo: ActivityInfo): Boolean {
+    val actDate = activityInfo.date ?: return true
+    val destArrival = arrivalDateTime?.toLocalDate()
+    val destDeparture = departureDateTime?.toLocalDate()
+    if (destArrival != null && actDate.isBefore(destArrival)) return false
+    if (destDeparture != null && actDate.isAfter(destDeparture)) return false
+    return true
+}
+
+/**
+ * Constructs a [ZonedDateTime] from [ActivityInfo.date] and [ActivityInfo.time]
+ * using the system default zone. Returns `null` when the date is absent.
+ * When only the date is available (no time), midnight is used.
+ */
+private fun ActivityInfo.toZonedDateTime(zone: ZoneId = ZoneId.systemDefault()): ZonedDateTime? {
+    val d = date ?: return null
+    return if (time != null) {
+        ZonedDateTime.of(d, time, zone)
+    } else {
+        d.atStartOfDay(zone)
     }
 }
