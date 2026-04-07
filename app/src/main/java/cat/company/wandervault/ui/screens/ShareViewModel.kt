@@ -3,6 +3,8 @@ package cat.company.wandervault.ui.screens
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import cat.company.wandervault.domain.model.Activity
+import cat.company.wandervault.domain.model.ActivityInfo
 import cat.company.wandervault.domain.model.Destination
 import cat.company.wandervault.domain.model.FlightInfo
 import cat.company.wandervault.domain.model.Hotel
@@ -16,6 +18,9 @@ import cat.company.wandervault.domain.usecase.GetHotelForDestinationUseCase
 import cat.company.wandervault.domain.usecase.GetRootDocumentsUseCase
 import cat.company.wandervault.domain.usecase.GetTripUseCase
 import cat.company.wandervault.domain.usecase.GetTripsUseCase
+import cat.company.wandervault.domain.usecase.GetOrCreateTransportForDestinationUseCase
+import cat.company.wandervault.domain.usecase.SaveTransportLegUseCase
+import cat.company.wandervault.domain.usecase.SaveActivityUseCase
 import cat.company.wandervault.domain.usecase.SaveDocumentUseCase
 import cat.company.wandervault.domain.usecase.SaveHotelUseCase
 import cat.company.wandervault.domain.usecase.SaveTripDescriptionUseCase
@@ -37,7 +42,8 @@ import kotlinx.coroutines.launch
  * time (via Koin parameters) and proceeds through the following states:
  * 1. [ShareUiState.Loading] → [ShareUiState.TripSelection]: trips are loaded, user picks one.
  * 2. [ShareUiState.Processing]: document is copied and analysed by ML Kit.
- * 3. (optional) [ShareUiState.FlightLegSelection] or [ShareUiState.HotelDestinationSelection]:
+ * 3. (optional) [ShareUiState.FlightLegSelection], [ShareUiState.FlightTransportSelection],
+ *    [ShareUiState.HotelDestinationSelection], or [ShareUiState.ActivityDestinationSelection]:
  *    no confident itinerary match; user selects the target element.
  * 4. [ShareUiState.Done]: all data applied; the caller should dismiss the share UI.
  * 5. [ShareUiState.Error]: a non-recoverable error occurred.
@@ -61,6 +67,9 @@ class ShareViewModel(
     private val getDestinationsForTrip: GetDestinationsForTripUseCase,
     private val getHotelForDestination: GetHotelForDestinationUseCase,
     private val saveHotel: SaveHotelUseCase,
+    private val saveActivity: SaveActivityUseCase,
+    private val getOrCreateTransport: GetOrCreateTransportForDestinationUseCase,
+    private val saveTransportLeg: SaveTransportLegUseCase,
     private val updateTransportLeg: UpdateTransportLegUseCase,
     private val updateDestination: UpdateDestinationUseCase,
 ) : ViewModel() {
@@ -74,6 +83,16 @@ class ShareViewModel(
     /** Pending hotel info kept alive across the [ShareUiState.HotelDestinationSelection] dialog. */
     private var pendingHotelInfo: HotelInfo? = null
 
+    /** Pending activity info kept alive across the [ShareUiState.ActivityDestinationSelection] dialog. */
+    private var pendingActivityInfo: ActivityInfo? = null
+
+    /**
+     * General trip-relevant information extracted from the document.
+     * Applied automatically after all flights, hotels, and activities are processed, if the trip
+     * does not already have an AI description.
+     */
+    private var pendingRelevantTripInfo: String? = null
+
     /** The ID of the trip the user selected; set when entering [ShareUiState.Processing]. */
     private var selectedTripId: Int = NO_TRIP_SELECTED
 
@@ -81,7 +100,7 @@ class ShareViewModel(
      * The database ID of the document that was saved for this share session.
      * Set after the document is persisted so it can be linked to extracted itinerary items.
      */
-    private var savedDocumentId: Int = 0
+    private var savedDocumentId: Int = NO_DOCUMENT_ID
 
     /**
      * Queue of flight infos extracted from the shared document that have not yet been processed.
@@ -94,6 +113,12 @@ class ShareViewModel(
      * Populated when ML extraction completes and consumed one item at a time.
      */
     private val remainingHotelInfos = ArrayDeque<HotelInfo>()
+
+    /**
+     * Queue of activity infos extracted from the shared document that have not yet been processed.
+     * Populated when ML extraction completes and consumed one item at a time.
+     */
+    private val remainingActivityInfos = ArrayDeque<ActivityInfo>()
 
     init {
         viewModelScope.launch {
@@ -163,19 +188,11 @@ class ShareViewModel(
                     remainingFlightInfos.addAll(result.flightInfoList)
                     remainingHotelInfos.clear()
                     remainingHotelInfos.addAll(result.hotelInfoList)
+                    remainingActivityInfos.clear()
+                    remainingActivityInfos.addAll(result.activityInfoList)
+                    pendingRelevantTripInfo = result.relevantTripInfo
 
-                    if (result.flightInfoList.isEmpty() && result.hotelInfoList.isEmpty()) {
-                        val relevantInfo = result.relevantTripInfo
-                        if (relevantInfo != null) {
-                            val trip = getTrip(tripId).first()
-                            if (trip != null && trip.aiDescription == null) {
-                                saveTripDescription(trip, relevantInfo, sourceDocumentId = savedDocumentId.takeIf { it > 0 })
-                            }
-                        }
-                        _uiState.value = ShareUiState.Done
-                    } else {
-                        handleNextExtractedInfo()
-                    }
+                    handleNextExtractedInfo()
                 } else {
                     _uiState.value = ShareUiState.Done
                 }
@@ -235,7 +252,7 @@ class ShareViewModel(
                 Log.w(TAG, "Failed to load hotel for selected destination", e)
                 val selectionState = _uiState.value
                 if (selectionState is ShareUiState.HotelDestinationSelection) {
-                    _uiState.compareAndSet(expect = selectionState, update = ShareUiState.Done)
+                    handleNextExtractedInfo()
                 }
             }
         }
@@ -251,9 +268,14 @@ class ShareViewModel(
      */
     fun onDisambiguationSkipped() {
         val current = _uiState.value
-        if (current is ShareUiState.FlightLegSelection || current is ShareUiState.HotelDestinationSelection) {
+        if (current is ShareUiState.FlightLegSelection ||
+            current is ShareUiState.FlightTransportSelection ||
+            current is ShareUiState.HotelDestinationSelection ||
+            current is ShareUiState.ActivityDestinationSelection
+        ) {
             pendingFlightInfo = null
             pendingHotelInfo = null
+            pendingActivityInfo = null
             viewModelScope.launch { handleNextExtractedInfo() }
         }
     }
@@ -299,11 +321,105 @@ class ShareViewModel(
     }
 
     /**
-     * Called when the user cancels from the [ShareUiState.FlightConfirm] or
-     * [ShareUiState.HotelConfirm] dialog. Skips the update and advances to the next pending item.
+     * Called when the user cancels from the [ShareUiState.FlightConfirm],
+     * [ShareUiState.HotelConfirm], or [ShareUiState.ActivityConfirm] dialog. Skips the update
+     * and advances to the next pending item.
      */
     fun onConfirmCancelled() {
         viewModelScope.launch { handleNextExtractedInfo() }
+    }
+
+    /**
+     * Called when the user picks a [Destination] from the activity destination selection dialog.
+     * Transitions to [ShareUiState.ActivityConfirm] so the user can review the new activity
+     * before it is saved.
+     */
+    fun onActivityDestinationSelected(destination: Destination) {
+        val activityInfo = pendingActivityInfo ?: run {
+            viewModelScope.launch { handleNextExtractedInfo() }
+            return
+        }
+        pendingActivityInfo = null
+        _uiState.value = ShareUiState.ActivityConfirm(
+            activityInfo = activityInfo,
+            destination = destination,
+        )
+    }
+
+    /**
+     * Called when the user confirms the activity from the [ShareUiState.ActivityConfirm] dialog.
+     * Creates and persists the new activity, then advances to the next pending item via
+     * [handleNextExtractedInfo].
+     */
+    fun onActivityConfirmed() {
+        val state = _uiState.value as? ShareUiState.ActivityConfirm ?: run {
+            viewModelScope.launch { handleNextExtractedInfo() }
+            return
+        }
+        viewModelScope.launch {
+            try {
+                val activityInfo = state.activityInfo
+                val dateTime = activityInfo.toZonedDateTime()
+                val title = activityInfo.title.orEmpty()
+                val description = activityInfo.description.orEmpty()
+                val confirmationNumber = activityInfo.confirmationNumber.orEmpty()
+                if (title.isBlank() && description.isBlank() && confirmationNumber.isBlank() && dateTime == null) {
+                    Log.w(TAG, "Skipping activity save: all extracted fields are empty")
+                } else {
+                    val docId = savedDocumentId.takeIf { it != NO_DOCUMENT_ID }
+                    saveActivity(
+                        Activity(
+                            destinationId = state.destination.id,
+                            title = title,
+                            description = description,
+                            dateTime = dateTime,
+                            confirmationNumber = confirmationNumber,
+                            sourceDocumentId = docId,
+                        ),
+                    )
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to save activity for destination ${state.destination.id}", e)
+            }
+            handleNextExtractedInfo()
+        }
+    }
+
+    /**
+     * Called when the user picks a [Destination] from the transport selection dialog (shown when no
+     * unmatched flight legs remain). Transitions to [ShareUiState.FlightAddLegConfirm] so the user
+     * can review the proposed new leg before it is saved.
+     */
+    fun onFlightTransportSelected(destination: Destination) {
+        val flightInfo = pendingFlightInfo ?: run {
+            viewModelScope.launch { handleNextExtractedInfo() }
+            return
+        }
+        pendingFlightInfo = null
+        _uiState.value = ShareUiState.FlightAddLegConfirm(
+            flightInfo = flightInfo,
+            destination = destination,
+        )
+    }
+
+    /**
+     * Called when the user confirms adding a new flight leg from the
+     * [ShareUiState.FlightAddLegConfirm] dialog. Creates and persists the new leg, then advances
+     * to the next pending item via [handleNextExtractedInfo].
+     */
+    fun onFlightAddLegConfirmed() {
+        val state = _uiState.value as? ShareUiState.FlightAddLegConfirm ?: run {
+            viewModelScope.launch { handleNextExtractedInfo() }
+            return
+        }
+        viewModelScope.launch {
+            try {
+                addFlightLegToTransport(state.flightInfo, state.destination)
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to add flight leg to transport for destination ${state.destination.id}", e)
+            }
+            handleNextExtractedInfo()
+        }
     }
 
     // -----------------------------------------------------------------
@@ -313,13 +429,35 @@ class ShareViewModel(
     /**
      * Processes the next pending item from the queues. Dequeues the first available
      * [FlightInfo] and calls [handleFlightInfo], or the first available [HotelInfo] and calls
-     * [handleHotelInfo]. Transitions to [ShareUiState.Done] when all queues are exhausted.
+     * [handleHotelInfo], or the first available [ActivityInfo] and calls [handleActivityInfo].
+     * When all queues are exhausted, auto-applies the pending trip description (if any) and
+     * transitions to [ShareUiState.Done].
      */
     private suspend fun handleNextExtractedInfo() {
         when {
             remainingFlightInfos.isNotEmpty() -> handleFlightInfo(remainingFlightInfos.removeFirst())
             remainingHotelInfos.isNotEmpty() -> handleHotelInfo(remainingHotelInfos.removeFirst())
-            else -> _uiState.value = ShareUiState.Done
+            remainingActivityInfos.isNotEmpty() -> handleActivityInfo(remainingActivityInfos.removeFirst())
+            else -> {
+                // All items processed; auto-apply the trip description when not already set.
+                val relevantInfo = pendingRelevantTripInfo
+                pendingRelevantTripInfo = null
+                if (relevantInfo != null) {
+                    try {
+                        val trip = getTrip(selectedTripId).first()
+                        if (trip != null && trip.aiDescription == null) {
+                            saveTripDescription(
+                                trip,
+                                relevantInfo,
+                                sourceDocumentId = savedDocumentId.takeIf { it != NO_DOCUMENT_ID },
+                            )
+                        }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to save trip description; continuing to Done", e)
+                    }
+                }
+                _uiState.value = ShareUiState.Done
+            }
         }
     }
 
@@ -343,7 +481,7 @@ class ShareViewModel(
 
         // Exclude legs already sourced from this document in the current session so that
         // multiple flights sharing a booking reference don't all re-match the same leg.
-        val docId = savedDocumentId.takeIf { it > 0 }
+        val docId = savedDocumentId.takeIf { it != NO_DOCUMENT_ID }
         val availableFlightLegs = if (docId != null) {
             allFlightLegs.filter { it.sourceDocumentId != docId }
         } else {
@@ -351,8 +489,26 @@ class ShareViewModel(
         }
 
         if (availableFlightLegs.isEmpty()) {
-            Log.d(TAG, "No available flight legs in trip $selectedTripId; skipping extracted flight info")
-            handleNextExtractedInfo()
+            // No unmatched legs remain — offer to add a new leg instead, mirroring the
+            // DocumentInfoViewModel behaviour so that every extracted flight is treated.
+            val allDestinations = getDestinationsForTrip(selectedTripId).first()
+            val maxPosition = allDestinations.maxOfOrNull { it.position }
+            // The transport model attaches legs to non-terminal destinations (each leg
+            // represents travel departing from that destination towards the next one).
+            // The last destination (highest position) cannot hold a transport, so it is
+            // excluded from the candidate list. A trip with a single destination therefore
+            // has no valid attachment point and the flight is silently skipped.
+            val nonTerminalDestinations = allDestinations.filter { it.position != maxPosition }
+            if (nonTerminalDestinations.isEmpty()) {
+                Log.d(TAG, "No non-terminal destinations in trip $selectedTripId; skipping flight info")
+                handleNextExtractedInfo()
+                return
+            }
+            pendingFlightInfo = flightInfo
+            _uiState.value = ShareUiState.FlightTransportSelection(
+                flightInfo = flightInfo,
+                candidates = nonTerminalDestinations,
+            )
             return
         }
 
@@ -443,7 +599,7 @@ class ShareViewModel(
 
         // Exclude hotels already sourced from this document in the current session so that
         // multiple hotels sharing a name or booking reference don't all re-match the same destination.
-        val docId = savedDocumentId.takeIf { it > 0 }
+        val docId = savedDocumentId.takeIf { it != NO_DOCUMENT_ID }
         val confidentMatch = destinationHotels.firstOrNull { (_, hotel) ->
             hotel != null && (docId == null || hotel.sourceDocumentId != docId) &&
                 hotelInfo.bookingReference != null &&
@@ -477,9 +633,37 @@ class ShareViewModel(
         }
     }
 
+    /**
+     * Checks [activityInfo] against destinations in the selected trip.
+     *
+     * When the activity has a date, only destinations whose stay period contains that date are
+     * offered as candidates (falls back to all destinations when none match). When no date is
+     * available all destinations are listed. If the trip has no destinations the activity is
+     * silently skipped.
+     */
+    private suspend fun handleActivityInfo(activityInfo: ActivityInfo) {
+        val destinations = getDestinationsForTrip(selectedTripId).first()
+        if (destinations.isEmpty()) {
+            Log.d(TAG, "No destinations in trip $selectedTripId; skipping extracted activity info")
+            handleNextExtractedInfo()
+            return
+        }
+        val candidates = if (activityInfo.date != null) {
+            destinations.filter { dest -> dest.containsActivityDate(activityInfo) }
+                .takeUnless { it.isEmpty() } ?: destinations
+        } else {
+            destinations
+        }
+        pendingActivityInfo = activityInfo
+        _uiState.value = ShareUiState.ActivityDestinationSelection(
+            activityInfo = activityInfo,
+            candidates = candidates,
+        )
+    }
+
     private suspend fun applyFlightInfoToLeg(flightInfo: FlightInfo, leg: TransportLeg) {
         val applied = leg.applyFlightInfo(flightInfo)
-        val docId = savedDocumentId.takeIf { it > 0 }
+        val docId = savedDocumentId.takeIf { it != NO_DOCUMENT_ID }
         val updatedLeg = if (docId != null) applied.copy(sourceDocumentId = docId) else applied
         if (updatedLeg == leg) return
         updateTransportLeg(updatedLeg)
@@ -508,7 +692,7 @@ class ShareViewModel(
 
     private suspend fun applyHotelInfoToDestination(hotelInfo: HotelInfo, destination: Destination) {
         val existingHotel = getHotelForDestination(destination.id).first()
-        val docId = savedDocumentId.takeIf { it > 0 }
+        val docId = savedDocumentId.takeIf { it != NO_DOCUMENT_ID }
         if (existingHotel != null) {
             val updatedHotel = existingHotel.copy(
                 name = existingHotel.name.ifBlank { null } ?: hotelInfo.name.orEmpty(),
@@ -539,8 +723,57 @@ class ShareViewModel(
         }
     }
 
+    /**
+     * Creates a new FLIGHT-type [TransportLeg] populated from [flightInfo] and appends it to
+     * the transport belonging to [destination], creating the transport record if needed.
+     *
+     * The new leg's [TransportLeg.sourceDocumentId] is set to [savedDocumentId] so that it is
+     * excluded from subsequent confident-match attempts during the same analysis session.
+     *
+     * When the new leg is the first leg (position 0) and a departure datetime can be derived,
+     * [Destination.departureDateTime] is also updated to keep the itinerary timeline in sync.
+     */
+    private suspend fun addFlightLegToTransport(flightInfo: FlightInfo, destination: Destination) {
+        val transportId = getOrCreateTransport(destination.id)
+        // Re-fetch the destination to get the current leg count so that the new leg's position
+        // is accurate even if the snapshot in the UI state is stale.
+        val currentDestination = getDestinationsForTrip(destination.tripId).first()
+            .firstOrNull { it.id == destination.id }
+        if (currentDestination == null) {
+            Log.w(TAG, "Destination ${destination.id} not found after user selection; new leg position defaults to 0")
+        }
+        val position = currentDestination?.transport?.legs?.size ?: 0
+        val departureDateTime = flightInfo.toZonedDeparture()
+        val docId = savedDocumentId.takeIf { it != NO_DOCUMENT_ID }
+        saveTransportLeg(
+            TransportLeg(
+                id = 0,
+                transportId = transportId,
+                type = TransportType.FLIGHT,
+                position = position,
+                company = flightInfo.airline,
+                flightNumber = flightInfo.flightNumber,
+                reservationConfirmationNumber = flightInfo.bookingReference,
+                stopName = flightInfo.arrivalPlace,
+                departureDateTime = departureDateTime,
+                sourceDocumentId = docId,
+            ),
+        )
+        // Sync destination departure time when this is the first leg and a time was extracted.
+        if (position == 0 && departureDateTime != null) {
+            val destToUpdate = currentDestination ?: destination
+            updateDestination(destToUpdate.copy(departureDateTime = departureDateTime))
+        }
+    }
+
     companion object {
         private const val TAG = "ShareViewModel"
         private const val NO_TRIP_SELECTED = -1
+
+        /**
+         * Sentinel for [savedDocumentId] before the document has been persisted.
+         * Room auto-generates IDs starting from 1, so 0 is safe to use as "not yet saved".
+         */
+        private const val NO_DOCUMENT_ID = 0
     }
 }
