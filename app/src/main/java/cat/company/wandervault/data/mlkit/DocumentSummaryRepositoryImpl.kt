@@ -72,6 +72,7 @@ class DocumentSummaryRepositoryImpl(
         tripYear: Int?,
         onDownloadProgress: ((bytesDownloaded: Long) -> Unit)?,
     ): DocumentExtractionResult? {
+        if (!appPreferences.getAiEnabled()) return null
         val text = readDocumentText(fileUri, mimeType) ?: return null
         return withContext(Dispatchers.IO) {
             when (generationClient.checkStatus()) {
@@ -254,6 +255,7 @@ class DocumentSummaryRepositoryImpl(
         mimeType: String,
         onDownloadProgress: ((bytesDownloaded: Long) -> Unit)?,
     ): String? = withContext(Dispatchers.IO) {
+        if (!appPreferences.getAiEnabled()) return@withContext null
         when (generationClient.checkStatus()) {
             FeatureStatus.UNAVAILABLE -> return@withContext null
             FeatureStatus.DOWNLOADABLE -> awaitDownload(onDownloadProgress)
@@ -329,6 +331,7 @@ class DocumentSummaryRepositoryImpl(
         question: String,
         onDownloadProgress: ((bytesDownloaded: Long) -> Unit)?,
     ): String? = withContext(Dispatchers.IO) {
+        if (!appPreferences.getAiEnabled()) return@withContext null
         when (generationClient.checkStatus()) {
             FeatureStatus.UNAVAILABLE -> return@withContext null
             FeatureStatus.DOWNLOADABLE -> awaitDownload(onDownloadProgress)
@@ -355,6 +358,7 @@ class DocumentSummaryRepositoryImpl(
         existingFolderNames: List<String>,
         onDownloadProgress: ((bytesDownloaded: Long) -> Unit)?,
     ): OrganizationPlan? = withContext(Dispatchers.IO) {
+        if (!appPreferences.getAiEnabled()) return@withContext null
         if (documents.isEmpty()) return@withContext OrganizationPlan(emptyList())
         when (generationClient.checkStatus()) {
             FeatureStatus.UNAVAILABLE -> return@withContext null

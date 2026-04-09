@@ -23,7 +23,8 @@ import java.util.Locale
  * ML Kit implementation of [TripDescriptionRepository] that uses the on-device Gemini Nano
  * Prompt API to generate a short, engaging trip summary.
  *
- * @param appPreferences Repository used to read the user-selected AI output language.
+ * @param appPreferences Repository used to read the user-selected AI output language and to
+ *   enforce the app-wide AI kill-switch.
  */
 class TripDescriptionRepositoryImpl(
     private val appPreferences: AppPreferencesRepository,
@@ -41,6 +42,7 @@ class TripDescriptionRepositoryImpl(
 
     override suspend fun generateDescription(trip: Trip, destinations: List<Destination>): String? =
         withContext(Dispatchers.IO) {
+            if (!appPreferences.getAiEnabled()) return@withContext null
             when (client.checkStatus()) {
                 FeatureStatus.UNAVAILABLE -> return@withContext null
                 FeatureStatus.DOWNLOADABLE -> awaitDownload()
@@ -62,6 +64,7 @@ class TripDescriptionRepositoryImpl(
         destinations: List<Destination>,
         now: ZonedDateTime,
     ): String? = withContext(Dispatchers.IO) {
+        if (!appPreferences.getAiEnabled()) return@withContext null
         when (client.checkStatus()) {
             FeatureStatus.UNAVAILABLE -> return@withContext null
             FeatureStatus.DOWNLOADABLE -> awaitDownload()

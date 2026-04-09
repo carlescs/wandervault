@@ -22,7 +22,7 @@ import kotlinx.coroutines.launch
  * @param appPreferences Repository for reading and persisting app-wide preferences.
  * @param generateTripDescriptionUseCase Use-case used to check whether Gemini Nano is supported
  *   by this device (hardware check, independent of user preference). The check is performed
- *   asynchronously on init and populates [SettingsUiState.isAiDeviceSupported].
+ *   asynchronously on init and populates [SettingsUiState.aiDeviceSupport].
  */
 class SettingsViewModel(
     private val appPreferences: AppPreferencesRepository,
@@ -43,15 +43,19 @@ class SettingsViewModel(
         // Check whether the device hardware supports Gemini Nano, independently of the user's
         // AI preference, so the Settings UI can show the correct state.
         viewModelScope.launch {
-            val supported = try {
-                generateTripDescriptionUseCase.isDeviceSupported()
+            val support = try {
+                if (generateTripDescriptionUseCase.isDeviceSupported()) {
+                    AiDeviceSupport.SUPPORTED
+                } else {
+                    AiDeviceSupport.UNSUPPORTED
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 Log.w(TAG, "AI device support check failed; assuming unsupported", e)
-                false
+                AiDeviceSupport.UNSUPPORTED
             }
-            _uiState.update { it.copy(isAiDeviceSupported = supported) }
+            _uiState.update { it.copy(aiDeviceSupport = support) }
         }
     }
 
@@ -148,10 +152,23 @@ data class SettingsUiState(
     /** Whether the user has enabled AI features. */
     val aiEnabled: Boolean = true,
     /**
-     * Whether the device hardware supports Gemini Nano. Starts as `false` (fail-closed) and is
-     * updated asynchronously once the hardware check completes.
+     * Hardware support state for Gemini Nano. Starts as [AiDeviceSupport.CHECKING] while the
+     * async check is in progress, then resolves to [AiDeviceSupport.SUPPORTED] or
+     * [AiDeviceSupport.UNSUPPORTED].
      */
-    val isAiDeviceSupported: Boolean = false,
+    val aiDeviceSupport: AiDeviceSupport = AiDeviceSupport.CHECKING,
     /** Whether the user has enabled trip approach notifications. */
     val notificationsEnabled: Boolean = true,
 )
+
+/** Hardware-support state for Gemini Nano on the current device. */
+enum class AiDeviceSupport {
+    /** The async hardware check is still in progress. */
+    CHECKING,
+
+    /** The device supports Gemini Nano (model is available or downloadable). */
+    SUPPORTED,
+
+    /** The device does not support Gemini Nano. */
+    UNSUPPORTED,
+}

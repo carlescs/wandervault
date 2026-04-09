@@ -186,19 +186,21 @@ internal fun SettingsContent(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             )
             HorizontalDivider()
-            if (!uiState.isAiDeviceSupported) {
-                AiUnavailableRow()
-            } else {
-                AiEnabledRow(
-                    enabled = uiState.aiEnabled,
-                    onEnabledChange = onAiEnabledChange,
-                )
-                if (uiState.aiEnabled) {
-                    HorizontalDivider()
-                    AiLanguageRow(
-                        currentLanguageTag = uiState.aiLanguage,
-                        onLanguageChange = onAiLanguageChange,
+            when (uiState.aiDeviceSupport) {
+                AiDeviceSupport.CHECKING -> Unit // keep section empty while the check is running
+                AiDeviceSupport.UNSUPPORTED -> AiUnavailableRow()
+                AiDeviceSupport.SUPPORTED -> {
+                    AiEnabledRow(
+                        enabled = uiState.aiEnabled,
+                        onEnabledChange = onAiEnabledChange,
                     )
+                    if (uiState.aiEnabled) {
+                        HorizontalDivider()
+                        AiLanguageRow(
+                            currentLanguageTag = uiState.aiLanguage,
+                            onLanguageChange = onAiLanguageChange,
+                        )
+                    }
                 }
             }
             HorizontalDivider()
@@ -539,7 +541,7 @@ private fun SettingsScreenPreview() {
                 defaultTimezone = "Europe/London",
                 aiLanguage = "en",
                 aiEnabled = true,
-                isAiDeviceSupported = true,
+                aiDeviceSupport = AiDeviceSupport.SUPPORTED,
                 notificationsEnabled = true,
             ),
             onNavigateUp = {},
