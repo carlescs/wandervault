@@ -173,6 +173,7 @@ class TripDetailViewModel(
                         descriptionState = descriptionState,
                         whatsNextState = whatsNextState,
                         upcomingEvents = computeUpcomingEvents(destinations, now),
+                        isAiAvailable = aiAvailable,
                     )
 
                     // Trigger generation whenever the state is None and AI is available –
@@ -193,6 +194,7 @@ class TripDetailViewModel(
     fun regenerateDescription() {
         val current = _uiState.value as? TripDetailUiState.Success ?: return
         if (current.descriptionState is DescriptionState.Loading) return
+        if (!_isAiAvailable.value) return
         val trip = lastTrip ?: return
         val destinations = lastDestinations
         _uiState.value = current.copy(descriptionState = DescriptionState.Loading)
@@ -207,7 +209,10 @@ class TripDetailViewModel(
         val current = _uiState.value as? TripDetailUiState.Success ?: return
         val trip = lastTrip ?: return
         val previousDescriptionState = current.descriptionState
-        _uiState.value = current.copy(descriptionState = DescriptionState.None)
+        // When AI is not available, there is nothing to generate after deletion, so use
+        // Unavailable as the optimistic state to avoid a transient "Generate" button flash.
+        val optimisticState = if (_isAiAvailable.value) DescriptionState.None else DescriptionState.Unavailable
+        _uiState.value = current.copy(descriptionState = optimisticState)
         viewModelScope.launch {
             try {
                 saveTripDescriptionUseCase(trip, null)
@@ -215,7 +220,7 @@ class TripDetailViewModel(
                 Log.e(TAG, "Failed to delete trip description", e)
                 val latest = _uiState.value
                 if (latest !is TripDetailUiState.Success) return@launch
-                if (latest.descriptionState !is DescriptionState.None) return@launch
+                if (latest.descriptionState != optimisticState) return@launch
                 _uiState.value = latest.copy(descriptionState = previousDescriptionState)
             }
         }
@@ -257,6 +262,7 @@ class TripDetailViewModel(
     fun refreshWhatsNext() {
         val current = _uiState.value as? TripDetailUiState.Success ?: return
         if (current.whatsNextState is WhatsNextState.Loading) return
+        if (!_isAiAvailable.value) return
         val trip = lastTrip ?: return
         val destinations = lastDestinations
         _uiState.value = current.copy(whatsNextState = WhatsNextState.Loading)
