@@ -366,6 +366,7 @@ private fun AiEnabledRow(
         Switch(
             checked = enabled,
             onCheckedChange = onEnabledChange,
+            modifier = Modifier.semantics { contentDescription = label },
         )
     }
 }

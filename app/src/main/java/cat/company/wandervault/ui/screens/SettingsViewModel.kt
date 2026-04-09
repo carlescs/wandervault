@@ -3,11 +3,13 @@ package cat.company.wandervault.ui.screens
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import cat.company.wandervault.data.notification.TripNotificationWorker
 import cat.company.wandervault.domain.repository.AppPreferencesRepository
 import cat.company.wandervault.domain.usecase.GenerateTripDescriptionUseCase
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -19,7 +21,8 @@ import kotlinx.coroutines.launch
  *
  * @param appPreferences Repository for reading and persisting app-wide preferences.
  * @param generateTripDescriptionUseCase Use-case used to check whether Gemini Nano is supported
- *   by this device (hardware check, independent of user preference).
+ *   by this device (hardware check, independent of user preference). The check is performed
+ *   asynchronously on init and populates [SettingsUiState.isAiDeviceSupported].
  */
 class SettingsViewModel(
     private val appPreferences: AppPreferencesRepository,
@@ -42,7 +45,10 @@ class SettingsViewModel(
         viewModelScope.launch {
             val supported = try {
                 generateTripDescriptionUseCase.isDeviceSupported()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
+                Log.w(TAG, "AI device support check failed; assuming unsupported", e)
                 false
             }
             _uiState.update { it.copy(isAiDeviceSupported = supported) }
@@ -127,6 +133,10 @@ class SettingsViewModel(
                 }
             }
         }
+    }
+
+    companion object {
+        private const val TAG = "SettingsViewModel"
     }
 }
 
