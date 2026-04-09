@@ -32,6 +32,10 @@ class TripDescriptionRepositoryImpl(
     private val client by lazy { Generation.getClient() }
 
     override suspend fun isAvailable(): Boolean = withContext(Dispatchers.IO) {
+        appPreferences.getAiEnabled() && client.checkStatus() != FeatureStatus.UNAVAILABLE
+    }
+
+    override suspend fun isDeviceSupported(): Boolean = withContext(Dispatchers.IO) {
         client.checkStatus() != FeatureStatus.UNAVAILABLE
     }
 

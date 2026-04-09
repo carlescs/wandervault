@@ -54,7 +54,7 @@ class DocumentSummaryRepositoryImpl(
     }
 
     override suspend fun isAvailable(): Boolean = withContext(Dispatchers.IO) {
-        generationClient.checkStatus() != FeatureStatus.UNAVAILABLE
+        appPreferences.getAiEnabled() && generationClient.checkStatus() != FeatureStatus.UNAVAILABLE
     }
 
     /**

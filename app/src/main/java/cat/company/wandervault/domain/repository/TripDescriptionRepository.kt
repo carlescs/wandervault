@@ -16,6 +16,12 @@ interface TripDescriptionRepository {
     suspend fun isAvailable(): Boolean
 
     /**
+     * Returns `true` if the device hardware supports Gemini Nano, regardless of user preference.
+     * Use this to determine whether the AI section should be shown in Settings.
+     */
+    suspend fun isDeviceSupported(): Boolean
+
+    /**
      * Generates a short description of the trip based on all available trip info.
      *
      * @return The generated description, or `null` if Gemini Nano is not available on this device.

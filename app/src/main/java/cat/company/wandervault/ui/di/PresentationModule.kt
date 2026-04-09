@@ -31,7 +31,7 @@ val presentationModule = module {
             unarchiveTrip = get(),
         )
     }
-    viewModel { SettingsViewModel(get()) }
+    viewModel { SettingsViewModel(get(), get()) }
     viewModel { ArchiveViewModel(get(), get(), get()) }
     viewModel { params ->
         TripDetailViewModel(
