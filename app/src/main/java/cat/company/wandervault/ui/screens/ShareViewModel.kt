@@ -322,11 +322,25 @@ class ShareViewModel(
 
     /**
      * Called when the user cancels from the [ShareUiState.FlightConfirm],
-     * [ShareUiState.HotelConfirm], or [ShareUiState.ActivityConfirm] dialog. Skips the update
-     * and advances to the next pending item.
+     * [ShareUiState.FlightAddLegConfirm], [ShareUiState.HotelConfirm], or
+     * [ShareUiState.ActivityConfirm] dialog. Skips the update and advances to the next
+     * pending item.
+     *
+     * Only acts when the current state is a confirm state. Programmatic dismissal of a
+     * confirm dialog (e.g. when the state advances to the next selection or confirm step)
+     * fires [android.content.DialogInterface.OnDismissListener] asynchronously on the previous
+     * dialog — those spurious calls must be ignored to prevent prematurely transitioning to
+     * [ShareUiState.Done] and skipping pending items.
      */
     fun onConfirmCancelled() {
-        viewModelScope.launch { handleNextExtractedInfo() }
+        val current = _uiState.value
+        if (current is ShareUiState.FlightConfirm ||
+            current is ShareUiState.FlightAddLegConfirm ||
+            current is ShareUiState.HotelConfirm ||
+            current is ShareUiState.ActivityConfirm
+        ) {
+            viewModelScope.launch { handleNextExtractedInfo() }
+        }
     }
 
     /**
