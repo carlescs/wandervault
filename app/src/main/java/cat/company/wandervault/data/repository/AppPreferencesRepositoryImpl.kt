@@ -6,6 +6,7 @@ import cat.company.wandervault.domain.repository.AppPreferencesRepository
 private const val PREFS_NAME = "wandervault_prefs"
 private const val KEY_DEFAULT_TIMEZONE = "default_timezone"
 private const val KEY_AI_LANGUAGE = "ai_language"
+private const val KEY_AI_ENABLED = "ai_enabled"
 private const val KEY_NOTIFICATIONS_ENABLED = "notifications_enabled"
 
 /**
@@ -43,6 +44,12 @@ class AppPreferencesRepositoryImpl(context: Context) : AppPreferencesRepository 
             }
             apply()
         }
+    }
+
+    override fun getAiEnabled(): Boolean = prefs.getBoolean(KEY_AI_ENABLED, true)
+
+    override fun setAiEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_AI_ENABLED, enabled).apply()
     }
 
     override fun getNotificationsEnabled(): Boolean =

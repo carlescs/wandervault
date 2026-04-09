@@ -3,10 +3,13 @@ package cat.company.wandervault.ui.screens
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import cat.company.wandervault.data.notification.TripNotificationWorker
 import cat.company.wandervault.domain.repository.AppPreferencesRepository
+import cat.company.wandervault.domain.usecase.GenerateTripDescriptionUseCase
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -17,19 +20,44 @@ import kotlinx.coroutines.launch
  * Holds the current app-wide settings state and handles user interactions.
  *
  * @param appPreferences Repository for reading and persisting app-wide preferences.
+ * @param generateTripDescriptionUseCase Use-case used to check whether Gemini Nano is supported
+ *   by this device (hardware check, independent of user preference). The check is performed
+ *   asynchronously on init and populates [SettingsUiState.aiDeviceSupport].
  */
 class SettingsViewModel(
     private val appPreferences: AppPreferencesRepository,
+    private val generateTripDescriptionUseCase: GenerateTripDescriptionUseCase,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(
         SettingsUiState(
             defaultTimezone = appPreferences.getDefaultTimezone(),
             aiLanguage = appPreferences.getAiLanguage(),
+            aiEnabled = appPreferences.getAiEnabled(),
             notificationsEnabled = appPreferences.getNotificationsEnabled(),
         ),
     )
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
+
+    init {
+        // Check whether the device hardware supports Gemini Nano, independently of the user's
+        // AI preference, so the Settings UI can show the correct state.
+        viewModelScope.launch {
+            val support = try {
+                if (generateTripDescriptionUseCase.isDeviceSupported()) {
+                    AiDeviceSupport.SUPPORTED
+                } else {
+                    AiDeviceSupport.UNSUPPORTED
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "AI device support check failed; assuming unsupported", e)
+                AiDeviceSupport.UNSUPPORTED
+            }
+            _uiState.update { it.copy(aiDeviceSupport = support) }
+        }
+    }
 
     /**
      * Persists the selected [zoneId] as the app-wide default timezone.
@@ -47,6 +75,14 @@ class SettingsViewModel(
     fun onAiLanguageChange(languageTag: String?) {
         appPreferences.setAiLanguage(languageTag)
         _uiState.update { it.copy(aiLanguage = languageTag) }
+    }
+
+    /**
+     * Enables or disables all AI features app-wide.
+     */
+    fun onAiEnabledChange(enabled: Boolean) {
+        appPreferences.setAiEnabled(enabled)
+        _uiState.update { it.copy(aiEnabled = enabled) }
     }
 
     /**
@@ -102,6 +138,10 @@ class SettingsViewModel(
             }
         }
     }
+
+    companion object {
+        private const val TAG = "SettingsViewModel"
+    }
 }
 
 data class SettingsUiState(
@@ -109,6 +149,26 @@ data class SettingsUiState(
     val defaultTimezone: String? = null,
     /** The BCP-47 language tag selected for AI-generated content, or `null` for device default. */
     val aiLanguage: String? = null,
+    /** Whether the user has enabled AI features. */
+    val aiEnabled: Boolean = true,
+    /**
+     * Hardware support state for Gemini Nano. Starts as [AiDeviceSupport.CHECKING] while the
+     * async check is in progress, then resolves to [AiDeviceSupport.SUPPORTED] or
+     * [AiDeviceSupport.UNSUPPORTED].
+     */
+    val aiDeviceSupport: AiDeviceSupport = AiDeviceSupport.CHECKING,
     /** Whether the user has enabled trip approach notifications. */
     val notificationsEnabled: Boolean = true,
 )
+
+/** Hardware-support state for Gemini Nano on the current device. */
+enum class AiDeviceSupport {
+    /** The async hardware check is still in progress. */
+    CHECKING,
+
+    /** The device supports Gemini Nano (model is available or downloadable). */
+    SUPPORTED,
+
+    /** The device does not support Gemini Nano. */
+    UNSUPPORTED,
+}

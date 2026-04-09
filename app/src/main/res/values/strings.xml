@@ -42,6 +42,9 @@
     <string name="settings_section_ai">AI</string>
     <string name="settings_ai_language_label">AI output language</string>
     <string name="settings_ai_language_device_default">Device default (%s)</string>
+    <string name="settings_ai_enabled_label">Enable AI features</string>
+    <string name="settings_ai_enabled_subtitle">Use Gemini Nano for descriptions, document analysis, and more</string>
+    <string name="settings_ai_device_unavailable">AI features are not available on this device</string>
 
     <!-- Data Administration screen -->
     <string name="data_admin_title">Data Administration</string>
@@ -376,7 +379,7 @@
     <string name="document_info_folder">Folder</string>
     <string name="document_info_folder_root">Root (no folder)</string>
     <string name="document_info_no_ai_description">No AI description yet.</string>
-    <string name="document_info_ai_unavailable">AI is not available on this device.</string>
+    <string name="document_info_ai_unavailable">AI features are not available.</string>
     <string name="document_info_preview_content_desc">Preview of %s</string>
     <string name="document_info_hide_sheet">Hide document info</string>
     <string name="document_info_show_sheet">Show document info</string>

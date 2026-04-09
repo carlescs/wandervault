@@ -10,10 +10,23 @@ import java.time.ZonedDateTime
 interface TripDescriptionRepository {
 
     /**
-     * Returns `true` if on-device AI is supported on this device (model is available or can be
-     * downloaded). Returns `false` if the device permanently does not support the feature.
+     * Returns `true` if on-device AI is currently usable — i.e. the user has not disabled AI via
+     * the app settings **and** the device/model is available or can be downloaded.
+     *
+     * This is the primary gate used by the rest of the app to decide whether to show or trigger
+     * AI features.  It differs from [isDeviceSupported], which ignores the user preference and
+     * only reports hardware capability.
      */
     suspend fun isAvailable(): Boolean
+
+    /**
+     * Returns `true` if the device hardware supports Gemini Nano (the model is available or
+     * downloadable), regardless of the user's AI preference setting.
+     *
+     * Use this only to determine whether to show/hide the AI toggle in Settings — all other
+     * AI-feature gating should rely on [isAvailable].
+     */
+    suspend fun isDeviceSupported(): Boolean
 
     /**
      * Generates a short description of the trip based on all available trip info.

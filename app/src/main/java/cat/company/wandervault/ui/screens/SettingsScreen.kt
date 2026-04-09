@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.NotificationsNone
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -117,6 +118,7 @@ fun SettingsScreen(
         onNavigateUp = onNavigateUp,
         onNavigateToDataAdmin = onNavigateToDataAdmin,
         onDefaultTimezoneChange = viewModel::onDefaultTimezoneChange,
+        onAiEnabledChange = viewModel::onAiEnabledChange,
         onAiLanguageChange = viewModel::onAiLanguageChange,
         onNotificationsEnabledChange = { enabled ->
             if (enabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -136,6 +138,7 @@ internal fun SettingsContent(
     onNavigateUp: () -> Unit,
     onNavigateToDataAdmin: () -> Unit,
     onDefaultTimezoneChange: (String?) -> Unit = {},
+    onAiEnabledChange: (Boolean) -> Unit = {},
     onAiLanguageChange: (String?) -> Unit = {},
     onNotificationsEnabledChange: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
@@ -183,10 +186,23 @@ internal fun SettingsContent(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             )
             HorizontalDivider()
-            AiLanguageRow(
-                currentLanguageTag = uiState.aiLanguage,
-                onLanguageChange = onAiLanguageChange,
-            )
+            when (uiState.aiDeviceSupport) {
+                AiDeviceSupport.CHECKING -> Unit // keep section empty while the check is running
+                AiDeviceSupport.UNSUPPORTED -> AiUnavailableRow()
+                AiDeviceSupport.SUPPORTED -> {
+                    AiEnabledRow(
+                        enabled = uiState.aiEnabled,
+                        onEnabledChange = onAiEnabledChange,
+                    )
+                    if (uiState.aiEnabled) {
+                        HorizontalDivider()
+                        AiLanguageRow(
+                            currentLanguageTag = uiState.aiLanguage,
+                            onLanguageChange = onAiLanguageChange,
+                        )
+                    }
+                }
+            }
             HorizontalDivider()
 
             // ── Notifications section ──────────────────────────────────────
@@ -308,6 +324,78 @@ private fun AppTimezoneRow(
                     .clickable { showPicker = true },
             )
         }
+    }
+}
+
+/**
+ * A settings row with a toggle for enabling or disabling all AI features.
+ */
+@Composable
+private fun AiEnabledRow(
+    enabled: Boolean,
+    onEnabledChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val label = stringResource(R.string.settings_ai_enabled_label)
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(
+                role = Role.Switch,
+                onClick = { onEnabledChange(!enabled) },
+            )
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            Icons.Default.SmartToy,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(24.dp),
+        )
+        Spacer(modifier = Modifier.width(16.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyLarge,
+            )
+            Text(
+                text = stringResource(R.string.settings_ai_enabled_subtitle),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Switch(
+            checked = enabled,
+            onCheckedChange = onEnabledChange,
+            modifier = Modifier.semantics { contentDescription = label },
+        )
+    }
+}
+
+/**
+ * A settings row shown when Gemini Nano is not available on this device.
+ */
+@Composable
+private fun AiUnavailableRow(modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            Icons.Default.SmartToy,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(24.dp),
+        )
+        Spacer(modifier = Modifier.width(16.dp))
+        Text(
+            text = stringResource(R.string.settings_ai_device_unavailable),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
@@ -452,6 +540,8 @@ private fun SettingsScreenPreview() {
             uiState = SettingsUiState(
                 defaultTimezone = "Europe/London",
                 aiLanguage = "en",
+                aiEnabled = true,
+                aiDeviceSupport = AiDeviceSupport.SUPPORTED,
                 notificationsEnabled = true,
             ),
             onNavigateUp = {},

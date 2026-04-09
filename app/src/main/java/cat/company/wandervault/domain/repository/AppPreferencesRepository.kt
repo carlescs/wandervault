@@ -29,6 +29,16 @@ interface AppPreferencesRepository {
     fun setAiLanguage(languageTag: String?)
 
     /**
+     * Returns whether the user has enabled AI features, defaulting to `true`.
+     */
+    fun getAiEnabled(): Boolean
+
+    /**
+     * Persists whether AI features are enabled.
+     */
+    fun setAiEnabled(enabled: Boolean)
+
+    /**
      * Returns whether the user has enabled trip approach notifications, defaulting to `true`.
      */
     fun getNotificationsEnabled(): Boolean
