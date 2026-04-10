@@ -465,12 +465,11 @@ private fun DocumentInfoSheetContent(
                 )
             }
 
-            val showGenerateButton = summary.isNullOrBlank() && !isAnalysisInProgress
-            val showReanalyzeButton = !summary.isNullOrBlank() && !isAnalysisInProgress
-            val showUpdateTripFromDocumentButton = !summary.isNullOrBlank() && !isAnalysisInProgress
-            val showDeleteButton = !summary.isNullOrBlank() && !isAnalysisInProgress
+            val hasExistingSummary = !summary.isNullOrBlank()
+            val showGenerateButton = !hasExistingSummary && !isAnalysisInProgress
+            val showExistingSummaryButtons = hasExistingSummary && !isAnalysisInProgress
 
-            if (showGenerateButton || showReanalyzeButton || showUpdateTripFromDocumentButton || showDeleteButton) {
+            if (showGenerateButton || showExistingSummaryButtons) {
                 Spacer(modifier = Modifier.height(8.dp))
 
                 if (showGenerateButton) {
@@ -486,7 +485,7 @@ private fun DocumentInfoSheetContent(
                         Text(stringResource(R.string.document_info_generate_ai_description))
                     }
                 }
-                if (showReanalyzeButton) {
+                if (showExistingSummaryButtons) {
                     OutlinedButton(
                         onClick = onAnalyzeDocument,
                         modifier = Modifier.fillMaxWidth(),
@@ -499,7 +498,7 @@ private fun DocumentInfoSheetContent(
                         Text(stringResource(R.string.document_info_reanalyze_ai_description))
                     }
                 }
-                if (showUpdateTripFromDocumentButton) {
+                if (showExistingSummaryButtons) {
                     OutlinedButton(
                         onClick = onAnalyzeForTripUpdates,
                         modifier = Modifier.fillMaxWidth(),
@@ -512,7 +511,7 @@ private fun DocumentInfoSheetContent(
                         Text(stringResource(R.string.document_info_update_trip_from_document))
                     }
                 }
-                if (showDeleteButton) {
+                if (showExistingSummaryButtons) {
                     OutlinedButton(
                         onClick = onDeleteAiDescription,
                         modifier = Modifier.fillMaxWidth(),
