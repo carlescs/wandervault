@@ -403,136 +403,131 @@ private fun DocumentInfoSheetContent(
                 },
         )
 
-        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+        if (uiState.isAiAvailable) {
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
-        // ── AI description ────────────────────────────────────────────────────
+            // ── AI description ────────────────────────────────────────────────────
 
-        Text(
-            text = stringResource(R.string.document_info_section_ai_description),
-            style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.primary,
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        val summary = uiState.document.summary
-        val analyzeState = uiState.analyzeState
-        val isAnalysisInProgress = analyzeState?.isInProgress == true
-        if (isAnalysisInProgress) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                CircularProgressIndicator(modifier = Modifier.size(24.dp))
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        text = if (analyzeState is AnalyzeDocumentUiState.Loading) {
-                            stringResource(R.string.documents_analyze_analyzing)
-                        } else {
-                            stringResource(R.string.documents_analyze_downloading)
-                        },
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    if (analyzeState is AnalyzeDocumentUiState.Downloading &&
-                        analyzeState.bytesDownloaded > 0
-                    ) {
+            Text(
+                text = stringResource(R.string.document_info_section_ai_description),
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            val summary = uiState.document.summary
+            val analyzeState = uiState.analyzeState
+            val isAnalysisInProgress = analyzeState?.isInProgress == true
+            if (isAnalysisInProgress) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(
-                            text = stringResource(
-                                R.string.documents_analyze_downloaded_bytes,
-                                formatBytes(analyzeState.bytesDownloaded),
-                            ),
-                            style = MaterialTheme.typography.bodySmall,
+                            text = if (analyzeState is AnalyzeDocumentUiState.Loading) {
+                                stringResource(R.string.documents_analyze_analyzing)
+                            } else {
+                                stringResource(R.string.documents_analyze_downloading)
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                        if (analyzeState is AnalyzeDocumentUiState.Downloading &&
+                            analyzeState.bytesDownloaded > 0
+                        ) {
+                            Text(
+                                text = stringResource(
+                                    R.string.documents_analyze_downloaded_bytes,
+                                    formatBytes(analyzeState.bytesDownloaded),
+                                ),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 }
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            TextButton(onClick = onAnalyzeDismiss) {
-                Text(stringResource(R.string.dialog_cancel))
-            }
-        } else if (summary.isNullOrBlank()) {
-            Text(
-                text = stringResource(R.string.document_info_no_ai_description),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontStyle = FontStyle.Italic,
-            )
-            if (!uiState.isAiAvailable) {
+                Spacer(modifier = Modifier.height(8.dp))
+                TextButton(onClick = onAnalyzeDismiss) {
+                    Text(stringResource(R.string.dialog_cancel))
+                }
+            } else if (summary.isNullOrBlank()) {
                 Text(
-                    text = stringResource(R.string.document_info_ai_unavailable),
-                    style = MaterialTheme.typography.bodySmall,
+                    text = stringResource(R.string.document_info_no_ai_description),
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontStyle = FontStyle.Italic,
+                )
+            } else {
+                Text(
+                    text = summary,
+                    style = MaterialTheme.typography.bodyMedium,
                 )
             }
-        } else {
-            Text(
-                text = summary,
-                style = MaterialTheme.typography.bodyMedium,
-            )
-        }
 
-        val showGenerateButton = uiState.isAiAvailable && summary.isNullOrBlank() && !isAnalysisInProgress
-        val showReanalyzeButton = uiState.isAiAvailable && !summary.isNullOrBlank() && !isAnalysisInProgress
-        val showUpdateTripFromDocumentButton = uiState.isAiAvailable && !summary.isNullOrBlank() && !isAnalysisInProgress
-        val showDeleteButton = !summary.isNullOrBlank() && !isAnalysisInProgress
+            val showGenerateButton = summary.isNullOrBlank() && !isAnalysisInProgress
+            val showReanalyzeButton = !summary.isNullOrBlank() && !isAnalysisInProgress
+            val showUpdateTripFromDocumentButton = !summary.isNullOrBlank() && !isAnalysisInProgress
+            val showDeleteButton = !summary.isNullOrBlank() && !isAnalysisInProgress
 
-        if (showGenerateButton || showReanalyzeButton || showUpdateTripFromDocumentButton || showDeleteButton) {
-            Spacer(modifier = Modifier.height(8.dp))
+            if (showGenerateButton || showReanalyzeButton || showUpdateTripFromDocumentButton || showDeleteButton) {
+                Spacer(modifier = Modifier.height(8.dp))
 
-            if (showGenerateButton) {
-                OutlinedButton(
-                    onClick = onAnalyzeDocument,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.FindInPage,
-                        contentDescription = null,
-                        modifier = Modifier.padding(end = 8.dp),
-                    )
-                    Text(stringResource(R.string.document_info_generate_ai_description))
+                if (showGenerateButton) {
+                    OutlinedButton(
+                        onClick = onAnalyzeDocument,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.FindInPage,
+                            contentDescription = null,
+                            modifier = Modifier.padding(end = 8.dp),
+                        )
+                        Text(stringResource(R.string.document_info_generate_ai_description))
+                    }
                 }
-            }
-            if (showReanalyzeButton) {
-                OutlinedButton(
-                    onClick = onAnalyzeDocument,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.FindInPage,
-                        contentDescription = null,
-                        modifier = Modifier.padding(end = 8.dp),
-                    )
-                    Text(stringResource(R.string.document_info_reanalyze_ai_description))
+                if (showReanalyzeButton) {
+                    OutlinedButton(
+                        onClick = onAnalyzeDocument,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.FindInPage,
+                            contentDescription = null,
+                            modifier = Modifier.padding(end = 8.dp),
+                        )
+                        Text(stringResource(R.string.document_info_reanalyze_ai_description))
+                    }
                 }
-            }
-            if (showUpdateTripFromDocumentButton) {
-                OutlinedButton(
-                    onClick = onAnalyzeForTripUpdates,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.FindInPage,
-                        contentDescription = null,
-                        modifier = Modifier.padding(end = 8.dp),
-                    )
-                    Text(stringResource(R.string.document_info_update_trip_from_document))
+                if (showUpdateTripFromDocumentButton) {
+                    OutlinedButton(
+                        onClick = onAnalyzeForTripUpdates,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.FindInPage,
+                            contentDescription = null,
+                            modifier = Modifier.padding(end = 8.dp),
+                        )
+                        Text(stringResource(R.string.document_info_update_trip_from_document))
+                    }
                 }
-            }
-            if (showDeleteButton) {
-                OutlinedButton(
-                    onClick = onDeleteAiDescription,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = MaterialTheme.colorScheme.error,
-                    ),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.error),
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = null,
-                        modifier = Modifier.padding(end = 8.dp),
-                    )
-                    Text(stringResource(R.string.document_info_delete_ai_description))
+                if (showDeleteButton) {
+                    OutlinedButton(
+                        onClick = onDeleteAiDescription,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error,
+                        ),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = null,
+                            modifier = Modifier.padding(end = 8.dp),
+                        )
+                        Text(stringResource(R.string.document_info_delete_ai_description))
+                    }
                 }
             }
         }

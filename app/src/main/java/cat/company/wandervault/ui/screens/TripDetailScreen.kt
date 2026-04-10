@@ -384,7 +384,7 @@ private fun TripDetailsTabContent(
                                 isAiAvailable = uiState.isAiAvailable,
                                 onRefresh = onRefreshWhatsNext,
                             )
-                            if (uiState.descriptionState !is DescriptionState.Unavailable) {
+                            if (uiState.isAiAvailable && uiState.descriptionState !is DescriptionState.Unavailable) {
                                 Spacer(modifier = Modifier.height(16.dp))
                                 AiDescriptionSection(
                                     descriptionState = uiState.descriptionState,
@@ -602,8 +602,8 @@ private fun WhatsNextSection(
     isAiAvailable: Boolean,
     onRefresh: () -> Unit = {},
 ) {
-    // Render nothing for terminal non-display states.
-    if (whatsNextState is WhatsNextState.Unavailable || whatsNextState is WhatsNextState.None) return
+    // Render nothing when AI is disabled or for terminal non-display states.
+    if (!isAiAvailable || whatsNextState is WhatsNextState.Unavailable || whatsNextState is WhatsNextState.None) return
 
     ElevatedCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
