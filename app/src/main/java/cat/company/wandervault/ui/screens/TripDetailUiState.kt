@@ -16,6 +16,7 @@ sealed class TripDetailUiState {
         val descriptionState: DescriptionState = DescriptionState.None,
         val whatsNextState: WhatsNextState = WhatsNextState.None,
         val upcomingEvents: List<UpcomingEvent> = emptyList(),
+        val isAiAvailable: Boolean = false,
     ) : TripDetailUiState()
 
     /** An error occurred (e.g. trip not found). */

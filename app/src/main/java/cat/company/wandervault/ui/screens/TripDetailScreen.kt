@@ -381,12 +381,14 @@ private fun TripDetailsTabContent(
                             )
                             WhatsNextSection(
                                 whatsNextState = uiState.whatsNextState,
+                                isAiAvailable = uiState.isAiAvailable,
                                 onRefresh = onRefreshWhatsNext,
                             )
                             if (uiState.descriptionState !is DescriptionState.Unavailable) {
                                 Spacer(modifier = Modifier.height(16.dp))
                                 AiDescriptionSection(
                                     descriptionState = uiState.descriptionState,
+                                    isAiAvailable = uiState.isAiAvailable,
                                     onRegenerate = onRegenerateDescription,
                                     onDelete = onDeleteDescription,
                                     onClearSource = onClearDescriptionSource,
@@ -405,8 +407,9 @@ private fun TripDetailsTabContent(
  *
  * Shows a card with a title ("AI Summary") followed by the current [DescriptionState]:
  * a spinner while loading, or the generated text when available.
- * When the description is [DescriptionState.Available], Regenerate and Delete icon buttons are shown.
- * When the description is [DescriptionState.Error], a Regenerate icon button is shown.
+ * When [isAiAvailable] is true and the description is [DescriptionState.Available] or
+ * [DescriptionState.Error], a Regenerate icon button is shown.
+ * When the description is [DescriptionState.Available], a Delete icon button is always shown.
  * When the description is [DescriptionState.None], a "Generate" button is shown.
  *
  * This composable must not be called when [descriptionState] is [DescriptionState.Unavailable];
@@ -415,6 +418,7 @@ private fun TripDetailsTabContent(
 @Composable
 private fun AiDescriptionSection(
     descriptionState: DescriptionState,
+    isAiAvailable: Boolean,
     onRegenerate: () -> Unit = {},
     onDelete: () -> Unit = {},
     onClearSource: () -> Unit = {},
@@ -431,7 +435,7 @@ private fun AiDescriptionSection(
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.weight(1f),
                 )
-                if (descriptionState is DescriptionState.Available || descriptionState is DescriptionState.Error) {
+                if (isAiAvailable && (descriptionState is DescriptionState.Available || descriptionState is DescriptionState.Error)) {
                     IconButton(onClick = onRegenerate) {
                         Icon(
                             imageVector = Icons.Default.Refresh,
@@ -586,13 +590,16 @@ private fun UpcomingEventsSection(
  * Renders the AI-generated "What's Next" notice section.
  *
  * Shows a card with a title ("What's Next") and the current [WhatsNextState]:
- * a spinner while loading, the generated notice when available, or an error state with a refresh
- * button. The section is hidden entirely (returns immediately) when [WhatsNextState] is
+ * a spinner while loading, or the generated notice when available.
+ * A Refresh icon button is shown when [isAiAvailable] is true and the state is
+ * [WhatsNextState.Available] or [WhatsNextState.Error].
+ * The section is hidden entirely (returns immediately) when [WhatsNextState] is
  * [WhatsNextState.Unavailable] or [WhatsNextState.None].
  */
 @Composable
 private fun WhatsNextSection(
     whatsNextState: WhatsNextState,
+    isAiAvailable: Boolean,
     onRefresh: () -> Unit = {},
 ) {
     // Render nothing for terminal non-display states.
@@ -609,8 +616,8 @@ private fun WhatsNextSection(
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.weight(1f),
                 )
-                if (whatsNextState is WhatsNextState.Available ||
-                    whatsNextState is WhatsNextState.Error
+                if (isAiAvailable &&
+                    (whatsNextState is WhatsNextState.Available || whatsNextState is WhatsNextState.Error)
                 ) {
                     IconButton(onClick = onRefresh) {
                         Icon(
@@ -704,6 +711,7 @@ private fun TripDetailAiAvailablePreview() {
                         "Explore ancient temples, futuristic technology, and world-class cuisine " +
                         "across one of the world's most dynamic cities.",
                 ),
+                isAiAvailable = true,
             ),
             tripId = 1,
             onNavigateUp = {},
@@ -750,6 +758,7 @@ private fun TripDetailWhatsNextAvailablePreview() {
                     "Your flight to Tokyo departs tomorrow at 10:30 AM JST. Get ready for an " +
                         "amazing adventure in Japan's vibrant capital!",
                 ),
+                isAiAvailable = true,
             ),
             tripId = 1,
             onNavigateUp = {},
