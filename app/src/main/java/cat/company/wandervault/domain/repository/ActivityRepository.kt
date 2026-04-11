@@ -8,6 +8,9 @@ interface ActivityRepository {
     /** Returns a [Flow] emitting the list of [Activity] items for the given [destinationId]. */
     fun getActivitiesForDestination(destinationId: Int): Flow<List<Activity>>
 
+    /** Returns a [Flow] emitting all [Activity] items across every destination of the given [tripId]. */
+    fun getActivitiesForTrip(tripId: Int): Flow<List<Activity>>
+
     /** Persists or updates the [activity]. */
     suspend fun saveActivity(activity: Activity)
 

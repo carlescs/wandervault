@@ -1,6 +1,7 @@
 package cat.company.wandervault
 
 import cat.company.wandervault.data.mlkit.TripDescriptionRepositoryImpl
+import cat.company.wandervault.domain.model.Activity
 import cat.company.wandervault.domain.model.Destination
 import cat.company.wandervault.domain.model.Transport
 import cat.company.wandervault.domain.model.TransportLeg
@@ -17,8 +18,8 @@ import java.time.ZonedDateTime
  * Unit tests for [TripDescriptionRepositoryImpl.findNextUpcomingEvent].
  *
  * These tests verify that the function correctly identifies the single most immediate
- * upcoming itinerary event (destination arrival, destination departure, or transport-leg
- * departure/arrival) relative to a given [now] instant.
+ * upcoming itinerary event (destination arrival, destination departure, transport-leg
+ * departure/arrival, or a timed activity) relative to a given [now] instant.
  */
 class FindNextUpcomingEventTest {
 
@@ -27,6 +28,10 @@ class FindNextUpcomingEventTest {
         override fun setDefaultTimezone(zoneId: String?) = Unit
         override fun getAiLanguage(): String? = null
         override fun setAiLanguage(languageTag: String?) = Unit
+        override fun getAiEnabled(): Boolean = true
+        override fun setAiEnabled(enabled: Boolean) = Unit
+        override fun getNotificationsEnabled(): Boolean = true
+        override fun setNotificationsEnabled(enabled: Boolean) = Unit
     }
 
     private val repo = TripDescriptionRepositoryImpl(fakePreferences)
@@ -48,6 +53,18 @@ class FindNextUpcomingEventTest {
         arrivalDateTime = arrival,
         departureDateTime = departure,
         transport = transport,
+    )
+
+    private fun activity(
+        id: Int = 1,
+        destinationId: Int = 1,
+        title: String = "Test Activity",
+        dateTime: ZonedDateTime? = null,
+    ) = Activity(
+        id = id,
+        destinationId = destinationId,
+        title = title,
+        dateTime = dateTime,
     )
 
     // ── empty / no future events ──────────────────────────────────────────────
@@ -178,5 +195,83 @@ class FindNextUpcomingEventTest {
         val result = repo.findNextUpcomingEvent(listOf(destination), now)
         assertNotNull(result)
         assertTrue("Expected timezone in description", result!!.contains("+05:00"))
+    }
+
+    // ── activities ───────────────────────────────────────────────────────────
+
+    @Test
+    fun `returns activity when it is the only future event`() {
+        val activityTime = now.plusHours(2)
+        val act = activity(title = "Museum visit", dateTime = activityTime)
+        val result = repo.findNextUpcomingEvent(emptyList(), now, listOf(act))
+        assertNotNull(result)
+        assertTrue("Expected activity title in result", result!!.contains("Museum visit"))
+    }
+
+    @Test
+    fun `returns activity when it is earlier than destination departure`() {
+        val activityTime = now.plusHours(1)
+        val destination = dest(id = 1, name = "Paris", departure = now.plusHours(3))
+        val act = activity(destinationId = 1, title = "Louvre tour", dateTime = activityTime)
+        val result = repo.findNextUpcomingEvent(listOf(destination), now, listOf(act))
+        assertNotNull(result)
+        // Activity (1h) is sooner than departure (3h).
+        assertTrue("Expected activity title in result", result!!.contains("Louvre tour"))
+    }
+
+    @Test
+    fun `returns destination event when it is earlier than activity`() {
+        val activityTime = now.plusHours(4)
+        val destination = dest(id = 1, name = "Paris", departure = now.plusHours(2))
+        val act = activity(destinationId = 1, title = "Eiffel Tower", dateTime = activityTime)
+        val result = repo.findNextUpcomingEvent(listOf(destination), now, listOf(act))
+        assertNotNull(result)
+        // Departure (2h) is sooner than activity (4h).
+        assertTrue("Expected Paris in result", result!!.contains("Paris"))
+        assertTrue("Expected depart keyword", result.contains("depart"))
+    }
+
+    @Test
+    fun `ignores past activity`() {
+        val pastActivity = activity(title = "Past event", dateTime = now.minusHours(1))
+        val result = repo.findNextUpcomingEvent(emptyList(), now, listOf(pastActivity))
+        assertNull(result)
+    }
+
+    @Test
+    fun `ignores activity without dateTime`() {
+        val noDateActivity = activity(title = "Undated activity", dateTime = null)
+        val result = repo.findNextUpcomingEvent(emptyList(), now, listOf(noDateActivity))
+        assertNull(result)
+    }
+
+    @Test
+    fun `activity description includes timezone zone id`() {
+        val activityTime = ZonedDateTime.of(2024, 6, 11, 10, 0, 0, 0, ZoneOffset.ofHours(2))
+        val act = activity(title = "City walk", dateTime = activityTime)
+        val result = repo.findNextUpcomingEvent(emptyList(), now, listOf(act))
+        assertNotNull(result)
+        assertTrue("Expected timezone in description", result!!.contains("+02:00"))
+    }
+
+    @Test
+    fun `activity description includes destination name when destination is resolved`() {
+        val activityTime = now.plusHours(2)
+        val destination = dest(id = 1, name = "Rome")
+        val act = activity(destinationId = 1, title = "Colosseum tour", dateTime = activityTime)
+        val result = repo.findNextUpcomingEvent(listOf(destination), now, listOf(act))
+        assertNotNull(result)
+        assertTrue("Expected activity title in result", result!!.contains("Colosseum tour"))
+        assertTrue("Expected destination name in result", result.contains("Rome"))
+    }
+
+    @Test
+    fun `activity description omits destination context when destination cannot be resolved`() {
+        val activityTime = now.plusHours(2)
+        // destinationId = 99 does not match any destination in the list
+        val act = activity(destinationId = 99, title = "Mystery tour", dateTime = activityTime)
+        val result = repo.findNextUpcomingEvent(emptyList(), now, listOf(act))
+        assertNotNull(result)
+        assertTrue("Expected activity title in result", result!!.contains("Mystery tour"))
     }
 }
