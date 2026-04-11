@@ -384,7 +384,7 @@ private fun TripDetailsTabContent(
                                 isAiAvailable = uiState.isAiAvailable,
                                 onRefresh = onRefreshWhatsNext,
                             )
-                            if (uiState.descriptionState !is DescriptionState.Unavailable) {
+                            if (uiState.isAiAvailable && uiState.descriptionState !is DescriptionState.Unavailable) {
                                 Spacer(modifier = Modifier.height(16.dp))
                                 AiDescriptionSection(
                                     descriptionState = uiState.descriptionState,
@@ -593,8 +593,8 @@ private fun UpcomingEventsSection(
  * a spinner while loading, or the generated notice when available.
  * A Refresh icon button is shown when [isAiAvailable] is true and the state is
  * [WhatsNextState.Available] or [WhatsNextState.Error].
- * The section is hidden entirely (returns immediately) when [WhatsNextState] is
- * [WhatsNextState.Unavailable] or [WhatsNextState.None].
+ * The section is hidden entirely (returns immediately) when [isAiAvailable] is false,
+ * or when [WhatsNextState] is [WhatsNextState.Unavailable] or [WhatsNextState.None].
  */
 @Composable
 private fun WhatsNextSection(
@@ -602,8 +602,8 @@ private fun WhatsNextSection(
     isAiAvailable: Boolean,
     onRefresh: () -> Unit = {},
 ) {
-    // Render nothing for terminal non-display states.
-    if (whatsNextState is WhatsNextState.Unavailable || whatsNextState is WhatsNextState.None) return
+    // Render nothing when AI is disabled or for terminal non-display states.
+    if (!isAiAvailable || whatsNextState is WhatsNextState.Unavailable || whatsNextState is WhatsNextState.None) return
 
     ElevatedCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
