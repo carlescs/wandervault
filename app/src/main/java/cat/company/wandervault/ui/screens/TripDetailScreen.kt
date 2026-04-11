@@ -593,8 +593,8 @@ private fun UpcomingEventsSection(
  * a spinner while loading, or the generated notice when available.
  * A Refresh icon button is shown when [isAiAvailable] is true and the state is
  * [WhatsNextState.Available] or [WhatsNextState.Error].
- * The section is hidden entirely (returns immediately) when [WhatsNextState] is
- * [WhatsNextState.Unavailable] or [WhatsNextState.None].
+ * The section is hidden entirely (returns immediately) when [isAiAvailable] is false,
+ * or when [WhatsNextState] is [WhatsNextState.Unavailable] or [WhatsNextState.None].
  */
 @Composable
 private fun WhatsNextSection(
