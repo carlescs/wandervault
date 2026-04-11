@@ -572,6 +572,13 @@ internal fun AnalyzeActivityInfoSummary(activityInfo: ActivityInfo, modifier: Mo
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Bold,
             )
+            if (!activityInfo.description.isNullOrBlank()) {
+                Text(
+                    text = activityInfo.description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             if (!activityInfo.confirmationNumber.isNullOrBlank()) {
                 Text(
                     text = stringResource(R.string.documents_analyze_ref, activityInfo.confirmationNumber),
