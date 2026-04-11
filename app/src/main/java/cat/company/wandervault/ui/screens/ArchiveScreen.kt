@@ -1,13 +1,6 @@
 package cat.company.wandervault.ui.screens
 
 import android.net.Uri
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,7 +16,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Unarchive
 import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -33,11 +25,7 @@ import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
-import androidx.compose.material3.SwipeToDismissBox
-import androidx.compose.material3.SwipeToDismissBoxState
-import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -45,7 +33,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -136,20 +123,12 @@ internal fun ArchiveContent(
             ) {
                 items(uiState.trips, key = { it.id }) { trip ->
                     val currentUnarchiveAction by rememberUpdatedState(newValue = { onUnarchiveClick(trip) })
-                    val swipeState = rememberSwipeToDismissBoxState(
-                        confirmValueChange = { value ->
-                            if (value == SwipeToDismissBoxValue.EndToStart) {
-                                currentUnarchiveAction()
-                            }
-                            false
-                        },
-                    )
-                    SwipeToDismissBox(
-                        state = swipeState,
-                        enableDismissFromStartToEnd = false,
-                        backgroundContent = {
-                            SwipeToUnarchiveBackground(swipeState = swipeState)
-                        },
+                    SwipeToRevealBox(
+                        icon = Icons.Default.Unarchive,
+                        iconContentDescription = stringResource(R.string.unarchive_trip_content_desc),
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        iconTint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        onAction = { currentUnarchiveAction() },
                         modifier = Modifier.animateItem(),
                     ) {
                         ArchivedTripCard(
@@ -210,56 +189,6 @@ private fun ArchivedTripCard(
                     contentDescription = stringResource(R.string.unarchive_trip_content_desc),
                     tint = MaterialTheme.colorScheme.primary,
                 )
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun SwipeToUnarchiveBackground(swipeState: SwipeToDismissBoxState) {
-    val isActive = swipeState.targetValue == SwipeToDismissBoxValue.EndToStart
-    val isSwiping = swipeState.dismissDirection == SwipeToDismissBoxValue.EndToStart
-    val containerColor by animateColorAsState(
-        when {
-            isActive -> MaterialTheme.colorScheme.primaryContainer
-            isSwiping -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = SWIPE_HINT_BG_ALPHA)
-            else -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0f)
-        },
-        label = "unarchive_swipe_bg",
-    )
-    val iconTint by animateColorAsState(
-        if (isActive) MaterialTheme.colorScheme.onPrimaryContainer
-        else MaterialTheme.colorScheme.primary.copy(alpha = SWIPE_HINT_ICON_ALPHA),
-        label = "unarchive_icon_tint",
-    )
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .clip(CardDefaults.shape)
-            .background(containerColor)
-            .padding(end = 20.dp),
-        contentAlignment = Alignment.CenterEnd,
-    ) {
-        AnimatedVisibility(
-            visible = isSwiping || isActive,
-            enter = fadeIn() + scaleIn(initialScale = 0.75f),
-            exit = fadeOut() + scaleOut(targetScale = 0.75f),
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(
-                    imageVector = Icons.Default.Unarchive,
-                    contentDescription = null,
-                    tint = iconTint,
-                )
-                AnimatedVisibility(visible = isActive) {
-                    Text(
-                        text = stringResource(R.string.unarchive_trip_content_desc),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.padding(top = 4.dp),
-                    )
-                }
             }
         }
     }
