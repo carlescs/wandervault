@@ -135,6 +135,7 @@
     <string name="calendar_next_month">Next month</string>
     <string name="calendar_stays_section_title">Stays</string>
     <string name="calendar_stay_open_details">Open details</string>
+    <string name="calendar_today">Today</string>
 
     <!-- Itinerary planner -->
     <string name="itinerary_add_destination">Add destination</string>
@@ -160,6 +161,7 @@
     <string name="itinerary_stay_duration">Stay: %s</string>
     <string name="itinerary_transport_duration">Total: %s</string>
     <string name="itinerary_duration_toggle">Toggle duration format</string>
+    <string name="itinerary_today">Today</string>
 
     <!-- Timezone range picker (applied to a group of itinerary destinations) -->
     <string name="itinerary_change_timezone_range">Change timezone for group</string>
