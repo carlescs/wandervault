@@ -211,8 +211,8 @@ class FindNextUpcomingEventTest {
     @Test
     fun `returns activity when it is earlier than destination departure`() {
         val activityTime = now.plusHours(1)
-        val destination = dest(name = "Paris", departure = now.plusHours(3))
-        val act = activity(title = "Louvre tour", dateTime = activityTime)
+        val destination = dest(id = 1, name = "Paris", departure = now.plusHours(3))
+        val act = activity(destinationId = 1, title = "Louvre tour", dateTime = activityTime)
         val result = repo.findNextUpcomingEvent(listOf(destination), now, listOf(act))
         assertNotNull(result)
         // Activity (1h) is sooner than departure (3h).
@@ -222,8 +222,8 @@ class FindNextUpcomingEventTest {
     @Test
     fun `returns destination event when it is earlier than activity`() {
         val activityTime = now.plusHours(4)
-        val destination = dest(name = "Paris", departure = now.plusHours(2))
-        val act = activity(title = "Eiffel Tower", dateTime = activityTime)
+        val destination = dest(id = 1, name = "Paris", departure = now.plusHours(2))
+        val act = activity(destinationId = 1, title = "Eiffel Tower", dateTime = activityTime)
         val result = repo.findNextUpcomingEvent(listOf(destination), now, listOf(act))
         assertNotNull(result)
         // Departure (2h) is sooner than activity (4h).
@@ -252,5 +252,26 @@ class FindNextUpcomingEventTest {
         val result = repo.findNextUpcomingEvent(emptyList(), now, listOf(act))
         assertNotNull(result)
         assertTrue("Expected timezone in description", result!!.contains("+02:00"))
+    }
+
+    @Test
+    fun `activity description includes destination name when destination is resolved`() {
+        val activityTime = now.plusHours(2)
+        val destination = dest(id = 1, name = "Rome")
+        val act = activity(destinationId = 1, title = "Colosseum tour", dateTime = activityTime)
+        val result = repo.findNextUpcomingEvent(listOf(destination), now, listOf(act))
+        assertNotNull(result)
+        assertTrue("Expected activity title in result", result!!.contains("Colosseum tour"))
+        assertTrue("Expected destination name in result", result.contains("Rome"))
+    }
+
+    @Test
+    fun `activity description omits destination context when destination cannot be resolved`() {
+        val activityTime = now.plusHours(2)
+        // destinationId = 99 does not match any destination in the list
+        val act = activity(destinationId = 99, title = "Mystery tour", dateTime = activityTime)
+        val result = repo.findNextUpcomingEvent(emptyList(), now, listOf(act))
+        assertNotNull(result)
+        assertTrue("Expected activity title in result", result!!.contains("Mystery tour"))
     }
 }

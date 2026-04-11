@@ -81,7 +81,7 @@ class TripDetailViewModel(
      * [nextStep] and [nextStepDeadline] are excluded from the comparison so that saving the
      * generated notice back to the DB does not falsely trigger re-generation.
      */
-    private var whatsNextGeneratedForInputs: Pair<Trip, List<Destination>>? = null
+    private var whatsNextGeneratedForInputs: Triple<Trip, List<Destination>, List<Activity>>? = null
 
     init {
         // Check AI availability upfront so the description section is hidden proactively
@@ -160,12 +160,12 @@ class TripDetailViewModel(
                     if (whatsNextGeneratedForInputs == null &&
                         persistedWhatsNext is WhatsNextState.Available
                     ) {
-                        whatsNextGeneratedForInputs = Pair(itineraryKey, destinations)
+                        whatsNextGeneratedForInputs = Triple(itineraryKey, destinations, activities)
                     }
 
                     val inputsMatchLastGenerated =
-                        whatsNextGeneratedForInputs?.let { (t, d) ->
-                            t == itineraryKey && d == destinations
+                        whatsNextGeneratedForInputs?.let { (t, d, a) ->
+                            t == itineraryKey && d == destinations && a == activities
                         } ?: false
 
                     val whatsNextState = when {
@@ -322,7 +322,7 @@ class TripDetailViewModel(
         val current = _uiState.value as? TripDetailUiState.Success ?: return
         // Record the itinerary key (excluding nextStep/nextStepDeadline) before launching so the
         // stale-check is correct even if the coroutine is cancelled.
-        whatsNextGeneratedForInputs = Pair(trip.itineraryKey(), destinations)
+        whatsNextGeneratedForInputs = Triple(trip.itineraryKey(), destinations, activities)
         _uiState.value = current.copy(whatsNextState = WhatsNextState.Loading)
         viewModelScope.launch {
             val text = try {

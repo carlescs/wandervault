@@ -299,11 +299,15 @@ class TripDescriptionRepositoryImpl(
             }
         }
 
+        val destinationById = sorted.associateBy { it.id }
+
         activities.forEach { activity ->
             activity.dateTime?.let { dt ->
                 if (dt.toInstant().isAfter(nowInstant)) {
+                    val destName = destinationById[activity.destinationId]?.name
                     val description = buildString {
                         append(activity.title)
+                        if (destName != null) append(" at $destName")
                         append(" on ${dt.format(PROMPT_DATE_TIME_FORMATTER)} ${dt.zone.id}")
                     }
                     futureEvents.add(ItineraryEvent(dt.toInstant(), description))
