@@ -214,7 +214,7 @@ class TripDescriptionRepositoryImpl(
                         append("     ★ ${activity.title}")
                         if (activity.dateTime != null) {
                             append(
-                                " at ${activity.dateTime.format(PROMPT_DATE_TIME_FORMATTER)} ${activity.dateTime.zone.id}",
+                                " on ${activity.dateTime.format(PROMPT_DATE_TIME_FORMATTER)} ${activity.dateTime.zone.id}",
                             )
                         }
                         if (activity.description.isNotBlank()) {
