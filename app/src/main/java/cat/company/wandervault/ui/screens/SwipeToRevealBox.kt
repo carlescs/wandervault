@@ -36,8 +36,8 @@ import kotlin.math.roundToInt
 /** The two anchor positions for the swipe-to-reveal gesture. */
 private enum class RevealState { Closed, Revealed }
 
-/** Width of the revealed action panel — matches the Material minimum touch-target size. */
-private val REVEAL_WIDTH = 72.dp
+/** Width of the revealed action panel. */
+private val REVEAL_WIDTH = 96.dp
 
 /**
  * A two-step swipe-to-reveal container:
