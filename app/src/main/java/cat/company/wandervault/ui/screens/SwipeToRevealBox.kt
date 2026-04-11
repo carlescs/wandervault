@@ -9,7 +9,6 @@ import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.anchoredDraggable
 import androidx.compose.foundation.gestures.animateTo
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -27,7 +26,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -40,10 +41,11 @@ private val REVEAL_WIDTH = 72.dp
 
 /**
  * A two-step swipe-to-reveal container:
- * 1. Swipe left to reveal the action icon.
+ * 1. Swipe toward the end edge to reveal the action icon.
  * 2. Tap the icon to confirm the action.
  *
  * The action is never triggered by the swipe alone; the user must explicitly tap the revealed icon.
+ * Supports both LTR and RTL layouts.
  *
  * @param icon The icon shown in the revealed action panel.
  * @param iconContentDescription Accessibility description for the action icon.
@@ -66,13 +68,18 @@ internal fun SwipeToRevealBox(
     val density = LocalDensity.current
     val revealWidthPx = with(density) { REVEAL_WIDTH.toPx() }
     val scope = rememberCoroutineScope()
+    val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
 
-    val state = remember(revealWidthPx) {
+    // In LTR the foreground slides left (negative offset) to reveal the end panel;
+    // in RTL it slides right (positive offset) to reveal the end panel.
+    val revealAnchorPx = if (isRtl) revealWidthPx else -revealWidthPx
+
+    val state = remember(revealWidthPx, isRtl) {
         AnchoredDraggableState(
             initialValue = RevealState.Closed,
             anchors = DraggableAnchors {
                 RevealState.Closed at 0f
-                RevealState.Revealed at -revealWidthPx
+                RevealState.Revealed at revealAnchorPx
             },
             positionalThreshold = { totalDistance -> totalDistance * 0.5f },
             velocityThreshold = { with(density) { 125.dp.toPx() } },
@@ -83,16 +90,24 @@ internal fun SwipeToRevealBox(
 
     Box(modifier = modifier.fillMaxWidth()) {
         // Background action panel – its alpha tracks the drag progress for a smooth fade-in.
+        // matchParentSize() ties this Box's size to the parent (i.e. the foreground content
+        // height) instead of requesting unbounded constraints, which prevents it from
+        // collapsing to zero height inside a LazyColumn.
         val progress by remember {
             derivedStateOf {
                 val offset = state.offset
-                if (offset.isNaN()) 0f else (-offset / revealWidthPx).coerceIn(0f, 1f)
+                if (offset.isNaN()) {
+                    0f
+                } else {
+                    val raw = if (isRtl) offset / revealWidthPx else -offset / revealWidthPx
+                    raw.coerceIn(0f, 1f)
+                }
             }
         }
 
         Box(
             modifier = Modifier
-                .fillMaxSize()
+                .matchParentSize()
                 .clip(CardDefaults.shape)
                 .background(containerColor.copy(alpha = progress))
                 .padding(end = 12.dp),
@@ -115,7 +130,8 @@ internal fun SwipeToRevealBox(
             }
         }
 
-        // Foreground content – slides left as the user drags, revealing the panel behind it.
+        // Foreground content – slides toward the end edge as the user drags,
+        // revealing the action panel behind it.
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -126,3 +142,4 @@ internal fun SwipeToRevealBox(
         }
     }
 }
+
