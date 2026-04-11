@@ -1,6 +1,7 @@
 package cat.company.wandervault.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,6 +22,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -172,6 +174,8 @@ internal fun ItineraryContent(
     onDestinationClick: (Int) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    // Capture today once per composition so all timeline items are compared against the same date.
+    val today = remember { LocalDate.now() }
     Box(modifier = modifier.fillMaxSize()) {
         when {
             uiState.isLoading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
@@ -198,6 +202,7 @@ internal fun ItineraryContent(
                         isLast = index == uiState.destinations.lastIndex,
                         previousDestination = uiState.destinations.getOrNull(index - 1),
                         nextDestination = uiState.destinations.getOrNull(index + 1),
+                        today = today,
                         onUpdateArrivalDateTime = { dt -> onUpdateArrivalDateTime(destination, dt) },
                         onUpdateDepartureDateTime = { dt -> onUpdateDepartureDateTime(destination, dt) },
                         onDeleteDestination = { onDeleteDestination(destination) },
@@ -272,6 +277,7 @@ private fun DestinationTimelineItem(
     isLast: Boolean,
     previousDestination: Destination?,
     nextDestination: Destination?,
+    today: LocalDate,
     onUpdateArrivalDateTime: (ZonedDateTime?) -> Unit,
     onUpdateDepartureDateTime: (ZonedDateTime?) -> Unit,
     onDeleteDestination: () -> Unit,
@@ -286,6 +292,23 @@ private fun DestinationTimelineItem(
     val nextArrivalMillis = nextDestination?.arrivalDateTime.toDateEpochMillis()
     val ownArrivalMillis = destination.arrivalDateTime.toDateEpochMillis()
     val ownDepartureMillis = destination.departureDateTime.toDateEpochMillis()
+
+    val arrivalDate = destination.arrivalDateTime?.toLocalDate()
+    val departureDate = destination.departureDateTime?.toLocalDate()
+
+    // True when today falls within this destination's stay.  Open-ended bounds are treated as
+    // unconstrained so a destination with only one date set still shows the marker.
+    val isTodayInStay = (arrivalDate != null || departureDate != null) &&
+        (arrivalDate == null || !today.isBefore(arrivalDate)) &&
+        (departureDate == null || !today.isAfter(departureDate))
+
+    // True when today falls strictly between this destination's departure and the next
+    // destination's arrival (i.e. we are currently in transit).
+    val isTodayInTransport: Boolean = run {
+        if (isLast || departureDate == null) return@run false
+        val nextArrival = nextDestination?.arrivalDateTime?.toLocalDate() ?: return@run false
+        today.isAfter(departureDate) && today.isBefore(nextArrival)
+    }
 
     var showStayDurationInDays by rememberSaveable { mutableStateOf(false) }
     var showTransportDurationInDays by rememberSaveable { mutableStateOf(false) }
@@ -311,11 +334,22 @@ private fun DestinationTimelineItem(
                         .height(if (isFirst) 8.dp else 16.dp)
                         .background(if (isFirst) Color.Transparent else MaterialTheme.colorScheme.primary),
                 )
-                Box(
-                    modifier = Modifier
-                        .size(12.dp)
-                        .background(MaterialTheme.colorScheme.primary, CircleShape),
-                )
+                // Destination dot.  When today falls within this stay, a secondary-colour ring is
+                // drawn around the dot to indicate the current position in the itinerary.
+                Box(contentAlignment = Alignment.Center) {
+                    if (isTodayInStay) {
+                        Box(
+                            modifier = Modifier
+                                .size(20.dp)
+                                .border(2.dp, MaterialTheme.colorScheme.secondary, CircleShape),
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .size(12.dp)
+                            .background(MaterialTheme.colorScheme.primary, CircleShape),
+                    )
+                }
                 if (!isLast) {
                     Box(
                         modifier = Modifier
@@ -398,6 +432,22 @@ private fun DestinationTimelineItem(
                             )
                         }
                     }
+                }
+
+                // "Today" chip — shown when today falls within this destination's stay.
+                if (isTodayInStay) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = stringResource(R.string.itinerary_today),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        modifier = Modifier
+                            .background(
+                                color = MaterialTheme.colorScheme.secondaryContainer,
+                                shape = RoundedCornerShape(4.dp),
+                            )
+                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                    )
                 }
 
                 // Show arrival only for non-first destinations (hidden when there is only one place)
@@ -595,6 +645,22 @@ private fun DestinationTimelineItem(
                             }
                         }
                         Spacer(modifier = Modifier.height(8.dp))
+                        // "Today" chip — shown when today falls in the transit window after this
+                        // destination's departure and before the next destination's arrival.
+                        if (isTodayInTransport) {
+                            Text(
+                                text = stringResource(R.string.itinerary_today),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                modifier = Modifier
+                                    .background(
+                                        color = MaterialTheme.colorScheme.secondaryContainer,
+                                        shape = RoundedCornerShape(4.dp),
+                                    )
+                                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
                     }
                 }
                 // "Add destination here" button shown between this item and the next

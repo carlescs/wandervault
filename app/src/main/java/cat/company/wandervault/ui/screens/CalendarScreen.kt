@@ -1,6 +1,7 @@
 package cat.company.wandervault.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -322,6 +323,9 @@ private fun CalendarMonthGrid(
     val leadingBlanks = (firstOfMonth.dayOfWeek.value - weekStartDay.value + 7) % 7
     val daysInMonth = yearMonth.lengthOfMonth()
 
+    // Capture today once per composition so every cell is checked against the same value.
+    val today = remember { LocalDate.now() }
+
     // A "complete stay" is a destination that has both arrival and departure dates, and
     // departure is not before arrival (invalid ranges are skipped).
     // Each stay is assigned a colour scheme by its index in the destinations list.
@@ -413,6 +417,7 @@ private fun CalendarMonthGrid(
                         DayCell(
                             modifier = Modifier.weight(1f),
                             day = day,
+                            isToday = date == today,
                             isEventDay = date in eventDates,
                             stayColorScheme = stayRange?.colorScheme,
                             departingColorScheme = departingRange?.colorScheme,
@@ -444,10 +449,15 @@ private fun CalendarMonthGrid(
  *
  * When [isEventDay] is `true` (arrival or departure) a filled circle is drawn on top of the
  * band using [StayColorScheme.eventColor] so the exact event day stands out at a glance.
+ *
+ * When [isToday] is `true` a secondary-colour ring is drawn around the cell's central circle so
+ * the current date is always immediately identifiable, regardless of whether it falls inside a
+ * stay or not.
  */
 @Composable
 private fun DayCell(
     day: Int,
+    isToday: Boolean,
     isEventDay: Boolean,
     stayColorScheme: StayColorScheme?,
     departingColorScheme: StayColorScheme?,
@@ -534,6 +544,16 @@ private fun DayCell(
                     .size(32.dp)
                     .clip(CircleShape)
                     .background(stayColorScheme.eventColor),
+            )
+        }
+
+        // Today ring: a secondary-colour circle border drawn on top of everything else so the
+        // current date is always visible even inside a stay band or event circle.
+        if (isToday) {
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .border(2.dp, MaterialTheme.colorScheme.secondary, CircleShape),
             )
         }
 
