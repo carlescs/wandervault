@@ -912,7 +912,8 @@ private fun TodayChip(modifier: Modifier = Modifier) {
 
 /** Empty-state message shown when a trip has no destinations yet. */
 @Composable
-private fun ItineraryEmptyState(modifier: Modifier = Modifier) {    Column(
+private fun ItineraryEmptyState(modifier: Modifier = Modifier) {
+    Column(
         modifier = modifier.padding(24.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
