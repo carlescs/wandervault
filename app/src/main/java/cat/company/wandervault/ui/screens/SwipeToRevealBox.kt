@@ -72,14 +72,12 @@ internal fun SwipeToRevealBox(
 
     // In LTR the foreground slides left (negative offset) to reveal the end panel;
     // in RTL it slides right (positive offset) to reveal the end panel.
-    val revealAnchorPx = if (isRtl) revealWidthPx else -revealWidthPx
-
-    val state = remember(revealWidthPx, isRtl) {
+    val state = remember(revealWidthPx) {
         AnchoredDraggableState(
             initialValue = RevealState.Closed,
             anchors = DraggableAnchors {
                 RevealState.Closed at 0f
-                RevealState.Revealed at revealAnchorPx
+                RevealState.Revealed at if (isRtl) revealWidthPx else -revealWidthPx
             },
             positionalThreshold = { totalDistance -> totalDistance * 0.5f },
             velocityThreshold = { with(density) { 125.dp.toPx() } },
