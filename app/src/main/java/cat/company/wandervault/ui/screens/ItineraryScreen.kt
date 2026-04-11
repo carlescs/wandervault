@@ -296,11 +296,20 @@ private fun DestinationTimelineItem(
     val arrivalDate = destination.arrivalDateTime?.toLocalDate()
     val departureDate = destination.departureDateTime?.toLocalDate()
 
-    // True when today falls within this destination's stay.  Open-ended bounds are treated as
-    // unconstrained so a destination with only one date set still shows the marker.
-    val isTodayInStay = (arrivalDate != null || departureDate != null) &&
-        (arrivalDate == null || !today.isBefore(arrivalDate)) &&
-        (departureDate == null || !today.isAfter(departureDate))
+    // True when today falls within this destination's stay.
+    // When both bounds are known, today must be in [arrival, departure].
+    // For the first destination (no arrival date expected), today must be on or before departure.
+    // For the last destination (no departure date expected), today must be on or after arrival.
+    // In all other cases both dates must be present to avoid false-positive markers.
+    val isTodayInStay = when {
+        arrivalDate != null && departureDate != null ->
+            !today.isBefore(arrivalDate) && !today.isAfter(departureDate)
+        isFirst && departureDate != null ->
+            !today.isAfter(departureDate)
+        isLast && arrivalDate != null ->
+            !today.isBefore(arrivalDate)
+        else -> false
+    }
 
     // True when today falls strictly between this destination's departure and the next
     // destination's arrival (i.e. we are currently in transit).
@@ -437,17 +446,7 @@ private fun DestinationTimelineItem(
                 // "Today" chip — shown when today falls within this destination's stay.
                 if (isTodayInStay) {
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = stringResource(R.string.itinerary_today),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer,
-                        modifier = Modifier
-                            .background(
-                                color = MaterialTheme.colorScheme.secondaryContainer,
-                                shape = RoundedCornerShape(4.dp),
-                            )
-                            .padding(horizontal = 6.dp, vertical = 2.dp),
-                    )
+                    TodayChip()
                 }
 
                 // Show arrival only for non-first destinations (hidden when there is only one place)
@@ -648,17 +647,7 @@ private fun DestinationTimelineItem(
                         // "Today" chip — shown when today falls in the transit window after this
                         // destination's departure and before the next destination's arrival.
                         if (isTodayInTransport) {
-                            Text(
-                                text = stringResource(R.string.itinerary_today),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                modifier = Modifier
-                                    .background(
-                                        color = MaterialTheme.colorScheme.secondaryContainer,
-                                        shape = RoundedCornerShape(4.dp),
-                                    )
-                                    .padding(horizontal = 6.dp, vertical = 2.dp),
-                            )
+                            TodayChip()
                             Spacer(modifier = Modifier.height(8.dp))
                         }
                     }
@@ -901,10 +890,29 @@ private fun DateTimeRow(
     }
 }
 
+/**
+ * A small pill-shaped chip labelled "Today" using [MaterialTheme.colorScheme.secondaryContainer]
+ * as the background.  Used on the itinerary timeline to indicate the user's current position
+ * in the trip, whether they are at a destination stay or in transit between two destinations.
+ */
+@Composable
+private fun TodayChip(modifier: Modifier = Modifier) {
+    Text(
+        text = stringResource(R.string.itinerary_today),
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSecondaryContainer,
+        modifier = modifier
+            .background(
+                color = MaterialTheme.colorScheme.secondaryContainer,
+                shape = RoundedCornerShape(4.dp),
+            )
+            .padding(horizontal = 6.dp, vertical = 2.dp),
+    )
+}
+
 /** Empty-state message shown when a trip has no destinations yet. */
 @Composable
-private fun ItineraryEmptyState(modifier: Modifier = Modifier) {
-    Column(
+private fun ItineraryEmptyState(modifier: Modifier = Modifier) {    Column(
         modifier = modifier.padding(24.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
