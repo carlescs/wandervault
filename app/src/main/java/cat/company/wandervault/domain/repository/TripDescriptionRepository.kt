@@ -1,5 +1,6 @@
 package cat.company.wandervault.domain.repository
 
+import cat.company.wandervault.domain.model.Activity
 import cat.company.wandervault.domain.model.Destination
 import cat.company.wandervault.domain.model.Trip
 import java.time.ZonedDateTime
@@ -38,9 +39,11 @@ interface TripDescriptionRepository {
 
     /**
      * Generates a concise "what's next" notice for the trip, considering [now] as the current
-     * moment and all destination arrival/departure times in their respective timezones.
+     * moment, all destination arrival/departure times in their respective timezones, and any
+     * activities scheduled at the destinations.
      *
      * @param now The current date and time (timezone-aware) used to determine the next step.
+     * @param activities All activities scheduled across the trip's destinations.
      * @return The generated notice, or `null` if Gemini Nano is not available on this device.
      * @throws Exception if the model is available but generation fails.
      */
@@ -48,5 +51,6 @@ interface TripDescriptionRepository {
         trip: Trip,
         destinations: List<Destination>,
         now: ZonedDateTime,
+        activities: List<Activity> = emptyList(),
     ): String?
 }

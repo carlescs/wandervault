@@ -21,6 +21,7 @@ import cat.company.wandervault.domain.usecase.DeleteTransportUseCase
 import cat.company.wandervault.domain.usecase.DeleteTripUseCase
 import cat.company.wandervault.domain.usecase.GenerateTripDescriptionUseCase
 import cat.company.wandervault.domain.usecase.GetActivitiesForDestinationUseCase
+import cat.company.wandervault.domain.usecase.GetActivitiesForTripUseCase
 import cat.company.wandervault.domain.usecase.GetArrivalTransportForDestinationUseCase
 import cat.company.wandervault.domain.usecase.GetDestinationByIdUseCase
 import cat.company.wandervault.domain.usecase.GetDestinationsForTripUseCase
@@ -93,6 +94,7 @@ val domainModule = module {
     factory { SaveHotelUseCase(get()) }
     factory { DeleteHotelUseCase(get()) }
     factory { GetActivitiesForDestinationUseCase(get()) }
+    factory { GetActivitiesForTripUseCase(get()) }
     factory { SaveActivityUseCase(get()) }
     factory { DeleteActivityUseCase(get()) }
     factory { GetRootFoldersUseCase(get()) }

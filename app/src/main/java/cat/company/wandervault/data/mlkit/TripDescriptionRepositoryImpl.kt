@@ -1,5 +1,6 @@
 package cat.company.wandervault.data.mlkit
 
+import cat.company.wandervault.domain.model.Activity
 import cat.company.wandervault.domain.model.Destination
 import cat.company.wandervault.domain.model.TransportType
 import cat.company.wandervault.domain.model.Trip
@@ -63,6 +64,7 @@ class TripDescriptionRepositoryImpl(
         trip: Trip,
         destinations: List<Destination>,
         now: ZonedDateTime,
+        activities: List<Activity>,
     ): String? = withContext(Dispatchers.IO) {
         if (!appPreferences.getAiEnabled()) return@withContext null
         when (client.checkStatus()) {
@@ -70,7 +72,7 @@ class TripDescriptionRepositoryImpl(
             FeatureStatus.DOWNLOADABLE -> awaitDownload()
             FeatureStatus.AVAILABLE -> Unit
         }
-        val request = createRequest(buildWhatsNextPrompt(trip, destinations, now), MAX_WHATS_NEXT_TOKENS)
+        val request = createRequest(buildWhatsNextPrompt(trip, destinations, now, activities), MAX_WHATS_NEXT_TOKENS)
         val response = client.generateContent(request)
         val text = response.candidates.firstOrNull()?.text
         if (text.isNullOrBlank()) {
@@ -143,26 +145,28 @@ class TripDescriptionRepositoryImpl(
      * The prompt describes the current moment in time, the traveller's computed current position
      * (derived from the itinerary — see [describeTravellerPosition]), the single most immediate
      * upcoming event (see [findNextUpcomingEvent]), and the full timezone-aware itinerary
-     * (including per-destination notes), then instructs the model to identify and describe the
-     * traveller's next step.
+     * (including per-destination notes and scheduled activities), then instructs the model to
+     * identify and describe the traveller's next step.
      */
     private fun buildWhatsNextPrompt(
         trip: Trip,
         destinations: List<Destination>,
         now: ZonedDateTime,
+        activities: List<Activity>,
     ): String {
         val nowFormatted = now.format(PROMPT_DATE_TIME_FORMATTER)
         val nowZone = now.zone.id
         val position = describeTravellerPosition(destinations, now)
-        val nextEvent = findNextUpcomingEvent(destinations, now)
+        val nextEvent = findNextUpcomingEvent(destinations, now, activities)
+        val activitiesByDestination = activities.groupBy { it.destinationId }
         return buildString {
             appendLine(
                 "You are a helpful travel assistant. Based on the traveller's current position " +
                     "and itinerary, write a concise 1–2 sentence notice describing what their " +
                     "next step is. Focus on the single most immediate upcoming event (departure, " +
-                    "arrival, or transport leg). Only use the facts provided below. Do not invent " +
-                    "or assume any events, times, places, or details not explicitly present in " +
-                    "the facts provided below. " +
+                    "arrival, transport leg, or scheduled activity). Only use the facts provided " +
+                    "below. Do not invent or assume any events, times, places, or details not " +
+                    "explicitly present in the facts provided below. " +
                     "Respond in ${appPreferences.resolvedAiLanguageName()}.",
             )
             appendLine()
@@ -206,6 +210,18 @@ class TripDescriptionRepositoryImpl(
                         }
                         appendLine()
                     }
+                    activitiesByDestination[dest.id]?.forEach { activity ->
+                        append("     ★ ${activity.title}")
+                        if (activity.dateTime != null) {
+                            append(
+                                " at ${activity.dateTime.format(PROMPT_DATE_TIME_FORMATTER)} ${activity.dateTime.zone.id}",
+                            )
+                        }
+                        if (activity.description.isNotBlank()) {
+                            append(" – ${activity.description}")
+                        }
+                        appendLine()
+                    }
                 }
             }
         }
@@ -215,12 +231,16 @@ class TripDescriptionRepositoryImpl(
      * Finds the single most immediate upcoming itinerary event after [now] and returns a
      * human-readable description of it, or `null` if there are no upcoming events.
      *
-     * All candidate events — destination arrivals, destination departures, and individual
-     * transport-leg departures/arrivals — are collected and the one with the earliest
-     * [java.time.Instant] is returned.  This gives the model a clear, unambiguous anchor for
-     * the "next step" rather than asking it to reason over the entire itinerary.
+     * All candidate events — destination arrivals, destination departures, individual
+     * transport-leg departures/arrivals, and timed [activities] — are collected and the one with
+     * the earliest [java.time.Instant] is returned.  This gives the model a clear, unambiguous
+     * anchor for the "next step" rather than asking it to reason over the entire itinerary.
      */
-    internal fun findNextUpcomingEvent(destinations: List<Destination>, now: ZonedDateTime): String? {
+    internal fun findNextUpcomingEvent(
+        destinations: List<Destination>,
+        now: ZonedDateTime,
+        activities: List<Activity> = emptyList(),
+    ): String? {
         val nowInstant = now.toInstant()
         // Sort by position so that event descriptions reference stops in itinerary order,
         // matching the ordering used by describeTravellerPosition. Destinations are not
@@ -275,6 +295,18 @@ class TripDescriptionRepositoryImpl(
                         }
                         futureEvents.add(ItineraryEvent(legArr.toInstant(), description))
                     }
+                }
+            }
+        }
+
+        activities.forEach { activity ->
+            activity.dateTime?.let { dt ->
+                if (dt.toInstant().isAfter(nowInstant)) {
+                    val description = buildString {
+                        append(activity.title)
+                        append(" on ${dt.format(PROMPT_DATE_TIME_FORMATTER)} ${dt.zone.id}")
+                    }
+                    futureEvents.add(ItineraryEvent(dt.toInstant(), description))
                 }
             }
         }

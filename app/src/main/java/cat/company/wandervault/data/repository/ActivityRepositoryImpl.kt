@@ -12,6 +12,9 @@ class ActivityRepositoryImpl(private val dao: ActivityDao) : ActivityRepository 
     override fun getActivitiesForDestination(destinationId: Int): Flow<List<Activity>> =
         dao.getByDestinationId(destinationId).map { entities -> entities.map { it.toDomain() } }
 
+    override fun getActivitiesForTrip(tripId: Int): Flow<List<Activity>> =
+        dao.getByTripId(tripId).map { entities -> entities.map { it.toDomain() } }
+
     override suspend fun saveActivity(activity: Activity) {
         if (activity.id == 0) {
             dao.insert(activity.toEntity())

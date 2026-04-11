@@ -42,6 +42,7 @@ val presentationModule = module {
             saveTripDescriptionUseCase = get(),
             generateWhatsNextUseCase = get(),
             saveTripWhatsNextUseCase = get(),
+            getActivitiesForTripUseCase = get(),
             getDocumentById = get(),
         )
     }
