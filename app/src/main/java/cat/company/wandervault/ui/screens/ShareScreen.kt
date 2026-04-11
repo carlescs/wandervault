@@ -930,6 +930,13 @@ private fun ActivityInfoSummary(activityInfo: ActivityInfo, modifier: Modifier =
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Bold,
             )
+            if (!activityInfo.description.isNullOrBlank()) {
+                Text(
+                    text = activityInfo.description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             if (!activityInfo.confirmationNumber.isNullOrBlank()) {
                 Text(
                     text = stringResource(R.string.share_booking_ref, activityInfo.confirmationNumber),
