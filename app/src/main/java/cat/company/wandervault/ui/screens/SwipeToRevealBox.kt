@@ -32,8 +32,10 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
+/** The two anchor positions for the swipe-to-reveal gesture. */
 private enum class RevealState { Closed, Revealed }
 
+/** Width of the revealed action panel — matches the Material minimum touch-target size. */
 private val REVEAL_WIDTH = 72.dp
 
 /**
@@ -98,8 +100,10 @@ internal fun SwipeToRevealBox(
         ) {
             IconButton(
                 onClick = {
-                    scope.launch { state.animateTo(RevealState.Closed) }
-                    onAction()
+                    scope.launch {
+                        state.animateTo(RevealState.Closed)
+                        onAction()
+                    }
                 },
                 enabled = state.currentValue == RevealState.Revealed,
             ) {
