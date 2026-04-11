@@ -334,7 +334,8 @@ private fun CalendarMonthGrid(
             val current = LocalDate.now()
             value = current
             val nextMidnight = current.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant()
-            delay(nextMidnight.toEpochMilli() - System.currentTimeMillis())
+            val millis = nextMidnight.toEpochMilli() - System.currentTimeMillis()
+            delay(millis.coerceAtLeast(0L))
         }
     }
 
