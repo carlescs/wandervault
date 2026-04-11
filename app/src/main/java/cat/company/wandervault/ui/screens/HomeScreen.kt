@@ -4,12 +4,6 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -34,7 +28,6 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -47,12 +40,8 @@ import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
-import androidx.compose.material3.SwipeToDismissBox
-import androidx.compose.material3.SwipeToDismissBoxState
-import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -63,7 +52,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -185,20 +173,12 @@ internal fun HomeScreenContent(
             ) {
                 items(uiState.trips, key = { it.id }) { trip ->
                     val currentArchiveAction by rememberUpdatedState(newValue = { onArchiveClick(trip) })
-                    val swipeState = rememberSwipeToDismissBoxState(
-                        confirmValueChange = { value ->
-                            if (value == SwipeToDismissBoxValue.EndToStart) {
-                                currentArchiveAction()
-                            }
-                            false
-                        },
-                    )
-                    SwipeToDismissBox(
-                        state = swipeState,
-                        enableDismissFromStartToEnd = false,
-                        backgroundContent = {
-                            SwipeToArchiveBackground(swipeState = swipeState)
-                        },
+                    SwipeToRevealBox(
+                        icon = Icons.Default.Archive,
+                        iconContentDescription = stringResource(R.string.archive_trip_content_desc),
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        iconTint = MaterialTheme.colorScheme.onSecondaryContainer,
+                        onAction = { currentArchiveAction() },
                         modifier = Modifier.animateItem(),
                     ) {
                         TripCard(
@@ -331,56 +311,6 @@ private fun TripCard(trip: Trip, onEditClick: () -> Unit, onDeleteClick: () -> U
                     contentDescription = stringResource(R.string.delete_trip_content_desc),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun SwipeToArchiveBackground(swipeState: SwipeToDismissBoxState) {
-    val isActive = swipeState.targetValue == SwipeToDismissBoxValue.EndToStart
-    val isSwiping = swipeState.dismissDirection == SwipeToDismissBoxValue.EndToStart
-    val containerColor by animateColorAsState(
-        when {
-            isActive -> MaterialTheme.colorScheme.secondaryContainer
-            isSwiping -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = SWIPE_HINT_BG_ALPHA)
-            else -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0f)
-        },
-        label = "archive_swipe_bg",
-    )
-    val iconTint by animateColorAsState(
-        if (isActive) MaterialTheme.colorScheme.onSecondaryContainer
-        else MaterialTheme.colorScheme.secondary.copy(alpha = SWIPE_HINT_ICON_ALPHA),
-        label = "archive_icon_tint",
-    )
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .clip(CardDefaults.shape)
-            .background(containerColor)
-            .padding(end = 20.dp),
-        contentAlignment = Alignment.CenterEnd,
-    ) {
-        AnimatedVisibility(
-            visible = isSwiping || isActive,
-            enter = fadeIn() + scaleIn(initialScale = 0.75f),
-            exit = fadeOut() + scaleOut(targetScale = 0.75f),
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(
-                    imageVector = Icons.Default.Archive,
-                    contentDescription = null,
-                    tint = iconTint,
-                )
-                AnimatedVisibility(visible = isActive) {
-                    Text(
-                        text = stringResource(R.string.archive_trip_content_desc),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer,
-                        modifier = Modifier.padding(top = 4.dp),
-                    )
-                }
             }
         }
     }
