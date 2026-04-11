@@ -66,6 +66,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -88,8 +89,10 @@ import cat.company.wandervault.domain.model.Transport
 import cat.company.wandervault.domain.model.TransportLeg
 import cat.company.wandervault.domain.model.TransportType
 import cat.company.wandervault.ui.theme.WanderVaultTheme
+import kotlinx.coroutines.delay
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
@@ -174,8 +177,14 @@ internal fun ItineraryContent(
     onDestinationClick: (Int) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    // Capture today once per composition so all timeline items are compared against the same date.
-    val today = remember { LocalDate.now() }
+    // Drive 'now' from a state that updates every minute so departure/arrival transitions
+    // are reflected promptly and the marker stays accurate after midnight or timezone changes.
+    val now by produceState(initialValue = Instant.now()) {
+        while (true) {
+            delay(60_000L)
+            value = Instant.now()
+        }
+    }
     Box(modifier = modifier.fillMaxSize()) {
         when {
             uiState.isLoading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
@@ -202,7 +211,7 @@ internal fun ItineraryContent(
                         isLast = index == uiState.destinations.lastIndex,
                         previousDestination = uiState.destinations.getOrNull(index - 1),
                         nextDestination = uiState.destinations.getOrNull(index + 1),
-                        today = today,
+                        today = now,
                         onUpdateArrivalDateTime = { dt -> onUpdateArrivalDateTime(destination, dt) },
                         onUpdateDepartureDateTime = { dt -> onUpdateDepartureDateTime(destination, dt) },
                         onDeleteDestination = { onDeleteDestination(destination) },
@@ -277,7 +286,7 @@ private fun DestinationTimelineItem(
     isLast: Boolean,
     previousDestination: Destination?,
     nextDestination: Destination?,
-    today: LocalDate,
+    today: Instant,
     onUpdateArrivalDateTime: (ZonedDateTime?) -> Unit,
     onUpdateDepartureDateTime: (ZonedDateTime?) -> Unit,
     onDeleteDestination: () -> Unit,
@@ -293,30 +302,32 @@ private fun DestinationTimelineItem(
     val ownArrivalMillis = destination.arrivalDateTime.toDateEpochMillis()
     val ownDepartureMillis = destination.departureDateTime.toDateEpochMillis()
 
-    val arrivalDate = destination.arrivalDateTime?.toLocalDate()
-    val departureDate = destination.departureDateTime?.toLocalDate()
+    // Compare using Instant so that destination timezone is respected and same-day
+    // departure/arrival is handled correctly (e.g. depart 08:00, arrive 22:00 same day).
+    val arrivalInstant = destination.arrivalDateTime?.toInstant()
+    val departureInstant = destination.departureDateTime?.toInstant()
 
-    // True when today falls within this destination's stay.
-    // When both bounds are known, today must be in [arrival, departure].
-    // For the first destination (no arrival date expected), today must be on or before departure.
-    // For the last destination (no departure date expected), today must be on or after arrival.
-    // In all other cases both dates must be present to avoid false-positive markers.
+    // True when the current instant falls within this destination's stay.
+    // When both bounds are known, now must be in [arrival, departure].
+    // For the first destination (no arrival expected), now must be at or before departure.
+    // For the last destination (no departure expected), now must be at or after arrival.
+    // In all other cases both instants must be present to avoid false-positive markers.
     val isTodayInStay = when {
-        arrivalDate != null && departureDate != null ->
-            !today.isBefore(arrivalDate) && !today.isAfter(departureDate)
-        isFirst && departureDate != null ->
-            !today.isAfter(departureDate)
-        isLast && arrivalDate != null ->
-            !today.isBefore(arrivalDate)
+        arrivalInstant != null && departureInstant != null ->
+            !today.isBefore(arrivalInstant) && !today.isAfter(departureInstant)
+        isFirst && departureInstant != null ->
+            !today.isAfter(departureInstant)
+        isLast && arrivalInstant != null ->
+            !today.isBefore(arrivalInstant)
         else -> false
     }
 
-    // True when today falls strictly between this destination's departure and the next
-    // destination's arrival (i.e. we are currently in transit).
+    // True when the current instant is strictly between this destination's departure and
+    // the next destination's arrival (i.e. we are currently in transit).
     val isTodayInTransport: Boolean = run {
-        if (isLast || departureDate == null) return@run false
-        val nextArrival = nextDestination?.arrivalDateTime?.toLocalDate() ?: return@run false
-        today.isAfter(departureDate) && today.isBefore(nextArrival)
+        if (isLast || departureInstant == null) return@run false
+        val nextArrivalInstant = nextDestination?.arrivalDateTime?.toInstant() ?: return@run false
+        today.isAfter(departureInstant) && today.isBefore(nextArrivalInstant)
     }
 
     var showStayDurationInDays by rememberSaveable { mutableStateOf(false) }

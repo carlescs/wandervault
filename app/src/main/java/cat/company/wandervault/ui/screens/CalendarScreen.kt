@@ -33,6 +33,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -43,6 +44,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -51,6 +54,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cat.company.wandervault.R
 import cat.company.wandervault.domain.model.Destination
 import cat.company.wandervault.ui.theme.WanderVaultTheme
+import kotlinx.coroutines.delay
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
 import java.time.DayOfWeek
@@ -323,8 +327,16 @@ private fun CalendarMonthGrid(
     val leadingBlanks = (firstOfMonth.dayOfWeek.value - weekStartDay.value + 7) % 7
     val daysInMonth = yearMonth.lengthOfMonth()
 
-    // Capture today once per composition so every cell is checked against the same value.
-    val today = remember { LocalDate.now() }
+    // Drive 'today' from a state that refreshes at next midnight so the ring stays accurate
+    // if the user keeps the screen open across midnight or after a timezone change.
+    val today by produceState(initialValue = LocalDate.now()) {
+        while (true) {
+            val current = LocalDate.now()
+            value = current
+            val nextMidnight = current.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant()
+            delay(nextMidnight.toEpochMilli() - System.currentTimeMillis())
+        }
+    }
 
     // A "complete stay" is a destination that has both arrival and departure dates, and
     // departure is not before arrival (invalid ranges are skipped).
@@ -466,11 +478,20 @@ private fun DayCell(
     modifier: Modifier = Modifier,
 ) {
     val isTransitionDay = stayColorScheme != null && departingColorScheme != null
+    val todayLabel = if (isToday) stringResource(R.string.calendar_today) else null
 
     // The cell occupies its grid weight at a 1:1 aspect ratio with no horizontal padding so
     // that stay bands from adjacent cells touch each other edge-to-edge.
     Box(
-        modifier = modifier.aspectRatio(1f),
+        modifier = modifier
+            .aspectRatio(1f)
+            .then(
+                if (todayLabel != null) {
+                    Modifier.semantics { contentDescription = todayLabel }
+                } else {
+                    Modifier
+                },
+            ),
         contentAlignment = Alignment.Center,
     ) {
         // Stay band: a horizontally-spanning rectangle centred in the cell.
