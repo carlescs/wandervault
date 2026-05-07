@@ -135,7 +135,12 @@ class TripNotificationWorker(
         val destinations = destinationRepository.getDestinationsForTrip(trip.id).first()
         val activities = activityRepository.getActivitiesForTrip(trip.id).first()
         val refreshedNextStep =
-            tripDescriptionRepository.generateWhatsNext(trip, destinations, now, activities)
+            tripDescriptionRepository.generateWhatsNext(
+                trip = trip,
+                destinations = destinations,
+                now = now,
+                activities = activities,
+            )
                 ?.trim()
                 ?.takeIf { it.isNotEmpty() }
 
@@ -243,8 +248,8 @@ class TripNotificationWorker(
 }
 
 internal fun Trip.activeNotificationNextStep(now: ZonedDateTime): String? {
-    val nextStep = nextStep?.trim()?.takeIf { it.isNotEmpty() } ?: return null
-    return if (nextStepDeadline == null || nextStepDeadline.isAfter(now)) nextStep else null
+    val trimmedNextStep = nextStep?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+    return if (nextStepDeadline == null || nextStepDeadline.isAfter(now)) trimmedNextStep else null
 }
 
 internal fun Trip.hasExpiredNotificationNextStep(now: ZonedDateTime): Boolean =
