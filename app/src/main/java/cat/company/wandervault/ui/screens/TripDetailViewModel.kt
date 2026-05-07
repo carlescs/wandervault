@@ -6,6 +6,7 @@ import android.util.Log
 import cat.company.wandervault.domain.model.Activity
 import cat.company.wandervault.domain.model.Destination
 import cat.company.wandervault.domain.model.Trip
+import cat.company.wandervault.domain.model.computeNextStepDeadline
 import cat.company.wandervault.domain.usecase.GenerateTripDescriptionUseCase
 import cat.company.wandervault.domain.usecase.GenerateWhatsNextUseCase
 import cat.company.wandervault.domain.usecase.GetActivitiesForTripUseCase
@@ -354,33 +355,17 @@ class TripDetailViewModel(
             // auto-expires when the next upcoming itinerary event passes.
             // Pass tripId (not the captured trip object) so this partial update cannot overwrite
             // concurrent user edits that occurred during generation.
-            val deadline = computeNextStepDeadline(destinations, activities)
+            val deadline = computeNextStepDeadline(
+                destinations = destinations,
+                activities = activities,
+                now = ZonedDateTime.now(),
+            )
             try {
                 saveTripWhatsNextUseCase(trip.id, text, deadline)
             } catch (e: Exception) {
                 Log.e(TAG, "Generated what's next displayed but not saved to database", e)
             }
         }
-    }
-
-    /**
-     * Returns the earliest upcoming destination event (arrival or departure) or timed activity
-     * after the current moment, used as the expiry deadline for the "what's next" notice.
-     *
-     * Returns `null` if there are no future events, which means the notice never auto-expires.
-     */
-    private fun computeNextStepDeadline(
-        destinations: List<Destination>,
-        activities: List<Activity>,
-    ): ZonedDateTime? {
-        val now = ZonedDateTime.now()
-        val destinationTimes = destinations
-            .flatMap { listOf(it.arrivalDateTime, it.departureDateTime) }
-        val activityTimes = activities.map { it.dateTime }
-        return (destinationTimes + activityTimes)
-            .filterNotNull()
-            .filter { it.isAfter(now) }
-            .minOrNull()
     }
 
     /**
@@ -425,4 +410,3 @@ private data class WhatsNextInputs(
     val activities: List<Activity>,
     val aiAvailable: Boolean,
 )
-

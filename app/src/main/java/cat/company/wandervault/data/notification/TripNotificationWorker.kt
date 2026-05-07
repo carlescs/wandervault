@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
@@ -19,12 +20,18 @@ import androidx.work.WorkerParameters
 import cat.company.wandervault.MainActivity
 import cat.company.wandervault.R
 import cat.company.wandervault.domain.model.Trip
+import cat.company.wandervault.domain.model.activeNotificationNextStep
+import cat.company.wandervault.domain.model.computeNextStepDeadline
+import cat.company.wandervault.domain.model.hasExpiredNotificationNextStep
+import cat.company.wandervault.domain.repository.ActivityRepository
 import cat.company.wandervault.domain.repository.AppPreferencesRepository
+import cat.company.wandervault.domain.repository.DestinationRepository
+import cat.company.wandervault.domain.repository.TripDescriptionRepository
 import cat.company.wandervault.domain.repository.TripRepository
 import kotlinx.coroutines.flow.first
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import java.time.LocalDate
+import java.time.ZonedDateTime
 import java.time.temporal.ChronoUnit
 import java.util.concurrent.TimeUnit
 
@@ -45,11 +52,16 @@ class TripNotificationWorker(
 
     private val tripRepository: TripRepository by inject()
     private val appPreferences: AppPreferencesRepository by inject()
+    private val destinationRepository: DestinationRepository by inject()
+    private val activityRepository: ActivityRepository by inject()
+    private val tripDescriptionRepository: TripDescriptionRepository by inject()
 
     override suspend fun doWork(): Result {
         if (!appPreferences.getNotificationsEnabled()) return Result.success()
+        if (!canPostNotifications()) return Result.success()
 
-        val today = LocalDate.now()
+        val now = ZonedDateTime.now()
+        val today = now.toLocalDate()
         val trips = tripRepository.getTrips().first()
 
         trips.forEach { trip ->
@@ -61,22 +73,19 @@ class TripNotificationWorker(
                 (endDate != null && !today.isAfter(endDate) && !today.isBefore(startDate))
 
             if (shouldNotify) {
-                sendNotification(trip, daysUntilStart)
+                val contentText = buildNotificationText(trip, daysUntilStart, now)
+                sendNotification(trip, contentText)
             }
         }
 
         return Result.success()
     }
 
-    private fun sendNotification(trip: Trip, daysUntilStart: Long) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            ContextCompat.checkSelfPermission(appContext, Manifest.permission.POST_NOTIFICATIONS)
-            != PackageManager.PERMISSION_GRANTED
-        ) {
+    private fun sendNotification(trip: Trip, contentText: String) {
+        if (!canPostNotifications()) {
             return
         }
 
-        val contentText = buildNotificationText(trip, daysUntilStart)
         val notificationTitle = trip.title.ifBlank {
             appContext.getString(R.string.notification_trip_fallback_title)
         }
@@ -106,10 +115,83 @@ class TripNotificationWorker(
         NotificationManagerCompat.from(appContext).notify(NOTIFICATION_TAG, trip.id, notification)
     }
 
-    private fun buildNotificationText(trip: Trip, daysUntilStart: Long): String {
-        val nextStep = trip.nextStep
-        if (!nextStep.isNullOrBlank()) return nextStep
+    /**
+     * Resolves the notification body for [trip].
+     *
+     * Reuses a stored "What's Next" notice while it is still valid, refreshes expired notices
+     * from itinerary data when possible, and otherwise falls back to the existing countdown or
+     * in-progress strings.
+     */
+    private suspend fun buildNotificationText(
+        trip: Trip,
+        daysUntilStart: Long,
+        now: ZonedDateTime,
+    ): String {
+        trip.activeNotificationNextStep(now)?.let { return it }
 
+        if (trip.hasExpiredNotificationNextStep(now)) {
+            val refreshedNextStep = refreshExpiredNextStep(trip, now)
+            if (!refreshedNextStep.isNullOrBlank()) return refreshedNextStep
+        }
+
+        return buildFallbackNotificationText(daysUntilStart)
+    }
+
+    /**
+     * Attempts to regenerate an expired stored "What's Next" notice for [trip].
+     *
+     * This loads the trip itinerary and activities, asks the AI repository for a fresh notice,
+     * and persists the regenerated text together with its next expiry deadline when successful.
+     */
+    private suspend fun refreshExpiredNextStep(trip: Trip, now: ZonedDateTime): String? {
+        return try {
+            val destinations = destinationRepository.getDestinationsForTrip(trip.id).first()
+            val activities = activityRepository.getActivitiesForTrip(trip.id).first()
+            val refreshedNextStep =
+                tripDescriptionRepository.generateWhatsNext(
+                    trip = trip,
+                    destinations = destinations,
+                    now = now,
+                    activities = activities,
+                )
+                    ?.trim()
+                    ?.takeIf { it.isNotEmpty() }
+
+            if (refreshedNextStep != null) {
+                tripRepository.updateTripWhatsNext(
+                    tripId = trip.id,
+                    nextStep = refreshedNextStep,
+                    nextStepDeadline = computeNextStepDeadline(
+                        destinations = destinations,
+                        activities = activities,
+                        now = now,
+                    ),
+                )
+            }
+
+            refreshedNextStep
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to refresh expired notification text for trip ${trip.id}", e)
+            null
+        }
+    }
+
+    private fun canPostNotifications(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            return true
+        }
+
+        return ContextCompat.checkSelfPermission(
+            appContext,
+            Manifest.permission.POST_NOTIFICATIONS,
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+
+    /**
+     * Builds the non-AI fallback notification body used when there is no valid stored notice and
+     * an expired one could not be refreshed.
+     */
+    private fun buildFallbackNotificationText(daysUntilStart: Long): String {
         return when {
             daysUntilStart == 0L -> appContext.getString(R.string.notification_trip_starts_today)
             daysUntilStart == 1L -> appContext.getString(R.string.notification_trip_starts_tomorrow)
@@ -123,6 +205,8 @@ class TripNotificationWorker(
     }
 
     companion object {
+        private const val TAG = "TripNotificationWorker"
+
         /** Notification channel ID for trip reminders. */
         const val CHANNEL_ID = "trip_reminders"
 
