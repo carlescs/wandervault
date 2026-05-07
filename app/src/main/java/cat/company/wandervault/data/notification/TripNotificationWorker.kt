@@ -21,6 +21,8 @@ import cat.company.wandervault.R
 import cat.company.wandervault.domain.model.Activity
 import cat.company.wandervault.domain.model.Destination
 import cat.company.wandervault.domain.model.Trip
+import cat.company.wandervault.domain.model.activeNotificationNextStep
+import cat.company.wandervault.domain.model.hasExpiredNotificationNextStep
 import cat.company.wandervault.domain.repository.ActivityRepository
 import cat.company.wandervault.domain.repository.AppPreferencesRepository
 import cat.company.wandervault.domain.repository.DestinationRepository
@@ -143,8 +145,6 @@ class TripNotificationWorker(
      * and persists the regenerated text together with its next expiry deadline when successful.
      */
     private suspend fun refreshExpiredNextStep(trip: Trip, now: ZonedDateTime): String? {
-        if (!trip.hasExpiredNotificationNextStep(now)) return null
-
         val destinations = destinationRepository.getDestinationsForTrip(trip.id).first()
         val activities = activityRepository.getActivitiesForTrip(trip.id).first()
         val refreshedNextStep =
@@ -262,15 +262,7 @@ class TripNotificationWorker(
             val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             manager.activeNotifications
                 .filter { it.tag == NOTIFICATION_TAG }
-                .forEach { manager.cancel(it.tag, it.id) }
+            .forEach { manager.cancel(it.tag, it.id) }
         }
     }
 }
-
-internal fun Trip.activeNotificationNextStep(now: ZonedDateTime): String? {
-    val trimmedNextStep = nextStep?.trim()?.takeIf { it.isNotEmpty() } ?: return null
-    return if (nextStepDeadline == null || nextStepDeadline.isAfter(now)) trimmedNextStep else null
-}
-
-internal fun Trip.hasExpiredNotificationNextStep(now: ZonedDateTime): Boolean =
-    !nextStep.isNullOrBlank() && nextStepDeadline?.isAfter(now) == false

@@ -1,6 +1,8 @@
 package cat.company.wandervault.data.notification
 
 import cat.company.wandervault.domain.model.Trip
+import cat.company.wandervault.domain.model.activeNotificationNextStep
+import cat.company.wandervault.domain.model.hasExpiredNotificationNextStep
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
