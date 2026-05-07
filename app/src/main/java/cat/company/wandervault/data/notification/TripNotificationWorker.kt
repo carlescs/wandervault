@@ -116,6 +116,13 @@ class TripNotificationWorker(
         NotificationManagerCompat.from(appContext).notify(NOTIFICATION_TAG, trip.id, notification)
     }
 
+    /**
+     * Resolves the notification body for [trip].
+     *
+     * Reuses a stored "What's Next" notice while it is still valid, refreshes expired notices
+     * from itinerary data when possible, and otherwise falls back to the existing countdown or
+     * in-progress strings.
+     */
     private suspend fun buildNotificationText(
         trip: Trip,
         daysUntilStart: Long,
@@ -129,6 +136,12 @@ class TripNotificationWorker(
         return buildFallbackNotificationText(daysUntilStart)
     }
 
+    /**
+     * Attempts to regenerate an expired stored "What's Next" notice for [trip].
+     *
+     * This loads the trip itinerary and activities, asks the AI repository for a fresh notice,
+     * and persists the regenerated text together with its next expiry deadline when successful.
+     */
     private suspend fun refreshExpiredNextStep(trip: Trip, now: ZonedDateTime): String? {
         if (!trip.hasExpiredNotificationNextStep(now)) return null
 
@@ -155,6 +168,10 @@ class TripNotificationWorker(
         return refreshedNextStep
     }
 
+    /**
+     * Builds the non-AI fallback notification body used when there is no valid stored notice and
+     * an expired one could not be refreshed.
+     */
     private fun buildFallbackNotificationText(daysUntilStart: Long): String {
         return when {
             daysUntilStart == 0L -> appContext.getString(R.string.notification_trip_starts_today)
