@@ -1,8 +1,5 @@
-package cat.company.wandervault.data.notification
+package cat.company.wandervault.domain.model
 
-import cat.company.wandervault.domain.model.Trip
-import cat.company.wandervault.domain.model.activeNotificationNextStep
-import cat.company.wandervault.domain.model.hasExpiredNotificationNextStep
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -11,7 +8,7 @@ import org.junit.Test
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
 
-class TripNotificationWorkerTest {
+class TripNotificationTextTest {
 
     private val now = ZonedDateTime.of(2026, 5, 7, 12, 0, 0, 0, ZoneOffset.UTC)
 

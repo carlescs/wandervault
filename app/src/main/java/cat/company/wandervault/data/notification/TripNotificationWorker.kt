@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
@@ -18,10 +19,9 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import cat.company.wandervault.MainActivity
 import cat.company.wandervault.R
-import cat.company.wandervault.domain.model.Activity
-import cat.company.wandervault.domain.model.Destination
 import cat.company.wandervault.domain.model.Trip
 import cat.company.wandervault.domain.model.activeNotificationNextStep
+import cat.company.wandervault.domain.model.computeNextStepDeadline
 import cat.company.wandervault.domain.model.hasExpiredNotificationNextStep
 import cat.company.wandervault.domain.repository.ActivityRepository
 import cat.company.wandervault.domain.repository.AppPreferencesRepository
@@ -31,7 +31,6 @@ import cat.company.wandervault.domain.repository.TripRepository
 import kotlinx.coroutines.flow.first
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import java.time.LocalDate
 import java.time.ZonedDateTime
 import java.time.temporal.ChronoUnit
 import java.util.concurrent.TimeUnit
@@ -59,6 +58,7 @@ class TripNotificationWorker(
 
     override suspend fun doWork(): Result {
         if (!appPreferences.getNotificationsEnabled()) return Result.success()
+        if (!canPostNotifications()) return Result.success()
 
         val now = ZonedDateTime.now()
         val today = now.toLocalDate()
@@ -82,10 +82,7 @@ class TripNotificationWorker(
     }
 
     private fun sendNotification(trip: Trip, contentText: String) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            ContextCompat.checkSelfPermission(appContext, Manifest.permission.POST_NOTIFICATIONS)
-            != PackageManager.PERMISSION_GRANTED
-        ) {
+        if (!canPostNotifications()) {
             return
         }
 
@@ -147,27 +144,47 @@ class TripNotificationWorker(
      * and persists the regenerated text together with its next expiry deadline when successful.
      */
     private suspend fun refreshExpiredNextStep(trip: Trip, now: ZonedDateTime): String? {
-        val destinations = destinationRepository.getDestinationsForTrip(trip.id).first()
-        val activities = activityRepository.getActivitiesForTrip(trip.id).first()
-        val refreshedNextStep =
-            tripDescriptionRepository.generateWhatsNext(
-                trip = trip,
-                destinations = destinations,
-                now = now,
-                activities = activities,
-            )
-                ?.trim()
-                ?.takeIf { it.isNotEmpty() }
+        return try {
+            val destinations = destinationRepository.getDestinationsForTrip(trip.id).first()
+            val activities = activityRepository.getActivitiesForTrip(trip.id).first()
+            val refreshedNextStep =
+                tripDescriptionRepository.generateWhatsNext(
+                    trip = trip,
+                    destinations = destinations,
+                    now = now,
+                    activities = activities,
+                )
+                    ?.trim()
+                    ?.takeIf { it.isNotEmpty() }
 
-        if (refreshedNextStep != null) {
-            tripRepository.updateTripWhatsNext(
-                tripId = trip.id,
-                nextStep = refreshedNextStep,
-                nextStepDeadline = computeNextStepDeadline(destinations, activities, now),
-            )
+            if (refreshedNextStep != null) {
+                tripRepository.updateTripWhatsNext(
+                    tripId = trip.id,
+                    nextStep = refreshedNextStep,
+                    nextStepDeadline = computeNextStepDeadline(
+                        destinations = destinations,
+                        activities = activities,
+                        now = now,
+                    ),
+                )
+            }
+
+            refreshedNextStep
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to refresh expired notification text for trip ${trip.id}", e)
+            null
+        }
+    }
+
+    private fun canPostNotifications(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            return true
         }
 
-        return refreshedNextStep
+        return ContextCompat.checkSelfPermission(
+            appContext,
+            Manifest.permission.POST_NOTIFICATIONS,
+        ) == PackageManager.PERMISSION_GRANTED
     }
 
     /**
@@ -187,29 +204,9 @@ class TripNotificationWorker(
         }
     }
 
-    /**
-     * Returns the earliest future destination or activity time after [now], which becomes the
-     * expiry deadline for a regenerated notification notice. Once that earliest event passes,
-     * the stored text is treated as stale and will be recalculated on the next worker run.
-     */
-    private fun computeNextStepDeadline(
-        destinations: List<Destination>,
-        activities: List<Activity>,
-        now: ZonedDateTime,
-    ): ZonedDateTime? {
-        // Destination arrivals and departures both matter because either can invalidate the
-        // current notice (for example "arrive in Rome" becomes stale once the arrival passes,
-        // and "leave Rome tomorrow" becomes stale once departure time passes).
-        val destinationTimes = destinations
-            .flatMap { listOf(it.arrivalDateTime, it.departureDateTime) }
-        val activityTimes = activities.map { it.dateTime }
-        return (destinationTimes + activityTimes)
-            .filterNotNull()
-            .filter { it.isAfter(now) }
-            .minOrNull()
-    }
-
     companion object {
+        private const val TAG = "TripNotificationWorker"
+
         /** Notification channel ID for trip reminders. */
         const val CHANNEL_ID = "trip_reminders"
 
