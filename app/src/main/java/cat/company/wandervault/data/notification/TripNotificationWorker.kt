@@ -132,8 +132,10 @@ class TripNotificationWorker(
     ): String {
         trip.activeNotificationNextStep(now)?.let { return it }
 
-        val refreshedNextStep = refreshExpiredNextStep(trip, now)
-        if (!refreshedNextStep.isNullOrBlank()) return refreshedNextStep
+        if (trip.hasExpiredNotificationNextStep(now)) {
+            val refreshedNextStep = refreshExpiredNextStep(trip, now)
+            if (!refreshedNextStep.isNullOrBlank()) return refreshedNextStep
+        }
 
         return buildFallbackNotificationText(daysUntilStart)
     }
@@ -262,7 +264,7 @@ class TripNotificationWorker(
             val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             manager.activeNotifications
                 .filter { it.tag == NOTIFICATION_TAG }
-            .forEach { manager.cancel(it.tag, it.id) }
+                .forEach { manager.cancel(it.tag, it.id) }
         }
     }
 }
