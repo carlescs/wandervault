@@ -163,6 +163,11 @@ class TripNotificationWorker(
         }
     }
 
+    /**
+     * Returns the earliest future destination or activity time after [now], which becomes the
+     * expiry deadline for a regenerated notification notice. Once that earliest event passes,
+     * the stored text is treated as stale and will be recalculated on the next worker run.
+     */
     private fun computeNextStepDeadline(
         destinations: List<Destination>,
         activities: List<Activity>,
@@ -239,7 +244,7 @@ class TripNotificationWorker(
 
 internal fun Trip.activeNotificationNextStep(now: ZonedDateTime): String? {
     val nextStep = nextStep?.trim()?.takeIf { it.isNotEmpty() } ?: return null
-    return if (nextStepDeadline?.isAfter(now) != false) nextStep else null
+    return if (nextStepDeadline == null || nextStepDeadline.isAfter(now)) nextStep else null
 }
 
 internal fun Trip.hasExpiredNotificationNextStep(now: ZonedDateTime): Boolean =
