@@ -195,6 +195,9 @@ class TripNotificationWorker(
         activities: List<Activity>,
         now: ZonedDateTime,
     ): ZonedDateTime? {
+        // Destination arrivals and departures both matter because either can invalidate the
+        // current notice (for example "arrive in Rome" becomes stale once the arrival passes,
+        // and "leave Rome tomorrow" becomes stale once departure time passes).
         val destinationTimes = destinations
             .flatMap { listOf(it.arrivalDateTime, it.departureDateTime) }
         val activityTimes = activities.map { it.dateTime }
