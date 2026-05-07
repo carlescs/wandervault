@@ -18,13 +18,19 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import cat.company.wandervault.MainActivity
 import cat.company.wandervault.R
+import cat.company.wandervault.domain.model.Activity
+import cat.company.wandervault.domain.model.Destination
 import cat.company.wandervault.domain.model.Trip
+import cat.company.wandervault.domain.repository.ActivityRepository
 import cat.company.wandervault.domain.repository.AppPreferencesRepository
+import cat.company.wandervault.domain.repository.DestinationRepository
+import cat.company.wandervault.domain.repository.TripDescriptionRepository
 import cat.company.wandervault.domain.repository.TripRepository
 import kotlinx.coroutines.flow.first
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import java.time.LocalDate
+import java.time.ZonedDateTime
 import java.time.temporal.ChronoUnit
 import java.util.concurrent.TimeUnit
 
@@ -45,11 +51,15 @@ class TripNotificationWorker(
 
     private val tripRepository: TripRepository by inject()
     private val appPreferences: AppPreferencesRepository by inject()
+    private val destinationRepository: DestinationRepository by inject()
+    private val activityRepository: ActivityRepository by inject()
+    private val tripDescriptionRepository: TripDescriptionRepository by inject()
 
     override suspend fun doWork(): Result {
         if (!appPreferences.getNotificationsEnabled()) return Result.success()
 
-        val today = LocalDate.now()
+        val now = ZonedDateTime.now()
+        val today = now.toLocalDate()
         val trips = tripRepository.getTrips().first()
 
         trips.forEach { trip ->
@@ -61,14 +71,15 @@ class TripNotificationWorker(
                 (endDate != null && !today.isAfter(endDate) && !today.isBefore(startDate))
 
             if (shouldNotify) {
-                sendNotification(trip, daysUntilStart)
+                val contentText = buildNotificationText(trip, daysUntilStart, now)
+                sendNotification(trip, contentText)
             }
         }
 
         return Result.success()
     }
 
-    private fun sendNotification(trip: Trip, daysUntilStart: Long) {
+    private fun sendNotification(trip: Trip, contentText: String) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(appContext, Manifest.permission.POST_NOTIFICATIONS)
             != PackageManager.PERMISSION_GRANTED
@@ -76,7 +87,6 @@ class TripNotificationWorker(
             return
         }
 
-        val contentText = buildNotificationText(trip, daysUntilStart)
         val notificationTitle = trip.title.ifBlank {
             appContext.getString(R.string.notification_trip_fallback_title)
         }
@@ -106,10 +116,41 @@ class TripNotificationWorker(
         NotificationManagerCompat.from(appContext).notify(NOTIFICATION_TAG, trip.id, notification)
     }
 
-    private fun buildNotificationText(trip: Trip, daysUntilStart: Long): String {
-        val nextStep = trip.nextStep
-        if (!nextStep.isNullOrBlank()) return nextStep
+    private suspend fun buildNotificationText(
+        trip: Trip,
+        daysUntilStart: Long,
+        now: ZonedDateTime,
+    ): String {
+        trip.activeNotificationNextStep(now)?.let { return it }
 
+        val refreshedNextStep = refreshExpiredNextStep(trip, now)
+        if (!refreshedNextStep.isNullOrBlank()) return refreshedNextStep
+
+        return buildFallbackNotificationText(daysUntilStart)
+    }
+
+    private suspend fun refreshExpiredNextStep(trip: Trip, now: ZonedDateTime): String? {
+        if (!trip.hasExpiredNotificationNextStep(now)) return null
+
+        val destinations = destinationRepository.getDestinationsForTrip(trip.id).first()
+        val activities = activityRepository.getActivitiesForTrip(trip.id).first()
+        val refreshedNextStep =
+            tripDescriptionRepository.generateWhatsNext(trip, destinations, now, activities)
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() }
+
+        if (refreshedNextStep != null) {
+            tripRepository.updateTripWhatsNext(
+                tripId = trip.id,
+                nextStep = refreshedNextStep,
+                nextStepDeadline = computeNextStepDeadline(destinations, activities, now),
+            )
+        }
+
+        return refreshedNextStep
+    }
+
+    private fun buildFallbackNotificationText(daysUntilStart: Long): String {
         return when {
             daysUntilStart == 0L -> appContext.getString(R.string.notification_trip_starts_today)
             daysUntilStart == 1L -> appContext.getString(R.string.notification_trip_starts_tomorrow)
@@ -120,6 +161,20 @@ class TripNotificationWorker(
             )
             else -> appContext.getString(R.string.notification_trip_in_progress)
         }
+    }
+
+    private fun computeNextStepDeadline(
+        destinations: List<Destination>,
+        activities: List<Activity>,
+        now: ZonedDateTime,
+    ): ZonedDateTime? {
+        val destinationTimes = destinations
+            .flatMap { listOf(it.arrivalDateTime, it.departureDateTime) }
+        val activityTimes = activities.map { it.dateTime }
+        return (destinationTimes + activityTimes)
+            .filterNotNull()
+            .filter { it.isAfter(now) }
+            .minOrNull()
     }
 
     companion object {
@@ -181,3 +236,11 @@ class TripNotificationWorker(
         }
     }
 }
+
+internal fun Trip.activeNotificationNextStep(now: ZonedDateTime): String? {
+    val nextStep = nextStep?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+    return if (nextStepDeadline?.isAfter(now) != false) nextStep else null
+}
+
+internal fun Trip.hasExpiredNotificationNextStep(now: ZonedDateTime): Boolean =
+    !nextStep.isNullOrBlank() && nextStepDeadline?.isAfter(now) == false
