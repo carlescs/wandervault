@@ -107,6 +107,7 @@ class TripChatViewModel(
                 }
                 if (answer == null) {
                     Log.w(TAG, "askTripQuestion returned null for trip $tripId; AI unavailable")
+                    _isAiAvailable.value = false
                     _messages.value = _messages.value + ChatMessage.ErrorMessage(null)
                 } else {
                     _messages.value = _messages.value + ChatMessage.AiMessage(answer)
