@@ -2,7 +2,9 @@ package cat.company.wandervault.domain.repository
 
 import cat.company.wandervault.domain.model.Activity
 import cat.company.wandervault.domain.model.Destination
+import cat.company.wandervault.domain.model.Hotel
 import cat.company.wandervault.domain.model.Trip
+import cat.company.wandervault.domain.model.TripDocument
 import java.time.ZonedDateTime
 
 /**
@@ -52,5 +54,22 @@ interface TripDescriptionRepository {
         destinations: List<Destination>,
         now: ZonedDateTime,
         activities: List<Activity> = emptyList(),
+    ): String?
+
+    /**
+     * Answers a free-form [question] about a trip using the stored trip details, itinerary,
+     * activities, hotels, and uploaded document summaries as context.
+     *
+     * @return The generated answer, or `null` if Gemini Nano is not available on this device.
+     * @throws Exception if the model is available but generation fails.
+     */
+    suspend fun askTripQuestion(
+        trip: Trip,
+        destinations: List<Destination>,
+        activities: List<Activity>,
+        hotelsByDestination: Map<Int, Hotel>,
+        documents: List<TripDocument>,
+        question: String,
+        onDownloadProgress: ((bytesDownloaded: Long) -> Unit)? = null,
     ): String?
 }
