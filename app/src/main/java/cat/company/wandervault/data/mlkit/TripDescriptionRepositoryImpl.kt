@@ -2,8 +2,10 @@ package cat.company.wandervault.data.mlkit
 
 import cat.company.wandervault.domain.model.Activity
 import cat.company.wandervault.domain.model.Destination
+import cat.company.wandervault.domain.model.Hotel
 import cat.company.wandervault.domain.model.TransportType
 import cat.company.wandervault.domain.model.Trip
+import cat.company.wandervault.domain.model.TripDocument
 import cat.company.wandervault.domain.repository.AppPreferencesRepository
 import cat.company.wandervault.domain.repository.TripDescriptionRepository
 import com.google.mlkit.genai.common.DownloadStatus
@@ -13,6 +15,7 @@ import com.google.mlkit.genai.prompt.TextPart
 import com.google.mlkit.genai.prompt.generateContentRequest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.ZonedDateTime
@@ -83,6 +86,42 @@ class TripDescriptionRepositoryImpl(
         text
     }
 
+    override suspend fun askTripQuestion(
+        trip: Trip,
+        destinations: List<Destination>,
+        activities: List<Activity>,
+        hotelsByDestination: Map<Int, Hotel>,
+        documents: List<TripDocument>,
+        question: String,
+        onDownloadProgress: ((bytesDownloaded: Long) -> Unit)?,
+    ): String? = withContext(Dispatchers.IO) {
+        if (!appPreferences.getAiEnabled()) return@withContext null
+        when (client.checkStatus()) {
+            FeatureStatus.UNAVAILABLE -> return@withContext null
+            FeatureStatus.DOWNLOADABLE -> awaitDownload(onDownloadProgress)
+            FeatureStatus.AVAILABLE -> Unit
+        }
+        val request = createRequest(
+            buildTripQuestionPrompt(
+                trip = trip,
+                destinations = destinations,
+                activities = activities,
+                hotelsByDestination = hotelsByDestination,
+                documents = documents,
+                question = question,
+            ),
+            MAX_TRIP_CHAT_TOKENS,
+        )
+        val response = client.generateContent(request)
+        val text = response.candidates.firstOrNull()?.text?.trim()
+        if (text.isNullOrBlank()) {
+            throw IllegalStateException(
+                "Gemini Nano returned no candidates for trip chat on an available model.",
+            )
+        }
+        text
+    }
+
     /**
      * Creates a [generateContentRequest] with the given [prompt] text and [maxTokens] limit.
      */
@@ -95,8 +134,13 @@ class TripDescriptionRepositoryImpl(
      * Waits for the Gemini Nano model to finish downloading by collecting the download Flow
      * until a terminal status (completed or failed) is emitted.
      */
-    private suspend fun awaitDownload() {
+    private suspend fun awaitDownload(onDownloadProgress: ((Long) -> Unit)? = null) {
         val terminal = client.download()
+            .onEach { status ->
+                if (status is DownloadStatus.DownloadProgress) {
+                    onDownloadProgress?.invoke(status.totalBytesDownloaded)
+                }
+            }
             .first { it is DownloadStatus.DownloadCompleted || it is DownloadStatus.DownloadFailed }
         if (terminal is DownloadStatus.DownloadFailed) throw terminal.e
     }
@@ -222,6 +266,117 @@ class TripDescriptionRepositoryImpl(
                         }
                         appendLine()
                     }
+                }
+            }
+        }
+    }
+
+    internal fun buildTripQuestionPrompt(
+        trip: Trip,
+        destinations: List<Destination>,
+        activities: List<Activity>,
+        hotelsByDestination: Map<Int, Hotel>,
+        documents: List<TripDocument>,
+        question: String,
+    ): String {
+        val sortedDestinations = destinations.sortedBy { it.position }
+        val activitiesByDestination = activities.groupBy { it.destinationId }
+        val sortedDocuments = documents.sortedBy { it.name.lowercase(Locale.ROOT) }
+        val dateFormatter = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
+        return buildString {
+            appendLine(
+                "You are a helpful travel assistant. Answer the user's question about their trip " +
+                    "using only the trip information and uploaded documents listed below. " +
+                    "Use the uploaded document summaries whenever they are available. Do not " +
+                    "invent facts or assume details that are not present. " +
+                    "Respond in ${appPreferences.resolvedAiLanguageName()}.",
+            )
+            appendLine()
+            appendLine("Question: $question")
+            appendLine()
+            appendLine("Trip: ${trip.title}")
+            if (trip.startDate != null && trip.endDate != null) {
+                appendLine(
+                    "Dates: ${trip.startDate.format(dateFormatter)} – ${trip.endDate.format(dateFormatter)}",
+                )
+            }
+            trip.defaultTimezone?.let { appendLine("Default timezone: $it") }
+            trip.aiDescription?.let { appendLine("Trip summary: $it") }
+            trip.nextStep?.let { appendLine("Current what's next note: $it") }
+            appendLine()
+            if (sortedDestinations.isEmpty()) {
+                appendLine("Itinerary: None")
+            } else {
+                appendLine("Itinerary (${sortedDestinations.size} stop(s)):")
+                sortedDestinations.forEachIndexed { index, destination ->
+                    append("  ${index + 1}. ${destination.name}")
+                    destination.arrivalDateTime?.let {
+                        append(" – arrives ${it.format(PROMPT_DATE_TIME_FORMATTER)} ${it.zone.id}")
+                    }
+                    destination.departureDateTime?.let {
+                        append(", departs ${it.format(PROMPT_DATE_TIME_FORMATTER)} ${it.zone.id}")
+                    }
+                    appendLine()
+                    if (!destination.notes.isNullOrBlank()) {
+                        appendLine("     Notes: ${destination.notes}")
+                    }
+                    hotelsByDestination[destination.id]?.let { hotel ->
+                        append("     Hotel: ${hotel.name}")
+                        if (hotel.address.isNotBlank()) append(" — ${hotel.address}")
+                        if (hotel.reservationNumber.isNotBlank()) {
+                            append(" (reservation ${hotel.reservationNumber})")
+                        }
+                        appendLine()
+                    }
+                    destination.transport?.legs
+                        ?.sortedBy { it.position }
+                        ?.forEach { leg ->
+                            append("     → ${formatTransportTypeName(leg.type)}")
+                            if (!leg.company.isNullOrBlank()) append(" with ${leg.company}")
+                            if (!leg.flightNumber.isNullOrBlank()) append(" (${leg.flightNumber})")
+                            if (!leg.reservationConfirmationNumber.isNullOrBlank()) {
+                                append(" ref ${leg.reservationConfirmationNumber}")
+                            }
+                            leg.departureDateTime?.let {
+                                append(" departs ${it.format(PROMPT_DATE_TIME_FORMATTER)} ${it.zone.id}")
+                            }
+                            leg.arrivalDateTime?.let {
+                                append(" arrives ${it.format(PROMPT_DATE_TIME_FORMATTER)} ${it.zone.id}")
+                            }
+                            if (!leg.stopName.isNullOrBlank()) append(" via ${leg.stopName}")
+                            appendLine()
+                        }
+                    activitiesByDestination[destination.id]
+                        ?.sortedWith(compareBy<Activity> { it.dateTime == null }.thenBy { it.dateTime })
+                        ?.forEach { activity ->
+                            append("     ★ ${activity.title}")
+                            if (activity.dateTime != null) {
+                                append(
+                                    " on ${activity.dateTime.format(PROMPT_DATE_TIME_FORMATTER)} ${activity.dateTime.zone.id}",
+                                )
+                            }
+                            if (activity.description.isNotBlank()) {
+                                append(" — ${activity.description}")
+                            }
+                            if (activity.confirmationNumber.isNotBlank()) {
+                                append(" (confirmation ${activity.confirmationNumber})")
+                            }
+                            appendLine()
+                        }
+                }
+            }
+            appendLine()
+            if (sortedDocuments.isEmpty()) {
+                appendLine("Uploaded documents: None")
+            } else {
+                appendLine("Uploaded documents (${sortedDocuments.size}):")
+                sortedDocuments.forEachIndexed { index, document ->
+                    append("  ${index + 1}. ${document.name}")
+                    append(" [${document.mimeType}]")
+                    appendLine()
+                    appendLine(
+                        "     Summary: ${document.summary ?: "No AI summary available for this document."}",
+                    )
                 }
             }
         }
@@ -413,6 +568,9 @@ class TripDescriptionRepositoryImpl(
 
         /** Maximum number of tokens the model may generate for a what's next notice. */
         private const val MAX_WHATS_NEXT_TOKENS = 150
+
+        /** Maximum number of tokens the model may generate for a trip chat answer. */
+        private const val MAX_TRIP_CHAT_TOKENS = 220
 
         /** Position string used when the traveller's location cannot be determined. */
         private const val POSITION_UNKNOWN = "unknown"

@@ -102,6 +102,7 @@
     <string name="trip_detail_navigate_up">Navigate up</string>
     <string name="trip_detail_title">Trip Details</string>
     <string name="trip_detail_tab_details">Details</string>
+    <string name="trip_detail_tab_chat">Chat</string>
     <string name="trip_detail_tab_itinerary">Itinerary</string>
     <string name="trip_detail_tab_calendar">Calendar</string>
     <string name="trip_detail_tab_documents">Documents</string>
@@ -405,6 +406,15 @@
     <string name="document_chat_error_unavailable">AI is not available on this device.</string>
     <string name="document_chat_error_generic">Could not get an answer. Please try again.</string>
     <string name="document_chat_downloading">Downloading AI model… %s</string>
+    <string name="trip_chat_not_found">Trip not found.</string>
+    <string name="trip_chat_empty">Ask a question about %1$s to start the conversation.</string>
+    <string name="trip_chat_unavailable">AI trip chat is not available on this device.</string>
+    <string name="trip_chat_thinking">Thinking…</string>
+    <string name="trip_chat_input_hint">Ask about your trip…</string>
+    <string name="trip_chat_send">Send</string>
+    <string name="trip_chat_error_unavailable">AI is not available on this device.</string>
+    <string name="trip_chat_error_generic">Could not get an answer. Please try again.</string>
+    <string name="trip_chat_downloading">Downloading AI model… %s</string>
     <string name="documents_auto_organize">Auto-organize</string>
     <string name="documents_auto_organize_loading">Analyzing documents…</string>
     <string name="documents_auto_organize_downloading">Downloading AI model… %s</string>

@@ -1,6 +1,7 @@
 package cat.company.wandervault.domain.di
 
 import cat.company.wandervault.domain.usecase.AskDocumentQuestionUseCase
+import cat.company.wandervault.domain.usecase.AskTripQuestionUseCase
 import cat.company.wandervault.domain.usecase.AutoOrganizeDocumentsUseCase
 import cat.company.wandervault.domain.usecase.CopyDocumentToInternalStorageUseCase
 import cat.company.wandervault.domain.usecase.ArchiveTripUseCase
@@ -113,6 +114,7 @@ val domainModule = module {
     factory { SummarizeDocumentUseCase(get()) }
     factory { SuggestDocumentNameUseCase(get()) }
     factory { AskDocumentQuestionUseCase(get()) }
+    factory { AskTripQuestionUseCase(get()) }
     factory { AutoOrganizeDocumentsUseCase(get()) }
     factory { GetDocumentByIdUseCase(get()) }
 }

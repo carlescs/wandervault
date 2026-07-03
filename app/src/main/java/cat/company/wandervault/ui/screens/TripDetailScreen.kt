@@ -23,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Info
@@ -76,6 +77,7 @@ import java.time.format.FormatStyle
 /** Tabs shown in the Trip Detail bottom navigation bar. */
 private enum class TripDetailTab(@StringRes val labelRes: Int, val icon: ImageVector) {
     DETAILS(R.string.trip_detail_tab_details, Icons.Default.Info),
+    CHAT(R.string.trip_detail_tab_chat, Icons.Default.Chat),
     ITINERARY(R.string.trip_detail_tab_itinerary, Icons.Default.DateRange),
     CALENDAR(R.string.trip_detail_tab_calendar, Icons.Default.CalendarMonth),
     DOCUMENTS(R.string.trip_detail_tab_documents, Icons.Default.Folder),
@@ -234,6 +236,10 @@ internal fun TripDetailContent(
                 onClearDescriptionSource = onClearDescriptionSource,
                 onNavigateToDocument = onNavigateToDocument,
                 onRefreshWhatsNext = onRefreshWhatsNext,
+            )
+            TripDetailTab.CHAT -> TripChatTabContent(
+                tripId = tripId,
+                innerPadding = innerPadding,
             )
             TripDetailTab.ITINERARY -> ItineraryTabContent(
                 tripId = tripId,

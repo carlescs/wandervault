@@ -11,6 +11,7 @@ import cat.company.wandervault.ui.screens.LocationDetailViewModel
 import cat.company.wandervault.ui.screens.SettingsViewModel
 import cat.company.wandervault.ui.screens.ShareViewModel
 import cat.company.wandervault.ui.screens.TransportDetailViewModel
+import cat.company.wandervault.ui.screens.TripChatViewModel
 import cat.company.wandervault.ui.screens.TripDetailViewModel
 import cat.company.wandervault.ui.screens.TripDocumentsViewModel
 import org.koin.android.ext.koin.androidApplication
@@ -33,6 +34,17 @@ val presentationModule = module {
     }
     viewModel { SettingsViewModel(get(), get()) }
     viewModel { ArchiveViewModel(get(), get(), get()) }
+    viewModel { params ->
+        TripChatViewModel(
+            tripId = params.get(),
+            getTripUseCase = get(),
+            getDestinationsForTripUseCase = get(),
+            getActivitiesForTripUseCase = get(),
+            getHotelsForDestinationsUseCase = get(),
+            getAllDocumentsForTripUseCase = get(),
+            askTripQuestionUseCase = get(),
+        )
+    }
     viewModel { params ->
         TripDetailViewModel(
             tripId = params.get(),
