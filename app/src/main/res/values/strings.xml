@@ -415,6 +415,7 @@
     <string name="trip_chat_error_unavailable">AI is not available on this device.</string>
     <string name="trip_chat_error_generic">Could not get an answer. Please try again.</string>
     <string name="trip_chat_downloading">Downloading AI model… %s</string>
+    <string name="trip_chat_message_copied">Message copied</string>
     <string name="documents_auto_organize">Auto-organize</string>
     <string name="documents_auto_organize_loading">Analyzing documents…</string>
     <string name="documents_auto_organize_downloading">Downloading AI model… %s</string>

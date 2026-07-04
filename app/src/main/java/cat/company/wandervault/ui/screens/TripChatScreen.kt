@@ -1,5 +1,9 @@
 package cat.company.wandervault.ui.screens
 
+import android.os.Build
+import android.widget.Toast
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,7 +40,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -227,12 +234,16 @@ private fun TripChatSuccessContent(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun TripChatMessageRow(
     message: ChatMessage,
     modifier: Modifier = Modifier,
 ) {
     val isUser = message is ChatMessage.UserMessage
+    val clipboardManager = LocalClipboardManager.current
+    val context = LocalContext.current
+    val copiedLabel = stringResource(R.string.trip_chat_message_copied)
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
@@ -244,6 +255,12 @@ private fun TripChatMessageRow(
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                     contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                     isUser = true,
+                    onLongClick = {
+                        clipboardManager.setText(AnnotatedString(message.text))
+                        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+                            Toast.makeText(context, copiedLabel, Toast.LENGTH_SHORT).show()
+                        }
+                    },
                 )
             }
 
@@ -253,6 +270,12 @@ private fun TripChatMessageRow(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant,
                     contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     isUser = false,
+                    onLongClick = {
+                        clipboardManager.setText(AnnotatedString(message.text))
+                        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+                            Toast.makeText(context, copiedLabel, Toast.LENGTH_SHORT).show()
+                        }
+                    },
                 )
             }
 
@@ -273,6 +296,7 @@ private fun TripChatMessageRow(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun TripChatBubble(
     text: String,
@@ -280,6 +304,7 @@ private fun TripChatBubble(
     contentColor: androidx.compose.ui.graphics.Color,
     isUser: Boolean,
     modifier: Modifier = Modifier,
+    onLongClick: (() -> Unit)? = null,
 ) {
     val shape = if (isUser) {
         RoundedCornerShape(topStart = 16.dp, topEnd = 4.dp, bottomStart = 16.dp, bottomEnd = 16.dp)
@@ -290,7 +315,18 @@ private fun TripChatBubble(
         color = containerColor,
         contentColor = contentColor,
         shape = shape,
-        modifier = modifier.widthIn(max = 300.dp),
+        modifier = modifier
+            .widthIn(max = 300.dp)
+            .then(
+                if (onLongClick != null) {
+                    Modifier.combinedClickable(
+                        onClick = {},
+                        onLongClick = onLongClick,
+                    )
+                } else {
+                    Modifier
+                },
+            ),
     ) {
         if (isUser) {
             Text(
