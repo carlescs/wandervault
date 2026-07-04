@@ -3,6 +3,7 @@ package cat.company.wandervault.domain.di
 import cat.company.wandervault.domain.usecase.AskDocumentQuestionUseCase
 import cat.company.wandervault.domain.usecase.AskTripQuestionUseCase
 import cat.company.wandervault.domain.usecase.AutoOrganizeDocumentsUseCase
+import cat.company.wandervault.domain.usecase.CreateTripChatSessionUseCase
 import cat.company.wandervault.domain.usecase.CopyDocumentToInternalStorageUseCase
 import cat.company.wandervault.domain.usecase.ArchiveTripUseCase
 import cat.company.wandervault.domain.usecase.DeleteActivityUseCase
@@ -20,6 +21,7 @@ import cat.company.wandervault.domain.usecase.DeleteImageUseCase
 import cat.company.wandervault.domain.usecase.DeleteTransportLegUseCase
 import cat.company.wandervault.domain.usecase.DeleteTransportUseCase
 import cat.company.wandervault.domain.usecase.DeleteTripUseCase
+import cat.company.wandervault.domain.usecase.DeleteTripChatSessionUseCase
 import cat.company.wandervault.domain.usecase.GenerateTripDescriptionUseCase
 import cat.company.wandervault.domain.usecase.GetActivitiesForDestinationUseCase
 import cat.company.wandervault.domain.usecase.GetActivitiesForTripUseCase
@@ -41,12 +43,15 @@ import cat.company.wandervault.domain.usecase.SaveDocumentUseCase
 import cat.company.wandervault.domain.usecase.SaveFolderUseCase
 import cat.company.wandervault.domain.usecase.SaveHotelUseCase
 import cat.company.wandervault.domain.usecase.GetTripUseCase
+import cat.company.wandervault.domain.usecase.GetTripChatMessagesUseCase
+import cat.company.wandervault.domain.usecase.GetTripChatSessionsUseCase
 import cat.company.wandervault.domain.usecase.GetTripsUseCase
 import cat.company.wandervault.domain.usecase.RestoreBackupUseCase
 import cat.company.wandervault.domain.usecase.SaveActivityUseCase
 import cat.company.wandervault.domain.usecase.SaveDestinationUseCase
 import cat.company.wandervault.domain.usecase.SaveTransportLegUseCase
 import cat.company.wandervault.domain.usecase.SaveTripDescriptionUseCase
+import cat.company.wandervault.domain.usecase.SaveTripChatMessageUseCase
 import cat.company.wandervault.domain.usecase.SaveTripWhatsNextUseCase
 import cat.company.wandervault.domain.usecase.SaveTripUseCase
 import cat.company.wandervault.domain.usecase.SummarizeDocumentUseCase
@@ -115,6 +120,11 @@ val domainModule = module {
     factory { SuggestDocumentNameUseCase(get()) }
     factory { AskDocumentQuestionUseCase(get()) }
     factory { AskTripQuestionUseCase(get()) }
+    factory { GetTripChatSessionsUseCase(get()) }
+    factory { GetTripChatMessagesUseCase(get()) }
+    factory { CreateTripChatSessionUseCase(get()) }
+    factory { SaveTripChatMessageUseCase(get()) }
+    factory { DeleteTripChatSessionUseCase(get()) }
     factory { AutoOrganizeDocumentsUseCase(get()) }
     factory { GetDocumentByIdUseCase(get()) }
 }

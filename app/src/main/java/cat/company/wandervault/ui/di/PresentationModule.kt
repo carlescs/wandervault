@@ -43,6 +43,11 @@ val presentationModule = module {
             getHotelsForDestinationsUseCase = get(),
             getAllDocumentsForTripUseCase = get(),
             askTripQuestionUseCase = get(),
+            getTripChatSessionsUseCase = get(),
+            getTripChatMessagesUseCase = get(),
+            createTripChatSessionUseCase = get(),
+            saveTripChatMessageUseCase = get(),
+            deleteTripChatSessionUseCase = get(),
         )
     }
     viewModel { params ->

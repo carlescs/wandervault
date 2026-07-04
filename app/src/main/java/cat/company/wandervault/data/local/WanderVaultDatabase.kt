@@ -18,8 +18,10 @@ import java.time.ZoneId
         TripDocumentFolderEntity::class,
         TripDocumentEntity::class,
         ActivityEntity::class,
+        TripChatSessionEntity::class,
+        TripChatMessageEntity::class,
     ],
-    version = 24,
+    version = 25,
 )
 @TypeConverters(DateConverters::class)
 abstract class WanderVaultDatabase : RoomDatabase() {
@@ -31,6 +33,7 @@ abstract class WanderVaultDatabase : RoomDatabase() {
     abstract fun tripDocumentFolderDao(): TripDocumentFolderDao
     abstract fun tripDocumentDao(): TripDocumentDao
     abstract fun activityDao(): ActivityDao
+    abstract fun tripChatDao(): TripChatDao
 
     companion object {
         const val DATABASE_NAME = "wandervault.db"
@@ -475,6 +478,41 @@ abstract class WanderVaultDatabase : RoomDatabase() {
         val MIGRATION_23_24 = object : Migration(23, 24) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE `activities` ADD COLUMN `sourceDocumentId` INTEGER")
+            }
+        }
+        val MIGRATION_24_25 = object : Migration(24, 25) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `trip_chat_sessions` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `tripId` INTEGER NOT NULL,
+                        `createdAt` TEXT NOT NULL,
+                        `updatedAt` TEXT NOT NULL,
+                        FOREIGN KEY(`tripId`) REFERENCES `trips`(`id`)
+                            ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_trip_chat_sessions_tripId` ON `trip_chat_sessions` (`tripId`)",
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `trip_chat_messages` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `sessionId` INTEGER NOT NULL,
+                        `role` TEXT NOT NULL,
+                        `text` TEXT,
+                        `createdAt` TEXT NOT NULL,
+                        FOREIGN KEY(`sessionId`) REFERENCES `trip_chat_sessions`(`id`)
+                            ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_trip_chat_messages_sessionId` ON `trip_chat_messages` (`sessionId`)",
+                )
             }
         }
     }
