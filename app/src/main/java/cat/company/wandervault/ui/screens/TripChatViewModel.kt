@@ -21,10 +21,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -51,7 +50,7 @@ class TripChatViewModel(
     private val deleteTripChatSessionUseCase: DeleteTripChatSessionUseCase,
 ) : ViewModel() {
 
-    private val _selectedSessionId = MutableStateFlow<Int?>(null)
+    private val _userSelectedSessionId = MutableStateFlow<Int?>(null)
     private val _isThinking = MutableStateFlow(false)
     private val _downloadingBytes = MutableStateFlow<Long?>(null)
     private val _isAiAvailable = MutableStateFlow(true)
@@ -59,7 +58,20 @@ class TripChatViewModel(
     private var askJob: Job? = null
 
     private val sessionsFlow = getTripChatSessionsUseCase(tripId)
-    private val messagesFlow = _selectedSessionId.flatMapLatest { sessionId ->
+
+    // Derives the effective selected session ID reactively to avoid a standalone collector
+    private val effectiveSelectedIdFlow = combine(
+        sessionsFlow,
+        _userSelectedSessionId,
+    ) { sessions, userSelected ->
+        when {
+            sessions.isEmpty() -> null
+            userSelected != null && sessions.any { it.id == userSelected } -> userSelected
+            else -> sessions.first().id
+        }
+    }
+
+    private val messagesFlow = effectiveSelectedIdFlow.flatMapLatest { sessionId ->
         if (sessionId == null) {
             flowOf(emptyList())
         } else {
@@ -70,7 +82,7 @@ class TripChatViewModel(
     val uiState: StateFlow<TripChatUiState> = combine(
         getTripUseCase(tripId),
         sessionsFlow,
-        _selectedSessionId,
+        effectiveSelectedIdFlow,
         messagesFlow,
         _isThinking,
         _downloadingBytes,
@@ -106,30 +118,19 @@ class TripChatViewModel(
                 false
             }
         }
-        viewModelScope.launch {
-            sessionsFlow.collect { sessions ->
-                val selected = _selectedSessionId.value
-                when {
-                    sessions.isEmpty() -> _selectedSessionId.value = null
-                    selected == null || sessions.none { it.id == selected } -> {
-                        _selectedSessionId.value = sessions.first().id
-                    }
-                }
-            }
-        }
     }
 
     fun selectChatSession(sessionId: Int) {
         val state = uiState.value as? TripChatUiState.Success ?: return
         if (state.chatSessions.any { it.id == sessionId }) {
-            _selectedSessionId.value = sessionId
+            _userSelectedSessionId.value = sessionId
         }
     }
 
     fun createNewChat() {
         if (askJob?.isActive == true) return
         viewModelScope.launch {
-            _selectedSessionId.value = createTripChatSessionUseCase(tripId)
+            _userSelectedSessionId.value = createTripChatSessionUseCase(tripId)
         }
     }
 
@@ -148,8 +149,8 @@ class TripChatViewModel(
         if (!_isAiAvailable.value || askJob?.isActive == true) return
 
         askJob = viewModelScope.launch {
-            val sessionId = _selectedSessionId.value ?: createTripChatSessionUseCase(tripId).also {
-                _selectedSessionId.value = it
+            val sessionId = state.selectedChatSessionId ?: createTripChatSessionUseCase(tripId).also {
+                _userSelectedSessionId.value = it
             }
             saveTripChatMessageUseCase(
                 sessionId = sessionId,

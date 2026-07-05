@@ -63,6 +63,7 @@ import cat.company.wandervault.ui.util.formatBytes
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
@@ -294,7 +295,7 @@ private fun TripChatHistoryBar(
             ) {
                 Text(
                     text = selectedSession?.let {
-                        stringResource(R.string.trip_chat_session_item, it.updatedAt.format(formatter))
+                        stringResource(R.string.trip_chat_session_item, it.updatedAt.withZoneSameInstant(ZoneId.systemDefault()).format(formatter))
                     } ?: stringResource(R.string.trip_chat_history_empty),
                 )
             }
@@ -305,7 +306,7 @@ private fun TripChatHistoryBar(
                 uiState.chatSessions.forEach { session ->
                     DropdownMenuItem(
                         text = {
-                            Text(stringResource(R.string.trip_chat_session_item, session.updatedAt.format(formatter)))
+                            Text(stringResource(R.string.trip_chat_session_item, session.updatedAt.withZoneSameInstant(ZoneId.systemDefault()).format(formatter)))
                         },
                         onClick = {
                             expanded = false

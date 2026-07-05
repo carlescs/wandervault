@@ -9,7 +9,7 @@ import cat.company.wandervault.domain.model.TripChatSession
 import cat.company.wandervault.domain.repository.TripChatRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import java.time.ZoneId
+import java.time.ZoneOffset
 import java.time.ZonedDateTime
 
 class TripChatRepositoryImpl(
@@ -22,7 +22,7 @@ class TripChatRepositoryImpl(
         dao.getMessagesBySessionId(sessionId).map { entities -> entities.map { it.toDomain() } }
 
     override suspend fun createSession(tripId: Int): Int {
-        val now = ZonedDateTime.now(ZoneId.systemDefault())
+        val now = ZonedDateTime.now(ZoneOffset.UTC)
         return dao.insertSession(
             TripChatSessionEntity(
                 tripId = tripId,
@@ -33,7 +33,7 @@ class TripChatRepositoryImpl(
     }
 
     override suspend fun saveMessage(sessionId: Int, kind: TripChatMessageKind, text: String?) {
-        val now = ZonedDateTime.now(ZoneId.systemDefault())
+        val now = ZonedDateTime.now(ZoneOffset.UTC)
         dao.insertMessage(
             TripChatMessageEntity(
                 sessionId = sessionId,
