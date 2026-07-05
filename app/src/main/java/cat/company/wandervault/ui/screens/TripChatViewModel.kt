@@ -79,15 +79,22 @@ class TripChatViewModel(
         }
     }
 
+    private val statusFlow = combine(
+        _isThinking,
+        _downloadingBytes,
+        _isAiAvailable,
+    ) { isThinking, downloadingBytes, isAiAvailable ->
+        Triple(isThinking, downloadingBytes, isAiAvailable)
+    }
+
     val uiState: StateFlow<TripChatUiState> = combine(
         getTripUseCase(tripId),
         sessionsFlow,
         effectiveSelectedIdFlow,
         messagesFlow,
-        _isThinking,
-        _downloadingBytes,
-        _isAiAvailable,
-    ) { trip, sessions, selectedSessionId, messages, isThinking, downloadingBytes, isAiAvailable ->
+        statusFlow,
+    ) { trip, sessions, selectedSessionId, messages, status ->
+        val (isThinking, downloadingBytes, isAiAvailable) = status
         if (trip == null) {
             TripChatUiState.NotFound
         } else {
