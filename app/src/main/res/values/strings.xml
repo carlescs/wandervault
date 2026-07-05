@@ -416,6 +416,10 @@
     <string name="trip_chat_error_generic">Could not get an answer. Please try again.</string>
     <string name="trip_chat_downloading">Downloading AI model… %s</string>
     <string name="trip_chat_message_copied">Message copied</string>
+    <string name="trip_chat_history_empty">No saved chats yet</string>
+    <string name="trip_chat_session_item">Chat from %1$s</string>
+    <string name="trip_chat_new_chat">New chat</string>
+    <string name="trip_chat_delete_chat">Delete selected chat</string>
     <string name="documents_auto_organize">Auto-organize</string>
     <string name="documents_auto_organize_loading">Analyzing documents…</string>
     <string name="documents_auto_organize_downloading">Downloading AI model… %s</string>

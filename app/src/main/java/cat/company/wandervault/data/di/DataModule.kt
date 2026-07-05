@@ -10,6 +10,7 @@ import cat.company.wandervault.data.repository.BackupRepositoryImpl
 import cat.company.wandervault.data.repository.DestinationRepositoryImpl
 import cat.company.wandervault.data.repository.ImageRepositoryImpl
 import cat.company.wandervault.data.repository.TransportRepositoryImpl
+import cat.company.wandervault.data.repository.TripChatRepositoryImpl
 import cat.company.wandervault.data.repository.TripDocumentRepositoryImpl
 import cat.company.wandervault.data.repository.TripRepositoryImpl
 import cat.company.wandervault.domain.repository.ActivityRepository
@@ -21,6 +22,7 @@ import cat.company.wandervault.data.repository.HotelRepositoryImpl
 import cat.company.wandervault.domain.repository.HotelRepository
 import cat.company.wandervault.domain.repository.ImageRepository
 import cat.company.wandervault.domain.repository.TransportRepository
+import cat.company.wandervault.domain.repository.TripChatRepository
 import cat.company.wandervault.domain.repository.TripDescriptionRepository
 import cat.company.wandervault.domain.repository.TripDocumentRepository
 import cat.company.wandervault.domain.repository.TripRepository
@@ -57,6 +59,7 @@ val dataModule = module {
             WanderVaultDatabase.MIGRATION_21_22,
             WanderVaultDatabase.MIGRATION_22_23,
             WanderVaultDatabase.MIGRATION_23_24,
+            WanderVaultDatabase.MIGRATION_24_25,
         ).build()
     }
     single { get<WanderVaultDatabase>().tripDao() }
@@ -67,12 +70,14 @@ val dataModule = module {
     single { get<WanderVaultDatabase>().tripDocumentFolderDao() }
     single { get<WanderVaultDatabase>().tripDocumentDao() }
     single { get<WanderVaultDatabase>().activityDao() }
+    single { get<WanderVaultDatabase>().tripChatDao() }
     single<TripRepository> { TripRepositoryImpl(get(), get(), get()) }
     single<DestinationRepository> { DestinationRepositoryImpl(get(), get(), get()) }
     single<TransportRepository> { TransportRepositoryImpl(get(), get()) }
     single<HotelRepository> { HotelRepositoryImpl(get()) }
     single<ActivityRepository> { ActivityRepositoryImpl(get()) }
     single<TripDocumentRepository> { TripDocumentRepositoryImpl(androidContext(), get(), get()) }
+    single<TripChatRepository> { TripChatRepositoryImpl(get()) }
     single<ImageRepository> { ImageRepositoryImpl(androidContext()) }
     single<TripDescriptionRepository> { TripDescriptionRepositoryImpl(get()) }
     single<DocumentSummaryRepository> { DocumentSummaryRepositoryImpl(androidContext(), get()) }

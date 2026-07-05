@@ -24,18 +24,25 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -50,11 +57,17 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cat.company.wandervault.R
 import cat.company.wandervault.domain.model.Trip
+import cat.company.wandervault.domain.model.TripChatSession
 import cat.company.wandervault.ui.theme.WanderVaultTheme
 import cat.company.wandervault.ui.util.formatBytes
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
 import java.time.LocalDate
+import java.time.ZoneId
+import java.time.ZoneOffset
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 
 /**
  * Trip chat tab entry point.
@@ -74,6 +87,9 @@ fun TripChatTabContent(
         uiState = uiState,
         innerPadding = innerPadding,
         onSendMessage = viewModel::sendMessage,
+        onSelectChatSession = viewModel::selectChatSession,
+        onCreateNewChat = viewModel::createNewChat,
+        onDeleteChatSession = viewModel::deleteChatSession,
         modifier = modifier,
     )
 }
@@ -84,6 +100,9 @@ internal fun TripChatContent(
     uiState: TripChatUiState,
     innerPadding: PaddingValues,
     onSendMessage: (String) -> Unit = {},
+    onSelectChatSession: (Int) -> Unit = {},
+    onCreateNewChat: () -> Unit = {},
+    onDeleteChatSession: (Int) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     when (uiState) {
@@ -114,6 +133,9 @@ internal fun TripChatContent(
                 uiState = uiState,
                 innerPadding = innerPadding,
                 onSendMessage = onSendMessage,
+                onSelectChatSession = onSelectChatSession,
+                onCreateNewChat = onCreateNewChat,
+                onDeleteChatSession = onDeleteChatSession,
                 modifier = modifier,
             )
         }
@@ -126,13 +148,16 @@ private fun TripChatSuccessContent(
     uiState: TripChatUiState.Success,
     innerPadding: PaddingValues,
     onSendMessage: (String) -> Unit,
+    onSelectChatSession: (Int) -> Unit,
+    onCreateNewChat: () -> Unit,
+    onDeleteChatSession: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var inputText by rememberSaveable { mutableStateOf("") }
     val listState = rememberLazyListState()
     val messageCount = uiState.messages.size + if (uiState.isThinking) 1 else 0
 
-    LaunchedEffect(messageCount) {
+    LaunchedEffect(uiState.selectedChatSessionId, messageCount) {
         if (messageCount > 0) {
             listState.animateScrollToItem(messageCount - 1)
         }
@@ -151,6 +176,13 @@ private fun TripChatSuccessContent(
             .padding(innerPadding)
             .consumeWindowInsets(innerPadding),
     ) {
+        TripChatHistoryBar(
+            uiState = uiState,
+            onSelectChatSession = onSelectChatSession,
+            onCreateNewChat = onCreateNewChat,
+            onDeleteChatSession = onDeleteChatSession,
+        )
+        HorizontalDivider()
         if (uiState.messages.isEmpty() && !uiState.isThinking) {
             Box(
                 modifier = Modifier
@@ -230,6 +262,82 @@ private fun TripChatSuccessContent(
                     },
                 )
             }
+        }
+
+    }
+}
+
+@Composable
+private fun TripChatHistoryBar(
+    uiState: TripChatUiState.Success,
+    onSelectChatSession: (Int) -> Unit,
+    onCreateNewChat: () -> Unit,
+    onDeleteChatSession: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    val selectedSession = uiState.chatSessions.firstOrNull { it.id == uiState.selectedChatSessionId }
+    val formatter = remember {
+        DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
+    }
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Box(modifier = Modifier.weight(1f)) {
+            TextButton(
+                onClick = { expanded = true },
+                enabled = uiState.chatSessions.isNotEmpty(),
+            ) {
+                Text(
+                    text = selectedSession?.let {
+                        stringResource(R.string.trip_chat_session_item, it.updatedAt.withZoneSameInstant(ZoneId.systemDefault()).format(formatter))
+                    } ?: stringResource(R.string.trip_chat_history_empty),
+                )
+            }
+            DropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false },
+            ) {
+                uiState.chatSessions.forEach { session ->
+                    DropdownMenuItem(
+                        text = {
+                            Text(stringResource(R.string.trip_chat_session_item, session.updatedAt.withZoneSameInstant(ZoneId.systemDefault()).format(formatter)))
+                        },
+                        onClick = {
+                            expanded = false
+                            onSelectChatSession(session.id)
+                        },
+                    )
+                }
+            }
+        }
+        IconButton(
+            onClick = onCreateNewChat,
+            enabled = !uiState.isThinking,
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Add,
+                contentDescription = stringResource(R.string.trip_chat_new_chat),
+            )
+        }
+        IconButton(
+            onClick = {
+                uiState.selectedChatSessionId?.let(onDeleteChatSession)
+            },
+            enabled = uiState.selectedChatSessionId != null && !uiState.isThinking,
+            colors = IconButtonDefaults.iconButtonColors(
+                contentColor = MaterialTheme.colorScheme.error,
+            ),
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Delete,
+                contentDescription = stringResource(R.string.trip_chat_delete_chat),
+            )
         }
     }
 }
@@ -396,6 +504,15 @@ private fun TripChatContentPreview() {
                     ChatMessage.UserMessage("What hotel am I staying at in Kyoto?"),
                     ChatMessage.AiMessage("You are staying at **Sakura Inn Kyoto** during that stop."),
                 ),
+                chatSessions = listOf(
+                    TripChatSession(
+                        id = 1,
+                        tripId = 1,
+                        createdAt = ZonedDateTime.of(2026, 3, 1, 9, 0, 0, 0, ZoneOffset.UTC),
+                        updatedAt = ZonedDateTime.of(2026, 3, 1, 9, 5, 0, 0, ZoneOffset.UTC),
+                    ),
+                ),
+                selectedChatSessionId = 1,
             ),
             innerPadding = PaddingValues(),
         )
