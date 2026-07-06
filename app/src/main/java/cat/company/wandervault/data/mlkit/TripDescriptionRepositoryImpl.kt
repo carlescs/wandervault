@@ -122,6 +122,27 @@ class TripDescriptionRepositoryImpl(
         text
     }
 
+    override suspend fun suggestChatSessionName(
+        messages: List<String>,
+        onDownloadProgress: ((bytesDownloaded: Long) -> Unit)?,
+    ): String? = withContext(Dispatchers.IO) {
+        if (!appPreferences.getAiEnabled()) return@withContext null
+        when (client.checkStatus()) {
+            FeatureStatus.UNAVAILABLE -> return@withContext null
+            FeatureStatus.DOWNLOADABLE -> awaitDownload(onDownloadProgress)
+            FeatureStatus.AVAILABLE -> Unit
+        }
+        val request = createRequest(buildChatSessionNamePrompt(messages), MAX_SESSION_NAME_TOKENS)
+        val response = client.generateContent(request)
+        val text = response.candidates.firstOrNull()?.text?.trim()
+        if (text.isNullOrBlank()) {
+            throw IllegalStateException(
+                "Gemini Nano returned no candidates for session name suggestion on an available model.",
+            )
+        }
+        text
+    }
+
     /**
      * Creates a [generateContentRequest] with the given [prompt] text and [maxTokens] limit.
      */
@@ -382,6 +403,18 @@ class TripDescriptionRepositoryImpl(
         }
     }
 
+    private fun buildChatSessionNamePrompt(messages: List<String>): String = buildString {
+        appendLine(
+            "Suggest a concise 3–6 word title for a chat conversation based on the messages below. " +
+                "The title should capture the main topic. " +
+                "Respond with just the title and nothing else.",
+        )
+        appendLine()
+        messages.forEachIndexed { index, text ->
+            appendLine("Message ${index + 1}: $text")
+        }
+    }
+
     /**
      * Finds the single most immediate upcoming itinerary event after [now] and returns a
      * human-readable description of it, or `null` if there are no upcoming events.
@@ -571,6 +604,9 @@ class TripDescriptionRepositoryImpl(
 
         /** Maximum number of tokens the model may generate for a trip chat answer. */
         private const val MAX_TRIP_CHAT_TOKENS = 220
+
+        /** Maximum number of tokens the model may generate for a chat session name suggestion. */
+        private const val MAX_SESSION_NAME_TOKENS = 20
 
         /** Position string used when the traveller's location cannot be determined. */
         private const val POSITION_UNKNOWN = "unknown"

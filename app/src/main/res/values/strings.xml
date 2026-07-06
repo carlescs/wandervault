@@ -420,6 +420,14 @@
     <string name="trip_chat_session_item">Chat from %1$s</string>
     <string name="trip_chat_new_chat">New chat</string>
     <string name="trip_chat_delete_chat">Delete selected chat</string>
+    <string name="trip_chat_rename_chat">Rename selected chat</string>
+    <string name="trip_chat_rename_dialog_title">Rename chat</string>
+    <string name="trip_chat_rename_dialog_label">Chat name</string>
+    <string name="trip_chat_rename_suggest">Suggest name with AI</string>
+    <string name="trip_chat_rename_confirm">Rename</string>
+    <string name="trip_chat_rename_cancel">Cancel</string>
+    <string name="trip_chat_suggest_unavailable">AI name suggestion is not available on this device.</string>
+    <string name="trip_chat_suggest_error">Could not generate a name. Please try again.</string>
     <string name="documents_auto_organize">Auto-organize</string>
     <string name="documents_auto_organize_loading">Analyzing documents…</string>
     <string name="documents_auto_organize_downloading">Downloading AI model… %s</string>

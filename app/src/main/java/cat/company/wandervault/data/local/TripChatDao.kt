@@ -24,6 +24,9 @@ interface TripChatDao {
     @Query("UPDATE trip_chat_sessions SET updatedAt = :updatedAt WHERE id = :sessionId")
     suspend fun updateSessionUpdatedAt(sessionId: Int, updatedAt: ZonedDateTime)
 
+    @Query("UPDATE trip_chat_sessions SET name = :name WHERE id = :sessionId")
+    suspend fun updateSessionName(sessionId: Int, name: String?)
+
     @Query("DELETE FROM trip_chat_sessions WHERE id = :sessionId")
     suspend fun deleteSessionById(sessionId: Int)
 }

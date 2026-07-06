@@ -45,6 +45,10 @@ class TripChatRepositoryImpl(
         dao.updateSessionUpdatedAt(sessionId = sessionId, updatedAt = now)
     }
 
+    override suspend fun renameSession(sessionId: Int, name: String?) {
+        dao.updateSessionName(sessionId = sessionId, name = name)
+    }
+
     override suspend fun deleteSession(sessionId: Int) {
         dao.deleteSessionById(sessionId)
     }
@@ -53,6 +57,7 @@ class TripChatRepositoryImpl(
 private fun TripChatSessionEntity.toDomain() = TripChatSession(
     id = id,
     tripId = tripId,
+    name = name,
     createdAt = createdAt,
     updatedAt = updatedAt,
 )

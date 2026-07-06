@@ -24,6 +24,8 @@ import cat.company.wandervault.domain.usecase.DeleteTripUseCase
 import cat.company.wandervault.domain.usecase.DeleteTripChatSessionUseCase
 import cat.company.wandervault.domain.usecase.GenerateTripDescriptionUseCase
 import cat.company.wandervault.domain.usecase.GetActivitiesForDestinationUseCase
+import cat.company.wandervault.domain.usecase.RenameTripChatSessionUseCase
+import cat.company.wandervault.domain.usecase.SuggestChatSessionNameUseCase
 import cat.company.wandervault.domain.usecase.GetActivitiesForTripUseCase
 import cat.company.wandervault.domain.usecase.GetArrivalTransportForDestinationUseCase
 import cat.company.wandervault.domain.usecase.GetDestinationByIdUseCase
@@ -125,6 +127,8 @@ val domainModule = module {
     factory { CreateTripChatSessionUseCase(get()) }
     factory { SaveTripChatMessageUseCase(get()) }
     factory { DeleteTripChatSessionUseCase(get()) }
+    factory { RenameTripChatSessionUseCase(get()) }
+    factory { SuggestChatSessionNameUseCase(get()) }
     factory { AutoOrganizeDocumentsUseCase(get()) }
     factory { GetDocumentByIdUseCase(get()) }
 }

@@ -26,6 +26,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -83,6 +85,7 @@ fun TripChatTabContent(
     ),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val suggestNameState by viewModel.suggestNameState.collectAsStateWithLifecycle()
     TripChatContent(
         uiState = uiState,
         innerPadding = innerPadding,
@@ -90,6 +93,10 @@ fun TripChatTabContent(
         onSelectChatSession = viewModel::selectChatSession,
         onCreateNewChat = viewModel::createNewChat,
         onDeleteChatSession = viewModel::deleteChatSession,
+        onRenameChatSession = viewModel::renameChatSession,
+        onRequestSuggestName = viewModel::suggestChatSessionName,
+        onClearSuggestName = viewModel::clearSuggestNameState,
+        suggestNameState = suggestNameState,
         modifier = modifier,
     )
 }
@@ -103,6 +110,10 @@ internal fun TripChatContent(
     onSelectChatSession: (Int) -> Unit = {},
     onCreateNewChat: () -> Unit = {},
     onDeleteChatSession: (Int) -> Unit = {},
+    onRenameChatSession: (Int, String?) -> Unit = { _, _ -> },
+    onRequestSuggestName: (Int) -> Unit = {},
+    onClearSuggestName: () -> Unit = {},
+    suggestNameState: SuggestNameUiState? = null,
     modifier: Modifier = Modifier,
 ) {
     when (uiState) {
@@ -136,6 +147,10 @@ internal fun TripChatContent(
                 onSelectChatSession = onSelectChatSession,
                 onCreateNewChat = onCreateNewChat,
                 onDeleteChatSession = onDeleteChatSession,
+                onRenameChatSession = onRenameChatSession,
+                onRequestSuggestName = onRequestSuggestName,
+                onClearSuggestName = onClearSuggestName,
+                suggestNameState = suggestNameState,
                 modifier = modifier,
             )
         }
@@ -151,6 +166,10 @@ private fun TripChatSuccessContent(
     onSelectChatSession: (Int) -> Unit,
     onCreateNewChat: () -> Unit,
     onDeleteChatSession: (Int) -> Unit,
+    onRenameChatSession: (Int, String?) -> Unit,
+    onRequestSuggestName: (Int) -> Unit,
+    onClearSuggestName: () -> Unit,
+    suggestNameState: SuggestNameUiState?,
     modifier: Modifier = Modifier,
 ) {
     var inputText by rememberSaveable { mutableStateOf("") }
@@ -181,6 +200,10 @@ private fun TripChatSuccessContent(
             onSelectChatSession = onSelectChatSession,
             onCreateNewChat = onCreateNewChat,
             onDeleteChatSession = onDeleteChatSession,
+            onRenameChatSession = onRenameChatSession,
+            onRequestSuggestName = onRequestSuggestName,
+            onClearSuggestName = onClearSuggestName,
+            suggestNameState = suggestNameState,
         )
         HorizontalDivider()
         if (uiState.messages.isEmpty() && !uiState.isThinking) {
@@ -273,12 +296,34 @@ private fun TripChatHistoryBar(
     onSelectChatSession: (Int) -> Unit,
     onCreateNewChat: () -> Unit,
     onDeleteChatSession: (Int) -> Unit,
+    onRenameChatSession: (Int, String?) -> Unit,
+    onRequestSuggestName: (Int) -> Unit,
+    onClearSuggestName: () -> Unit,
+    suggestNameState: SuggestNameUiState?,
     modifier: Modifier = Modifier,
 ) {
     var expanded by rememberSaveable { mutableStateOf(false) }
+    var showRenameDialog by rememberSaveable { mutableStateOf(false) }
     val selectedSession = uiState.chatSessions.firstOrNull { it.id == uiState.selectedChatSessionId }
     val formatter = remember {
         DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
+    }
+
+    if (showRenameDialog && selectedSession != null) {
+        TripChatRenameDialog(
+            session = selectedSession,
+            suggestNameState = suggestNameState,
+            onRequestSuggest = { onRequestSuggestName(selectedSession.id) },
+            onConfirm = { newName ->
+                onRenameChatSession(selectedSession.id, newName)
+                onClearSuggestName()
+                showRenameDialog = false
+            },
+            onDismiss = {
+                onClearSuggestName()
+                showRenameDialog = false
+            },
+        )
     }
 
     Row(
@@ -295,7 +340,10 @@ private fun TripChatHistoryBar(
             ) {
                 Text(
                     text = selectedSession?.let {
-                        stringResource(R.string.trip_chat_session_item, it.updatedAt.withZoneSameInstant(ZoneId.systemDefault()).format(formatter))
+                        it.name ?: stringResource(
+                            R.string.trip_chat_session_item,
+                            it.updatedAt.withZoneSameInstant(ZoneId.systemDefault()).format(formatter),
+                        )
                     } ?: stringResource(R.string.trip_chat_history_empty),
                 )
             }
@@ -306,7 +354,12 @@ private fun TripChatHistoryBar(
                 uiState.chatSessions.forEach { session ->
                     DropdownMenuItem(
                         text = {
-                            Text(stringResource(R.string.trip_chat_session_item, session.updatedAt.withZoneSameInstant(ZoneId.systemDefault()).format(formatter)))
+                            Text(
+                                session.name ?: stringResource(
+                                    R.string.trip_chat_session_item,
+                                    session.updatedAt.withZoneSameInstant(ZoneId.systemDefault()).format(formatter),
+                                ),
+                            )
                         },
                         onClick = {
                             expanded = false
@@ -326,6 +379,15 @@ private fun TripChatHistoryBar(
             )
         }
         IconButton(
+            onClick = { showRenameDialog = true },
+            enabled = uiState.selectedChatSessionId != null && !uiState.isThinking,
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Edit,
+                contentDescription = stringResource(R.string.trip_chat_rename_chat),
+            )
+        }
+        IconButton(
             onClick = {
                 uiState.selectedChatSessionId?.let(onDeleteChatSession)
             },
@@ -340,6 +402,85 @@ private fun TripChatHistoryBar(
             )
         }
     }
+}
+
+@Composable
+private fun TripChatRenameDialog(
+    session: TripChatSession,
+    suggestNameState: SuggestNameUiState?,
+    onRequestSuggest: () -> Unit,
+    onConfirm: (String?) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var nameText by rememberSaveable(session.id) { mutableStateOf(session.name.orEmpty()) }
+
+    LaunchedEffect(suggestNameState) {
+        if (suggestNameState is SuggestNameUiState.Success) {
+            nameText = suggestNameState.suggestedName
+        }
+    }
+
+    val isSuggesting = suggestNameState is SuggestNameUiState.Loading ||
+        suggestNameState is SuggestNameUiState.Downloading
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.trip_chat_rename_dialog_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = nameText,
+                    onValueChange = { nameText = it },
+                    label = { Text(stringResource(R.string.trip_chat_rename_dialog_label)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    if (isSuggesting) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    }
+                    TextButton(
+                        onClick = onRequestSuggest,
+                        enabled = !isSuggesting && suggestNameState !is SuggestNameUiState.Unavailable,
+                    ) {
+                        Text(stringResource(R.string.trip_chat_rename_suggest))
+                    }
+                }
+                when (suggestNameState) {
+                    is SuggestNameUiState.Downloading -> Text(
+                        text = stringResource(R.string.trip_chat_downloading, formatBytes(suggestNameState.bytesDownloaded)),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    is SuggestNameUiState.Unavailable -> Text(
+                        text = stringResource(R.string.trip_chat_suggest_unavailable),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                    is SuggestNameUiState.Error -> Text(
+                        text = stringResource(R.string.trip_chat_suggest_error),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                    else -> Unit
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(nameText.trim().takeIf { it.isNotEmpty() }) }) {
+                Text(stringResource(R.string.trip_chat_rename_confirm))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.trip_chat_rename_cancel))
+            }
+        },
+    )
 }
 
 @OptIn(ExperimentalFoundationApi::class)
