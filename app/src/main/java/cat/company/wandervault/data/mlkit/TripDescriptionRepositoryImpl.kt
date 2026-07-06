@@ -407,7 +407,8 @@ class TripDescriptionRepositoryImpl(
         appendLine(
             "Suggest a concise 3–6 word title for a chat conversation based on the messages below. " +
                 "The title should capture the main topic. " +
-                "Respond with just the title and nothing else.",
+                "Respond with just the title and nothing else. " +
+                "Respond in ${appPreferences.resolvedAiLanguageName()}.",
         )
         appendLine()
         messages.forEachIndexed { index, text ->

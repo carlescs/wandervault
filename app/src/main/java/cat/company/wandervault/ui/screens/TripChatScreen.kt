@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -25,6 +27,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
@@ -50,6 +53,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
@@ -423,50 +428,73 @@ private fun TripChatRenameDialog(
     val isSuggesting = suggestNameState is SuggestNameUiState.Loading ||
         suggestNameState is SuggestNameUiState.Downloading
 
+    val suggestLoadingDesc = stringResource(R.string.documents_suggest_name_loading)
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.trip_chat_rename_dialog_title)) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column {
                 OutlinedTextField(
                     value = nameText,
                     onValueChange = { nameText = it },
                     label = { Text(stringResource(R.string.trip_chat_rename_dialog_label)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
+                    trailingIcon = {
+                        if (isSuggesting) {
+                            CircularProgressIndicator(
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .semantics {
+                                        contentDescription = suggestLoadingDesc
+                                    },
+                                strokeWidth = 2.dp,
+                            )
+                        } else {
+                            IconButton(
+                                onClick = onRequestSuggest,
+                                enabled = suggestNameState !is SuggestNameUiState.Unavailable,
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.AutoAwesome,
+                                    contentDescription = stringResource(R.string.documents_suggest_name),
+                                    tint = if (suggestNameState is SuggestNameUiState.Unavailable ||
+                                        suggestNameState is SuggestNameUiState.Error
+                                    ) {
+                                        MaterialTheme.colorScheme.error
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    },
+                                )
+                            }
+                        }
+                    },
                 )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    if (isSuggesting) {
-                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                    }
-                    TextButton(
-                        onClick = onRequestSuggest,
-                        enabled = !isSuggesting && suggestNameState !is SuggestNameUiState.Unavailable,
-                    ) {
-                        Text(stringResource(R.string.trip_chat_rename_suggest))
-                    }
+                val statusText = when (suggestNameState) {
+                    is SuggestNameUiState.Loading ->
+                        stringResource(R.string.documents_suggest_name_loading)
+                    is SuggestNameUiState.Downloading ->
+                        stringResource(R.string.documents_suggest_name_downloading)
+                    is SuggestNameUiState.Unavailable ->
+                        stringResource(R.string.documents_suggest_name_unavailable)
+                    is SuggestNameUiState.Error ->
+                        stringResource(R.string.documents_suggest_name_error)
+                    else -> null
                 }
-                when (suggestNameState) {
-                    is SuggestNameUiState.Downloading -> Text(
-                        text = stringResource(R.string.trip_chat_downloading, formatBytes(suggestNameState.bytesDownloaded)),
+                if (statusText != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = statusText,
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = if (suggestNameState is SuggestNameUiState.Unavailable ||
+                            suggestNameState is SuggestNameUiState.Error
+                        ) {
+                            MaterialTheme.colorScheme.error
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
                     )
-                    is SuggestNameUiState.Unavailable -> Text(
-                        text = stringResource(R.string.trip_chat_suggest_unavailable),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                    is SuggestNameUiState.Error -> Text(
-                        text = stringResource(R.string.trip_chat_suggest_error),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                    else -> Unit
                 }
             }
         },
