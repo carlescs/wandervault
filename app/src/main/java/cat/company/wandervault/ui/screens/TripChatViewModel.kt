@@ -15,12 +15,15 @@ import cat.company.wandervault.domain.usecase.GetHotelsForDestinationsUseCase
 import cat.company.wandervault.domain.usecase.GetTripChatMessagesUseCase
 import cat.company.wandervault.domain.usecase.GetTripChatSessionsUseCase
 import cat.company.wandervault.domain.usecase.GetTripUseCase
+import cat.company.wandervault.domain.usecase.RenameTripChatSessionUseCase
 import cat.company.wandervault.domain.usecase.SaveTripChatMessageUseCase
+import cat.company.wandervault.domain.usecase.SuggestChatSessionNameUseCase
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
@@ -48,6 +51,8 @@ class TripChatViewModel(
     private val createTripChatSessionUseCase: CreateTripChatSessionUseCase,
     private val saveTripChatMessageUseCase: SaveTripChatMessageUseCase,
     private val deleteTripChatSessionUseCase: DeleteTripChatSessionUseCase,
+    private val renameTripChatSessionUseCase: RenameTripChatSessionUseCase,
+    private val suggestChatSessionNameUseCase: SuggestChatSessionNameUseCase,
 ) : ViewModel() {
 
     private val _userSelectedSessionId = MutableStateFlow<Int?>(null)
@@ -55,7 +60,11 @@ class TripChatViewModel(
     private val _downloadingBytes = MutableStateFlow<Long?>(null)
     private val _isAiAvailable = MutableStateFlow(true)
 
+    private val _suggestNameState = MutableStateFlow<SuggestNameUiState?>(null)
+    val suggestNameState: StateFlow<SuggestNameUiState?> = _suggestNameState.asStateFlow()
+
     private var askJob: Job? = null
+    private var suggestNameJob: Job? = null
 
     private val sessionsFlow = getTripChatSessionsUseCase(tripId)
 
@@ -146,6 +155,54 @@ class TripChatViewModel(
         viewModelScope.launch {
             deleteTripChatSessionUseCase(sessionId)
         }
+    }
+
+    fun renameChatSession(sessionId: Int, name: String?) {
+        viewModelScope.launch {
+            renameTripChatSessionUseCase(sessionId, name?.takeIf { it.isNotBlank() })
+        }
+    }
+
+    /**
+     * Requests an AI-generated name suggestion for the given [sessionId] based on its messages.
+     *
+     * Progress is exposed via [suggestNameState]:
+     * - [SuggestNameUiState.Loading] while the request is running.
+     * - [SuggestNameUiState.Downloading] while the Gemini Nano model is being downloaded.
+     * - [SuggestNameUiState.Success] when a name is produced.
+     * - [SuggestNameUiState.Unavailable] if the on-device AI is permanently unavailable.
+     * - [SuggestNameUiState.Error] for transient failures.
+     */
+    fun suggestChatSessionName(sessionId: Int) {
+        if (uiState.value !is TripChatUiState.Success) return
+        suggestNameJob?.cancel()
+        suggestNameJob = viewModelScope.launch {
+            _suggestNameState.value = SuggestNameUiState.Loading
+            try {
+                val messages = getTripChatMessagesUseCase(sessionId).first()
+                    .mapNotNull { it.text }
+                val suggested = suggestChatSessionNameUseCase(messages) { bytes ->
+                    _suggestNameState.value = SuggestNameUiState.Downloading(bytes)
+                }
+                _suggestNameState.value = if (suggested != null) {
+                    SuggestNameUiState.Success(suggested)
+                } else {
+                    SuggestNameUiState.Unavailable
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "Chat session name suggestion failed for session $sessionId", e)
+                _suggestNameState.value = SuggestNameUiState.Error(e.message)
+            }
+        }
+    }
+
+    /** Clears the name suggestion state (called when the rename dialog is dismissed). */
+    fun clearSuggestNameState() {
+        suggestNameJob?.cancel()
+        suggestNameJob = null
+        _suggestNameState.value = null
     }
 
     /**

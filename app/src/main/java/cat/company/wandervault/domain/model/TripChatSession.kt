@@ -6,6 +6,7 @@ import java.time.ZonedDateTime
 data class TripChatSession(
     val id: Int = 0,
     val tripId: Int,
+    val name: String? = null,
     val createdAt: ZonedDateTime,
     val updatedAt: ZonedDateTime,
 )

@@ -21,7 +21,7 @@ import java.time.ZoneId
         TripChatSessionEntity::class,
         TripChatMessageEntity::class,
     ],
-    version = 25,
+    version = 26,
 )
 @TypeConverters(DateConverters::class)
 abstract class WanderVaultDatabase : RoomDatabase() {
@@ -513,6 +513,11 @@ abstract class WanderVaultDatabase : RoomDatabase() {
                 db.execSQL(
                     "CREATE INDEX IF NOT EXISTS `index_trip_chat_messages_sessionId` ON `trip_chat_messages` (`sessionId`)",
                 )
+            }
+        }
+        val MIGRATION_25_26 = object : Migration(25, 26) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `trip_chat_sessions` ADD COLUMN `name` TEXT")
             }
         }
     }

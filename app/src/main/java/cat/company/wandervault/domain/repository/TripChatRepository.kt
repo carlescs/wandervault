@@ -11,5 +11,6 @@ interface TripChatRepository {
     fun getMessagesForSession(sessionId: Int): Flow<List<TripChatMessage>>
     suspend fun createSession(tripId: Int): Int
     suspend fun saveMessage(sessionId: Int, kind: TripChatMessageKind, text: String?)
+    suspend fun renameSession(sessionId: Int, name: String?)
     suspend fun deleteSession(sessionId: Int)
 }

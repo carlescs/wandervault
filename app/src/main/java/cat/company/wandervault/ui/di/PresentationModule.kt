@@ -48,6 +48,8 @@ val presentationModule = module {
             createTripChatSessionUseCase = get(),
             saveTripChatMessageUseCase = get(),
             deleteTripChatSessionUseCase = get(),
+            renameTripChatSessionUseCase = get(),
+            suggestChatSessionNameUseCase = get(),
         )
     }
     viewModel { params ->

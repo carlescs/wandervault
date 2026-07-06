@@ -72,4 +72,16 @@ interface TripDescriptionRepository {
         question: String,
         onDownloadProgress: ((bytesDownloaded: Long) -> Unit)? = null,
     ): String?
+    /**
+     * Suggests a short human-readable name for a chat session based on the conversation messages.
+     *
+     * @param messages Alternating user/AI message texts that represent the conversation.
+     * @return A concise suggested name (typically 3–6 words), or `null` if Gemini Nano is not
+     *   available on this device.
+     * @throws Exception if the model is available but generation fails.
+     */
+    suspend fun suggestChatSessionName(
+        messages: List<String>,
+        onDownloadProgress: ((bytesDownloaded: Long) -> Unit)? = null,
+    ): String?
 }
