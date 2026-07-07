@@ -98,7 +98,7 @@ fun rememberTextToSpeech(): TextToSpeechState {
         // TextToSpeech.OnInitListener is called on the main thread after the engine
         // connects – we don't need any special handling; speak() is a no-op until the
         // engine is ready (QUEUE_FLUSH on an uninitialised engine is silently ignored).
-        val tts = TextToSpeech(context) { /* init status intentionally ignored */ }
+        val tts = TextToSpeech(context.applicationContext) { /* init status intentionally ignored */ }
         TextToSpeechState(tts)
     }
     DisposableEffect(Unit) {
