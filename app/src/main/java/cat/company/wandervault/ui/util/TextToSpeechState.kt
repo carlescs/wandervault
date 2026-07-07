@@ -49,9 +49,12 @@ class TextToSpeechState(tts: TextToSpeech) {
      * Stops any in-progress speech first.
      */
     fun speak(text: String) {
+        val utteranceId = "$TTS_UTTERANCE_ID:${android.os.SystemClock.uptimeMillis()}"
+        currentUtteranceId = utteranceId
         speakingText = text
-        val result = engine.speak(text.stripMarkdown(), TextToSpeech.QUEUE_FLUSH, null, TTS_UTTERANCE_ID)
+        val result = engine.speak(text.stripMarkdown(), TextToSpeech.QUEUE_FLUSH, null, utteranceId)
         if (result == TextToSpeech.ERROR) {
+            currentUtteranceId = null
             speakingText = null
         }
     }
