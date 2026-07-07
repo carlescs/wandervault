@@ -62,6 +62,7 @@ class TextToSpeechState(tts: TextToSpeech) {
     /** Stops any in-progress speech. */
     fun stop() {
         engine.stop()
+        currentUtteranceId = null
         speakingText = null
     }
 

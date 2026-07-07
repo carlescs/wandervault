@@ -363,7 +363,6 @@ private fun ChatBubble(
             ) {
                 IconButton(
                     onClick = { if (isSpeakingThis) ttsState.stop() else ttsState.speak(text) },
-                    modifier = Modifier.size(28.dp),
                 ) {
                     Icon(
                         imageVector = if (isSpeakingThis) Icons.Filled.Stop else Icons.Filled.PlayArrow,
