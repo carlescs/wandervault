@@ -77,7 +77,7 @@ class TextToSpeechState(tts: TextToSpeech) {
     private fun String.stripMarkdown(): String =
         replace(Regex("\\*{1,3}([^*]+)\\*{1,3}"), "$1")   // bold / italic
             .replace(Regex("_{1,3}([^_]+)_{1,3}"), "$1")   // underscores
-            .replace(Regex("#+\\s*"), "")                   // headings
+            .replace(Regex("^#+\\s*", RegexOption.MULTILINE), "")                   // headings
             .replace(Regex("`+([^`]+)`+"), "$1")            // inline code / code blocks
             .replace(Regex("!?\\[([^]]*)]\\([^)]+\\)"), "$1") // links / images
             .replace(Regex("^[-*+]\\s+", RegexOption.MULTILINE), "") // list bullets
