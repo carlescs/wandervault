@@ -23,16 +23,23 @@ class TextToSpeechState(tts: TextToSpeech) {
         private set
 
     private val engine: TextToSpeech = tts
+    private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var currentUtteranceId: String? = null
 
     init {
         engine.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
             override fun onStart(utteranceId: String?) = Unit
             override fun onDone(utteranceId: String?) {
-                speakingText = null
+                if (utteranceId == currentUtteranceId) {
+                    mainHandler.post { speakingText = null }
+                }
             }
+
             @Deprecated("Deprecated in Java")
             override fun onError(utteranceId: String?) {
-                speakingText = null
+                if (utteranceId == currentUtteranceId) {
+                    mainHandler.post { speakingText = null }
+                }
             }
         })
     }
