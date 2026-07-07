@@ -21,6 +21,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -47,7 +49,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cat.company.wandervault.R
 import cat.company.wandervault.ui.theme.WanderVaultTheme
+import cat.company.wandervault.ui.util.TextToSpeechState
 import cat.company.wandervault.ui.util.formatBytes
+import cat.company.wandervault.ui.util.rememberTextToSpeech
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
 
@@ -164,6 +168,7 @@ private fun DocumentChatSuccessContent(
 ) {
     var inputText by rememberSaveable { mutableStateOf("") }
     val listState = rememberLazyListState()
+    val ttsState = rememberTextToSpeech()
 
     // Scroll to the bottom whenever new messages are added.
     val messageCount = uiState.messages.size + if (uiState.isThinking) 1 else 0
@@ -212,7 +217,7 @@ private fun DocumentChatSuccessContent(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(uiState.messages) { message ->
-                    ChatMessageRow(message = message)
+                    ChatMessageRow(message = message, ttsState = ttsState)
                 }
                 if (uiState.isThinking) {
                     item {
@@ -268,6 +273,7 @@ private fun DocumentChatSuccessContent(
 @Composable
 private fun ChatMessageRow(
     message: ChatMessage,
+    ttsState: TextToSpeechState,
     modifier: Modifier = Modifier,
 ) {
     val isUser = message is ChatMessage.UserMessage
@@ -282,6 +288,7 @@ private fun ChatMessageRow(
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                     contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                     isUser = true,
+                    ttsState = ttsState,
                 )
             }
 
@@ -291,6 +298,7 @@ private fun ChatMessageRow(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant,
                     contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     isUser = false,
+                    ttsState = ttsState,
                 )
             }
 
@@ -305,6 +313,7 @@ private fun ChatMessageRow(
                     containerColor = MaterialTheme.colorScheme.errorContainer,
                     contentColor = MaterialTheme.colorScheme.onErrorContainer,
                     isUser = false,
+                    ttsState = ttsState,
                 )
             }
         }
@@ -317,6 +326,7 @@ private fun ChatBubble(
     containerColor: androidx.compose.ui.graphics.Color,
     contentColor: androidx.compose.ui.graphics.Color,
     isUser: Boolean,
+    ttsState: TextToSpeechState,
     modifier: Modifier = Modifier,
 ) {
     val shape = if (isUser) {
@@ -324,24 +334,45 @@ private fun ChatBubble(
     } else {
         RoundedCornerShape(topStart = 4.dp, topEnd = 16.dp, bottomStart = 16.dp, bottomEnd = 16.dp)
     }
+    val isSpeakingThis = ttsState.speakingText == text
     Surface(
         color = containerColor,
         contentColor = contentColor,
         shape = shape,
         modifier = modifier.widthIn(max = 300.dp),
     ) {
-        if (isUser) {
-            Text(
-                text = text,
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-            )
-        } else {
-            MarkdownText(
-                markdown = text,
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-            )
+        Column {
+            if (isUser) {
+                Text(
+                    text = text,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 8.dp),
+                )
+            } else {
+                MarkdownText(
+                    markdown = text,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 8.dp),
+                )
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp, vertical = 2.dp),
+                horizontalArrangement = Arrangement.End,
+            ) {
+                IconButton(
+                    onClick = { if (isSpeakingThis) ttsState.stop() else ttsState.speak(text) },
+                ) {
+                    Icon(
+                        imageVector = if (isSpeakingThis) Icons.Filled.Stop else Icons.Filled.PlayArrow,
+                        contentDescription = stringResource(
+                            if (isSpeakingThis) R.string.chat_message_stop else R.string.chat_message_play,
+                        ),
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+            }
         }
     }
 }

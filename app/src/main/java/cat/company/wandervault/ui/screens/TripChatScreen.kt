@@ -30,6 +30,8 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -66,7 +68,9 @@ import cat.company.wandervault.R
 import cat.company.wandervault.domain.model.Trip
 import cat.company.wandervault.domain.model.TripChatSession
 import cat.company.wandervault.ui.theme.WanderVaultTheme
+import cat.company.wandervault.ui.util.TextToSpeechState
 import cat.company.wandervault.ui.util.formatBytes
+import cat.company.wandervault.ui.util.rememberTextToSpeech
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
 import java.time.LocalDate
@@ -180,6 +184,7 @@ private fun TripChatSuccessContent(
     var inputText by rememberSaveable { mutableStateOf("") }
     val listState = rememberLazyListState()
     val messageCount = uiState.messages.size + if (uiState.isThinking) 1 else 0
+    val ttsState = rememberTextToSpeech()
 
     LaunchedEffect(uiState.selectedChatSessionId, messageCount) {
         if (messageCount > 0) {
@@ -238,7 +243,7 @@ private fun TripChatSuccessContent(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(uiState.messages) { message ->
-                    TripChatMessageRow(message = message)
+                    TripChatMessageRow(message = message, ttsState = ttsState)
                 }
                 if (uiState.isThinking) {
                     item {
@@ -515,6 +520,7 @@ private fun TripChatRenameDialog(
 @Composable
 private fun TripChatMessageRow(
     message: ChatMessage,
+    ttsState: TextToSpeechState,
     modifier: Modifier = Modifier,
 ) {
     val isUser = message is ChatMessage.UserMessage
@@ -532,6 +538,7 @@ private fun TripChatMessageRow(
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                     contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                     isUser = true,
+                    ttsState = ttsState,
                     onLongClick = {
                         clipboardManager.setText(AnnotatedString(message.text))
                         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
@@ -547,6 +554,7 @@ private fun TripChatMessageRow(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant,
                     contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     isUser = false,
+                    ttsState = ttsState,
                     onLongClick = {
                         clipboardManager.setText(AnnotatedString(message.text))
                         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
@@ -567,6 +575,7 @@ private fun TripChatMessageRow(
                     containerColor = MaterialTheme.colorScheme.errorContainer,
                     contentColor = MaterialTheme.colorScheme.onErrorContainer,
                     isUser = false,
+                    ttsState = ttsState,
                 )
             }
         }
@@ -580,6 +589,7 @@ private fun TripChatBubble(
     containerColor: androidx.compose.ui.graphics.Color,
     contentColor: androidx.compose.ui.graphics.Color,
     isUser: Boolean,
+    ttsState: TextToSpeechState,
     modifier: Modifier = Modifier,
     onLongClick: (() -> Unit)? = null,
 ) {
@@ -588,6 +598,7 @@ private fun TripChatBubble(
     } else {
         RoundedCornerShape(topStart = 4.dp, topEnd = 16.dp, bottomStart = 16.dp, bottomEnd = 16.dp)
     }
+    val isSpeakingThis = ttsState.speakingText == text
     Surface(
         color = containerColor,
         contentColor = contentColor,
@@ -605,18 +616,38 @@ private fun TripChatBubble(
                 },
             ),
     ) {
-        if (isUser) {
-            Text(
-                text = text,
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-            )
-        } else {
-            MarkdownText(
-                markdown = text,
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-            )
+        Column {
+            if (isUser) {
+                Text(
+                    text = text,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 8.dp),
+                )
+            } else {
+                MarkdownText(
+                    markdown = text,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 8.dp),
+                )
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp, vertical = 2.dp),
+                horizontalArrangement = Arrangement.End,
+            ) {
+                IconButton(
+                    onClick = { if (isSpeakingThis) ttsState.stop() else ttsState.speak(text) },
+                ) {
+                    Icon(
+                        imageVector = if (isSpeakingThis) Icons.Filled.Stop else Icons.Filled.PlayArrow,
+                        contentDescription = stringResource(
+                            if (isSpeakingThis) R.string.chat_message_stop else R.string.chat_message_play,
+                        ),
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+            }
         }
     }
 }
