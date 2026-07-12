@@ -34,6 +34,7 @@ class DocumentChatViewModel(
     private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
     private val _isThinking = MutableStateFlow(false)
     private val _downloadingBytes = MutableStateFlow<Long?>(null)
+    private val _isAiAvailable = MutableStateFlow(true)
 
     /** Job running the current AI request, kept so concurrent sends are prevented. */
     private var askJob: Job? = null
@@ -43,7 +44,8 @@ class DocumentChatViewModel(
         _messages,
         _isThinking,
         _downloadingBytes,
-    ) { document, messages, isThinking, downloadingBytes ->
+        _isAiAvailable,
+    ) { document, messages, isThinking, downloadingBytes, isAiAvailable ->
         if (document == null) {
             DocumentChatUiState.NotFound
         } else {
@@ -54,6 +56,7 @@ class DocumentChatViewModel(
                 messages = messages,
                 isThinking = isThinking,
                 downloadingBytes = downloadingBytes,
+                isAiAvailable = isAiAvailable,
             )
         }
     }
@@ -62,6 +65,23 @@ class DocumentChatViewModel(
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = DocumentChatUiState.Loading,
         )
+
+    init {
+        refreshAiAvailability()
+    }
+
+    fun refreshAiAvailability() {
+        viewModelScope.launch {
+            _isAiAvailable.value = try {
+                askDocumentQuestion.isAvailable()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "AI availability check failed; assuming unavailable", e)
+                false
+            }
+        }
+    }
 
     /**
      * Sends [question] to Gemini Nano and appends both the question and the AI answer to the
@@ -74,7 +94,7 @@ class DocumentChatViewModel(
      */
     fun sendMessage(question: String) {
         val state = uiState.value as? DocumentChatUiState.Success ?: return
-        if (askJob?.isActive == true) return
+        if (!state.isAiAvailable || askJob?.isActive == true) return
 
         askJob = viewModelScope.launch {
             _messages.value = _messages.value + ChatMessage.UserMessage(question)

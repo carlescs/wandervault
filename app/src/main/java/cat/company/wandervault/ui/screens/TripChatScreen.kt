@@ -95,6 +95,11 @@ fun TripChatTabContent(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val suggestNameState by viewModel.suggestNameState.collectAsStateWithLifecycle()
+
+    LaunchedEffect(Unit) {
+        viewModel.refreshAiAvailability()
+    }
+
     TripChatContent(
         uiState = uiState,
         innerPadding = innerPadding,

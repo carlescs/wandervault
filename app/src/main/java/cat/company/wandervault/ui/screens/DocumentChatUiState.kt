@@ -20,6 +20,7 @@ sealed class DocumentChatUiState {
      * @param isThinking `true` while the AI is processing the latest question.
      * @param downloadingBytes Non-null while the Gemini Nano model is being downloaded;
      *   the value is the total bytes downloaded so far.
+     * @param isAiAvailable Whether document chat can currently use on-device AI.
      */
     data class Success(
         val documentName: String,
@@ -28,5 +29,6 @@ sealed class DocumentChatUiState {
         val messages: List<ChatMessage> = emptyList(),
         val isThinking: Boolean = false,
         val downloadingBytes: Long? = null,
+        val isAiAvailable: Boolean = true,
     ) : DocumentChatUiState()
 }

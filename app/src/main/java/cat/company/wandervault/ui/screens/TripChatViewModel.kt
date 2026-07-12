@@ -124,6 +124,10 @@ class TripChatViewModel(
     )
 
     init {
+        refreshAiAvailability()
+    }
+
+    fun refreshAiAvailability() {
         viewModelScope.launch {
             _isAiAvailable.value = try {
                 askTripQuestionUseCase.isAvailable()

@@ -77,6 +77,10 @@ fun DocumentChatScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
+    LaunchedEffect(Unit) {
+        viewModel.refreshAiAvailability()
+    }
+
     DocumentChatContent(
         uiState = uiState,
         onNavigateUp = onNavigateUp,
@@ -203,7 +207,11 @@ private fun DocumentChatSuccessContent(
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text = stringResource(R.string.document_chat_empty),
+                    text = if (uiState.isAiAvailable) {
+                        stringResource(R.string.document_chat_empty)
+                    } else {
+                        stringResource(R.string.document_chat_unavailable)
+                    },
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
@@ -245,21 +253,22 @@ private fun DocumentChatSuccessContent(
                 maxLines = 4,
                 modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(24.dp),
+                enabled = uiState.isAiAvailable && !uiState.isThinking,
             )
             IconButton(
                 onClick = {
                     val q = inputText.trim()
-                    if (q.isNotEmpty() && !uiState.isThinking) {
+                    if (q.isNotEmpty() && uiState.isAiAvailable && !uiState.isThinking) {
                         inputText = ""
                         onSendMessage(q)
                     }
                 },
-                enabled = inputText.trim().isNotEmpty() && !uiState.isThinking,
+                enabled = inputText.trim().isNotEmpty() && uiState.isAiAvailable && !uiState.isThinking,
             ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.Send,
                     contentDescription = stringResource(R.string.document_chat_send),
-                    tint = if (inputText.trim().isNotEmpty() && !uiState.isThinking) {
+                    tint = if (inputText.trim().isNotEmpty() && uiState.isAiAvailable && !uiState.isThinking) {
                         MaterialTheme.colorScheme.primary
                     } else {
                         MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
