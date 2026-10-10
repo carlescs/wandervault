@@ -32,7 +32,7 @@ android {
     defaultConfig {
         applicationId = "cat.company.wandervault"
         minSdk = 26
-        targetSdk = 36
+        targetSdk = 37
         versionCode = (project.findProperty("versionCode") as String?)?.toInt() ?: 5
         versionName = (project.findProperty("versionName") as String?) ?: getVersionNameFromTag()
 
