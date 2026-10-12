@@ -24,8 +24,8 @@ fun getVersionNameFromTag(): String {
 android {
     namespace = "cat.company.wandervault"
     compileSdk {
-        version = release(36) {
-            minorApiLevel = 1
+        version = release(37) {
+            minorApiLevel = 2
         }
     }
 
