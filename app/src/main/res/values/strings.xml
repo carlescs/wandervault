@@ -469,4 +469,24 @@
     <string name="source_document_label">Source: %s</string>
     <string name="source_document_fallback_label">Source document</string>
     <string name="source_document_remove">Remove document link</string>
+
+    <!-- Document scanning (ML Kit Text Recognition) -->
+    <string name="scan_document_action">Scan document</string>
+    <string name="scan_document_take_photo">Take photo</string>
+    <string name="scan_document_choose_image">Choose image</string>
+    <string name="scan_document_title">Scan document</string>
+    <string name="scan_document_scanning">Reading the document on your device…</string>
+    <string name="scan_document_nothing_found">No booking details were found in this image. Try a sharper photo with the whole document visible.</string>
+    <string name="scan_document_error">The image could not be read. Please try again.</string>
+    <string name="scan_document_camera_unavailable">No camera app is available.</string>
+    <string name="scan_document_picker_unavailable">No photo picker is available.</string>
+    <string name="scan_document_review_title">Review scanned details</string>
+    <string name="scan_document_review_message">Check and edit the details found in the document. Empty fields leave the existing values unchanged.</string>
+    <string name="scan_document_review_hotel_message">Check and edit the hotel details found in the document. Empty fields leave the existing values unchanged.</string>
+    <string name="scan_document_apply_to_leg">Apply to</string>
+    <string name="scan_document_new_leg">New leg</string>
+    <string name="scan_document_apply">Apply</string>
+    <string name="scan_document_show_text">Show recognised text</string>
+    <string name="scan_document_hide_text">Hide recognised text</string>
+    <string name="scan_document_privacy_note">Scanned on this device. The image is not stored, and nothing is saved until you tap Apply.</string>
 </resources>

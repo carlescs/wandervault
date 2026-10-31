@@ -16,6 +16,7 @@ import cat.company.wandervault.domain.usecase.GetHotelForDestinationUseCase
 import cat.company.wandervault.domain.usecase.GetTranslationTargetLanguageUseCase
 import cat.company.wandervault.domain.usecase.SaveActivityUseCase
 import cat.company.wandervault.domain.usecase.SaveHotelUseCase
+import cat.company.wandervault.domain.usecase.ScanTravelDocumentUseCase
 import cat.company.wandervault.domain.usecase.TranslateTextUseCase
 import cat.company.wandervault.domain.usecase.UpdateDestinationUseCase
 import kotlinx.coroutines.CancellationException
@@ -59,6 +60,8 @@ import java.time.ZonedDateTime
  * @param detectLanguage Use-case that detects the language the notes are written in.
  * @param translateText Use-case that translates the notes on-device.
  * @param getTranslationTargetLanguage Use-case that resolves the language notes are translated into.
+ * @param scanTravelDocument Use-case that extracts hotel details from a photo of a reservation
+ *   using on-device ML Kit Text Recognition.
  */
 class LocationDetailViewModel(
     private val getDestinationById: GetDestinationByIdUseCase,
@@ -75,6 +78,7 @@ class LocationDetailViewModel(
     private val detectLanguage: DetectLanguageUseCase,
     private val translateText: TranslateTextUseCase,
     private val getTranslationTargetLanguage: GetTranslationTargetLanguageUseCase,
+    private val scanTravelDocument: ScanTravelDocumentUseCase,
 ) : ViewModel() {
 
     private val _destinationId = MutableStateFlow<Int?>(null)
@@ -103,6 +107,13 @@ class LocationDetailViewModel(
 
     private val _uiState = MutableStateFlow<LocationDetailUiState>(LocationDetailUiState.Loading)
     val uiState: StateFlow<LocationDetailUiState> = _uiState.asStateFlow()
+
+    private val _scanState = MutableStateFlow<DocumentScanUiState>(DocumentScanUiState.Idle)
+
+    /** State of the current hotel-reservation scan, if any. */
+    val scanState: StateFlow<DocumentScanUiState> = _scanState.asStateFlow()
+
+    private var scanJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -196,6 +207,8 @@ class LocationDetailViewModel(
             _hasUnsavedHotelEdits = false
             _hasUnsavedNotesEdits = false
             _activityDraft.value = null
+            scanJob?.cancel()
+            _scanState.value = DocumentScanUiState.Idle
             translationJob?.cancel()
             _notesLanguage.value = NotesLanguageState()
             _destinationId.value = id
@@ -229,6 +242,56 @@ class LocationDetailViewModel(
         if (_notesLanguage.value.translation != NotesTranslationState.Idle) {
             translationJob?.cancel()
             _notesLanguage.update { it.copy(translation = NotesTranslationState.Idle) }
+        }
+    }
+
+    // ── Hotel reservation scanning ────────────────────────────────────────────
+
+    /**
+     * Scans the image at [imageUri] (hotel reservation, booking confirmation, …) on-device and,
+     * when hotel details are found, moves to [DocumentScanUiState.Review] so the user can
+     * confirm them. Nothing is saved until [onApplyScannedHotel] is called.
+     */
+    fun onScanDocument(imageUri: String) {
+        scanJob?.cancel()
+        _scanState.value = DocumentScanUiState.Scanning
+        scanJob = viewModelScope.launch {
+            _scanState.value = try {
+                val info = scanTravelDocument(imageUri)
+                if (info == null || !info.hasHotelFields) {
+                    DocumentScanUiState.NothingFound
+                } else {
+                    DocumentScanUiState.Review(info)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                DocumentScanUiState.Error
+            }
+        }
+    }
+
+    /** Cancels or closes the current scan without saving anything. */
+    fun onDismissScan() {
+        scanJob?.cancel()
+        _scanState.value = DocumentScanUiState.Idle
+    }
+
+    /**
+     * Applies user-confirmed scanned hotel values. Blank values leave the existing fields
+     * unchanged. The change is persisted by the auto-save debounce.
+     */
+    fun onApplyScannedHotel(name: String, address: String, reservationNumber: String) {
+        _scanState.value = DocumentScanUiState.Idle
+        val current = _uiState.value as? LocationDetailUiState.Success ?: return
+        if (current.isFirst || current.isLast) return
+        _hasUnsavedHotelEdits = true
+        updateHotelEditState {
+            copy(
+                name = name.ifBlank { this.name },
+                address = address.ifBlank { this.address },
+                reservationNumber = reservationNumber.ifBlank { this.reservationNumber },
+            )
         }
     }
 

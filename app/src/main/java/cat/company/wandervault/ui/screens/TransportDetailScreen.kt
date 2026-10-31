@@ -135,6 +135,12 @@ fun TransportDetailScreen(
         viewModel.loadDestination(destinationId)
     }
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val scanState by viewModel.scanState.collectAsStateWithLifecycle()
+    val imagePicker = rememberDocumentImagePicker(onImageSelected = viewModel::onScanDocument)
+    // Remove the temporary camera capture as soon as it is no longer being scanned.
+    LaunchedEffect(scanState) {
+        if (scanState != DocumentScanUiState.Scanning) imagePicker.deleteCapture()
+    }
     // Intercept system back so it follows the same save path as the toolbar up button.
     BackHandler {
         viewModel.onSave()
@@ -160,6 +166,11 @@ fun TransportDetailScreen(
         onArrivalDateTimeChange = viewModel::onArrivalDateTimeChange,
         onNavigateToDocument = onNavigateToDocument,
         onClearLegSourceDocument = viewModel::onClearLegSourceDocument,
+        scanState = scanState,
+        onTakePhoto = imagePicker::takePhoto,
+        onPickImage = imagePicker::pickImage,
+        onApplyScannedTransport = viewModel::onApplyScannedTransport,
+        onDismissScan = viewModel::onDismissScan,
         modifier = modifier,
     )
 }
@@ -189,9 +200,28 @@ internal fun TransportDetailContent(
     onArrivalDateTimeChange: (Int, ZonedDateTime?) -> Unit = { _, _ -> },
     onNavigateToDocument: (Int) -> Unit = {},
     onClearLegSourceDocument: (Int) -> Unit = {},
+    scanState: DocumentScanUiState = DocumentScanUiState.Idle,
+    onTakePhoto: () -> Unit = {},
+    onPickImage: () -> Unit = {},
+    onApplyScannedTransport: (Int?, String, String, String) -> Unit = { _, _, _, _ -> },
+    onDismissScan: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var selectedTab by rememberSaveable { mutableStateOf(TransportDetailTab.DETAILS) }
+
+    DocumentScanStatusDialogs(state = scanState, onDismiss = onDismissScan)
+    if (scanState is DocumentScanUiState.Review && uiState is TransportDetailUiState.Success) {
+        ScannedTransportReviewDialog(
+            info = scanState.info,
+            legs = uiState.legs,
+            suggestedLegIndex = scanState.suggestedLegIndex,
+            onConfirm = { legIndex, flightNumber, confirmation, company ->
+                onApplyScannedTransport(legIndex, flightNumber, confirmation, company)
+                selectedTab = TransportDetailTab.LEGS
+            },
+            onDismiss = onDismissScan,
+        )
+    }
 
     val title = when (uiState) {
         is TransportDetailUiState.Success -> uiState.destinationName
@@ -207,6 +237,15 @@ internal fun TransportDetailContent(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = stringResource(R.string.transport_detail_navigate_up),
+                        )
+                    }
+                },
+                actions = {
+                    if (uiState is TransportDetailUiState.Success) {
+                        ScanDocumentAction(
+                            onTakePhoto = onTakePhoto,
+                            onPickImage = onPickImage,
+                            enabled = scanState == DocumentScanUiState.Idle,
                         )
                     }
                 },
@@ -1203,7 +1242,7 @@ private val TransportType.detailIcon: ImageVector
     }
 
 /** Maps a [TransportType] to its string resource for use on the Transport Detail screen. */
-private val TransportType.detailLabelRes: Int
+internal val TransportType.detailLabelRes: Int
     get() = when (this) {
         TransportType.WALKING -> R.string.transport_walking
         TransportType.CYCLING -> R.string.transport_cycling

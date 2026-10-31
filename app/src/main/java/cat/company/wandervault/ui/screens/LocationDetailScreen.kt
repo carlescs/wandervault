@@ -114,6 +114,12 @@ fun LocationDetailScreen(
         viewModel.loadDestination(destinationId)
     }
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val scanState by viewModel.scanState.collectAsStateWithLifecycle()
+    val imagePicker = rememberDocumentImagePicker(onImageSelected = viewModel::onScanDocument)
+    // Remove the temporary camera capture as soon as it is no longer being scanned.
+    LaunchedEffect(scanState) {
+        if (scanState != DocumentScanUiState.Scanning) imagePicker.deleteCapture()
+    }
     val saveAndNavigateUp: () -> Unit = {
         viewModel.onSave()
         onNavigateUp()
@@ -142,6 +148,11 @@ fun LocationDetailScreen(
         onActivityDraftConfirmationNumberChange = viewModel::onActivityDraftConfirmationNumberChange,
         onSaveActivityDraft = viewModel::onSaveActivityDraft,
         onDeleteActivity = viewModel::onDeleteActivity,
+        scanState = scanState,
+        onTakePhoto = imagePicker::takePhoto,
+        onPickImage = imagePicker::pickImage,
+        onApplyScannedHotel = viewModel::onApplyScannedHotel,
+        onDismissScan = viewModel::onDismissScan,
         modifier = modifier,
     )
 }
@@ -175,6 +186,11 @@ internal fun LocationDetailContent(
     onActivityDraftConfirmationNumberChange: (String) -> Unit = {},
     onSaveActivityDraft: () -> Unit = {},
     onDeleteActivity: (Activity) -> Unit = {},
+    scanState: DocumentScanUiState = DocumentScanUiState.Idle,
+    onTakePhoto: () -> Unit = {},
+    onPickImage: () -> Unit = {},
+    onApplyScannedHotel: (String, String, String) -> Unit = { _, _, _ -> },
+    onDismissScan: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val title = when (uiState) {
@@ -196,6 +212,18 @@ internal fun LocationDetailContent(
         }
     }
 
+    DocumentScanStatusDialogs(state = scanState, onDismiss = onDismissScan)
+    if (scanState is DocumentScanUiState.Review && hotelTabVisible) {
+        ScannedHotelReviewDialog(
+            info = scanState.info,
+            onConfirm = { name, address, reservationNumber ->
+                onApplyScannedHotel(name, address, reservationNumber)
+                selectedTab = LocationDetailTab.HOTEL
+            },
+            onDismiss = onDismissScan,
+        )
+    }
+
     Scaffold(
         modifier = modifier,
         topBar = {
@@ -206,6 +234,16 @@ internal fun LocationDetailContent(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = stringResource(R.string.location_detail_navigate_up),
+                        )
+                    }
+                },
+                actions = {
+                    // Scanning fills in hotel details, which only apply to intermediate stops.
+                    if (hotelTabVisible) {
+                        ScanDocumentAction(
+                            onTakePhoto = onTakePhoto,
+                            onPickImage = onPickImage,
+                            enabled = scanState == DocumentScanUiState.Idle,
                         )
                     }
                 },

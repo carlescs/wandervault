@@ -2,4 +2,6 @@
 <paths>
     <!-- Expose files from filesDir/documents/ for opening with external viewers. -->
     <files-path name="documents" path="documents/" />
+    <!-- Temporary camera captures used for on-device document scanning. -->
+    <cache-path name="scans" path="scans/" />
 </paths>

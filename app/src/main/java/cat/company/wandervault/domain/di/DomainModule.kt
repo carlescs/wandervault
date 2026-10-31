@@ -59,6 +59,7 @@ import cat.company.wandervault.domain.usecase.SaveTripDescriptionUseCase
 import cat.company.wandervault.domain.usecase.SaveTripChatMessageUseCase
 import cat.company.wandervault.domain.usecase.SaveTripWhatsNextUseCase
 import cat.company.wandervault.domain.usecase.SaveTripUseCase
+import cat.company.wandervault.domain.usecase.ScanTravelDocumentUseCase
 import cat.company.wandervault.domain.usecase.SummarizeDocumentUseCase
 import cat.company.wandervault.domain.usecase.SuggestDocumentNameUseCase
 import cat.company.wandervault.domain.usecase.UpdateDestinationUseCase
@@ -137,4 +138,5 @@ val domainModule = module {
     factory { DetectLanguageUseCase(get()) }
     factory { TranslateTextUseCase(get()) }
     factory { GetTranslationTargetLanguageUseCase(get()) }
+    factory { ScanTravelDocumentUseCase(get()) }
 }

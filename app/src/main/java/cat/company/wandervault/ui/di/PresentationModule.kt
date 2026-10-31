@@ -91,6 +91,7 @@ val presentationModule = module {
             detectLanguage = get(),
             translateText = get(),
             getTranslationTargetLanguage = get(),
+            scanTravelDocument = get(),
         )
     }
     viewModel {
@@ -104,6 +105,7 @@ val presentationModule = module {
             deleteTransport = get(),
             updateDestination = get(),
             getDocumentById = get(),
+            scanTravelDocument = get(),
         )
     }
     viewModel { DataAdminViewModel(androidApplication(), get(), get()) }

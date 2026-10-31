@@ -3,6 +3,7 @@ package cat.company.wandervault.data.di
 import androidx.room.Room
 import cat.company.wandervault.data.local.WanderVaultDatabase
 import cat.company.wandervault.data.mlkit.DocumentSummaryRepositoryImpl
+import cat.company.wandervault.data.mlkit.TextRecognitionRepositoryImpl
 import cat.company.wandervault.data.mlkit.TranslationRepositoryImpl
 import cat.company.wandervault.data.mlkit.TripDescriptionRepositoryImpl
 import cat.company.wandervault.data.repository.ActivityRepositoryImpl
@@ -23,6 +24,7 @@ import cat.company.wandervault.data.repository.HotelRepositoryImpl
 import cat.company.wandervault.domain.repository.HotelRepository
 import cat.company.wandervault.domain.repository.ImageRepository
 import cat.company.wandervault.domain.repository.TransportRepository
+import cat.company.wandervault.domain.repository.TextRecognitionRepository
 import cat.company.wandervault.domain.repository.TranslationRepository
 import cat.company.wandervault.domain.repository.TripChatRepository
 import cat.company.wandervault.domain.repository.TripDescriptionRepository
@@ -85,6 +87,7 @@ val dataModule = module {
     single<TripDescriptionRepository> { TripDescriptionRepositoryImpl(get()) }
     single<DocumentSummaryRepository> { DocumentSummaryRepositoryImpl(androidContext(), get()) }
     single<TranslationRepository> { TranslationRepositoryImpl() }
+    single<TextRecognitionRepository> { TextRecognitionRepositoryImpl(androidContext()) }
     single<BackupRepository> { BackupRepositoryImpl(androidContext(), get()) }
     single<AppPreferencesRepository> { AppPreferencesRepositoryImpl(androidContext()) }
 }

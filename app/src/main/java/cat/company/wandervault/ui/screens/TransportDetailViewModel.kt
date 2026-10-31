@@ -12,8 +12,11 @@ import cat.company.wandervault.domain.usecase.GetDocumentByIdUseCase
 import cat.company.wandervault.domain.usecase.GetNextDestinationUseCase
 import cat.company.wandervault.domain.usecase.GetOrCreateTransportForDestinationUseCase
 import cat.company.wandervault.domain.usecase.SaveTransportLegUseCase
+import cat.company.wandervault.domain.usecase.ScanTravelDocumentUseCase
 import cat.company.wandervault.domain.usecase.UpdateDestinationUseCase
 import cat.company.wandervault.domain.usecase.UpdateTransportLegUseCase
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -48,6 +51,8 @@ import java.time.ZonedDateTime
  *   departure and the last leg's arrival with the corresponding destination date-times).
  * @param getDocumentById Use-case that resolves a [cat.company.wandervault.domain.model.TripDocument]
  *   by its ID; used to look up the name of the source document linked to a transport leg.
+ * @param scanTravelDocument Use-case that extracts booking details from a photo of a boarding
+ *   pass or ticket using on-device ML Kit Text Recognition.
  */
 class TransportDetailViewModel(
     private val getDestinationById: GetDestinationByIdUseCase,
@@ -59,6 +64,7 @@ class TransportDetailViewModel(
     private val deleteTransport: DeleteTransportUseCase,
     private val updateDestination: UpdateDestinationUseCase,
     private val getDocumentById: GetDocumentByIdUseCase,
+    private val scanTravelDocument: ScanTravelDocumentUseCase,
 ) : ViewModel() {
 
     private val _destinationId = MutableStateFlow<Int?>(null)
@@ -85,6 +91,13 @@ class TransportDetailViewModel(
 
     private val _uiState = MutableStateFlow<TransportDetailUiState>(TransportDetailUiState.Loading)
     val uiState: StateFlow<TransportDetailUiState> = _uiState.asStateFlow()
+
+    private val _scanState = MutableStateFlow<DocumentScanUiState>(DocumentScanUiState.Idle)
+
+    /** State of the current document scan, if any. */
+    val scanState: StateFlow<DocumentScanUiState> = _scanState.asStateFlow()
+
+    private var scanJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -297,6 +310,80 @@ class TransportDetailViewModel(
         if (leg.sourceDocumentId == null) return
         _hasUnsavedEdits = true
         updateLeg(index) { copy(sourceDocumentId = null, sourceDocumentName = null) }
+    }
+
+    // ── Document scanning ─────────────────────────────────────────────────────
+
+    /**
+     * Scans the image at [imageUri] (boarding pass, ticket, …) on-device and, when booking
+     * details are found, moves to [DocumentScanUiState.Review] so the user can confirm them.
+     * Nothing is saved until [onApplyScannedTransport] is called.
+     */
+    fun onScanDocument(imageUri: String) {
+        scanJob?.cancel()
+        _scanState.value = DocumentScanUiState.Scanning
+        scanJob = viewModelScope.launch {
+            _scanState.value = try {
+                val info = scanTravelDocument(imageUri)
+                if (info == null || !info.hasTransportFields) {
+                    DocumentScanUiState.NothingFound
+                } else {
+                    val legs = (_uiState.value as? TransportDetailUiState.Success)?.legs.orEmpty()
+                    DocumentScanUiState.Review(info, suggestLegIndexForScan(legs, info))
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                DocumentScanUiState.Error
+            }
+        }
+    }
+
+    /** Cancels or closes the current scan without saving anything. */
+    fun onDismissScan() {
+        scanJob?.cancel()
+        _scanState.value = DocumentScanUiState.Idle
+    }
+
+    /**
+     * Applies user-confirmed scanned values to the leg at [legIndex], or to a new leg when
+     * [legIndex] is `null`. Blank values leave the existing fields unchanged. The change is
+     * persisted by the auto-save debounce.
+     */
+    fun onApplyScannedTransport(
+        legIndex: Int?,
+        flightNumber: String,
+        confirmationNumber: String,
+        company: String,
+    ) {
+        val current = _uiState.value as? TransportDetailUiState.Success
+        _scanState.value = DocumentScanUiState.Idle
+        if (current == null) return
+        _hasUnsavedEdits = true
+        if (legIndex != null && legIndex in current.legs.indices) {
+            updateLeg(legIndex) {
+                copy(
+                    flightNumber = flightNumber.ifBlank { this.flightNumber },
+                    confirmationNumber = confirmationNumber.ifBlank { this.confirmationNumber },
+                    company = company.ifBlank { this.company },
+                )
+            }
+        } else {
+            val typeName = if (flightNumber.isNotBlank()) {
+                TransportType.FLIGHT.name
+            } else {
+                current.legs.lastOrNull()?.typeName ?: TransportType.OTHER.name
+            }
+            updateLegs {
+                this + TransportLegEditState(
+                    clientKey = _nextClientKey--,
+                    typeName = typeName,
+                    flightNumber = flightNumber,
+                    confirmationNumber = confirmationNumber,
+                    company = company,
+                )
+            }
+        }
     }
 
     /**
