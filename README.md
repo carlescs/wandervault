@@ -13,6 +13,8 @@ An Android travel planning app powered by ML Kit and Gemini Nano that helps you 
 - **Activities** – Log per-destination activities (title, description, date/time, confirmation number) to keep track of excursions and bookings.
 - **Document Organisation** – Upload and organise travel documents (PDFs, images, plain text) into a folder hierarchy per trip.
 - **AI Document Extraction** – On-device OCR + Gemini Nano automatically extracts flight details (airline, flight number, booking reference, route) and hotel details (name, check-in/out dates, booking reference) from uploaded documents, and matches them to your itinerary.
+- **Document Scanning** – Photograph or pick an image of a boarding pass or hotel reservation from the transport or destination screen; ML Kit Text Recognition extracts the flight number, booking reference, carrier or hotel details on-device, and you review them before they are saved.
+- **Notes Translation** – ML Kit Language Identification detects the language of destination notes, and on-device ML Kit Translation can translate them into your preferred language.
 - **AI Document Q&A** – Ask free-form questions about any uploaded document; Gemini Nano answers on-device without an internet connection.
 - **AI Auto-Organize** – Gemini Nano suggests a folder structure for a trip's documents and moves them automatically.
 - **AI Trip Descriptions** – Gemini Nano generates short, engaging trip summaries based on your itinerary, with no internet connection required.
@@ -73,6 +75,8 @@ cat.company.wandervault/
 | Image loading     | Coil                                       | 2.7.0          |
 | On-device AI      | ML Kit GenAI (Gemini Nano Prompt API)      | 1.0.0-beta1    |
 | OCR               | ML Kit Text Recognition                    | 16.0.1         |
+| Language detection | ML Kit Language Identification            | 17.0.6         |
+| Translation       | ML Kit Translation (on-device)             | 17.0.3         |
 | Background work   | WorkManager                                | 2.10.1         |
 | Coroutines        | kotlinx-coroutines                         | 1.10.2         |
 | Symbol processing | KSP                                        | 2.3.2          |
@@ -166,6 +170,14 @@ Supports **PDF**, **image**, and **plain-text** files:
 1. **Text extraction**: plain text is read directly; PDFs are rendered with `PdfRenderer` + ML Kit Text Recognition; images use Text Recognition OCR.
 2. **AI analysis**: the extracted text is sent to Gemini Nano with a structured prompt that identifies whether the document is a flight booking, hotel reservation, or other travel document.
 3. **Structured output**: the result is parsed into `FlightInfo` or `HotelInfo`, which are then matched against the trip's existing destinations to pre-populate the itinerary automatically.
+
+### Text Recognition – Document Scanning (`TextRecognitionRepositoryImpl`)
+
+The scan action on the Transport Detail and Location Detail screens takes a photo (or uses an image from the photo picker), runs ML Kit Text Recognition on-device and parses the text with `TravelDocumentTextParser`. The parser looks for labelled values (e.g. "Flight", "Booking reference", "PNR", "Localizador") in several languages and extracts the flight number, booking reference, carrier, hotel name and address. The results are shown in a review dialog where the user can edit them and choose the leg to update; nothing is saved until the user confirms, and the temporary camera capture is deleted after scanning.
+
+### Language Identification + Translation – Notes (`TranslationRepositoryImpl`)
+
+Destination notes are checked with ML Kit Language Identification after the user stops typing. When the detected language differs from the AI output language (or the device language), the Notes tab offers to translate them on-device with ML Kit Translation. The translation is shown next to the notes and can replace them on request. Translation models are downloaded on first use of a language and work offline afterwards.
 
 ---
 

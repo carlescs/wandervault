@@ -114,6 +114,12 @@ fun LocationDetailScreen(
         viewModel.loadDestination(destinationId)
     }
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val scanState by viewModel.scanState.collectAsStateWithLifecycle()
+    val imagePicker = rememberDocumentImagePicker(onImageSelected = viewModel::onScanDocument)
+    // Remove the temporary camera capture as soon as it is no longer being scanned.
+    LaunchedEffect(scanState) {
+        if (scanState != DocumentScanUiState.Scanning) imagePicker.deleteCapture()
+    }
     val saveAndNavigateUp: () -> Unit = {
         viewModel.onSave()
         onNavigateUp()
@@ -128,6 +134,9 @@ fun LocationDetailScreen(
         onHotelAddressChange = viewModel::onHotelAddressChange,
         onHotelReservationNumberChange = viewModel::onHotelReservationNumberChange,
         onNotesChange = viewModel::onNotesChange,
+        onTranslateNotes = viewModel::onTranslateNotes,
+        onDismissNotesTranslation = viewModel::onDismissNotesTranslation,
+        onReplaceNotesWithTranslation = viewModel::onReplaceNotesWithTranslation,
         onNavigateToDocument = onNavigateToDocument,
         onClearHotelSourceDocument = viewModel::onClearHotelSourceDocument,
         onOpenNewActivityDraft = viewModel::onOpenNewActivityDraft,
@@ -139,6 +148,11 @@ fun LocationDetailScreen(
         onActivityDraftConfirmationNumberChange = viewModel::onActivityDraftConfirmationNumberChange,
         onSaveActivityDraft = viewModel::onSaveActivityDraft,
         onDeleteActivity = viewModel::onDeleteActivity,
+        scanState = scanState,
+        onTakePhoto = imagePicker::takePhoto,
+        onPickImage = imagePicker::pickImage,
+        onApplyScannedHotel = viewModel::onApplyScannedHotel,
+        onDismissScan = viewModel::onDismissScan,
         modifier = modifier,
     )
 }
@@ -158,6 +172,9 @@ internal fun LocationDetailContent(
     onHotelAddressChange: (String) -> Unit = {},
     onHotelReservationNumberChange: (String) -> Unit = {},
     onNotesChange: (String) -> Unit = {},
+    onTranslateNotes: () -> Unit = {},
+    onDismissNotesTranslation: () -> Unit = {},
+    onReplaceNotesWithTranslation: () -> Unit = {},
     onNavigateToDocument: (Int) -> Unit = {},
     onClearHotelSourceDocument: () -> Unit = {},
     onOpenNewActivityDraft: () -> Unit = {},
@@ -169,6 +186,11 @@ internal fun LocationDetailContent(
     onActivityDraftConfirmationNumberChange: (String) -> Unit = {},
     onSaveActivityDraft: () -> Unit = {},
     onDeleteActivity: (Activity) -> Unit = {},
+    scanState: DocumentScanUiState = DocumentScanUiState.Idle,
+    onTakePhoto: () -> Unit = {},
+    onPickImage: () -> Unit = {},
+    onApplyScannedHotel: (String, String, String) -> Unit = { _, _, _ -> },
+    onDismissScan: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val title = when (uiState) {
@@ -190,6 +212,18 @@ internal fun LocationDetailContent(
         }
     }
 
+    DocumentScanStatusDialogs(state = scanState, onDismiss = onDismissScan)
+    if (scanState is DocumentScanUiState.Review && hotelTabVisible) {
+        ScannedHotelReviewDialog(
+            info = scanState.info,
+            onConfirm = { name, address, reservationNumber ->
+                onApplyScannedHotel(name, address, reservationNumber)
+                selectedTab = LocationDetailTab.HOTEL
+            },
+            onDismiss = onDismissScan,
+        )
+    }
+
     Scaffold(
         modifier = modifier,
         topBar = {
@@ -200,6 +234,16 @@ internal fun LocationDetailContent(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = stringResource(R.string.location_detail_navigate_up),
+                        )
+                    }
+                },
+                actions = {
+                    // Scanning fills in hotel details, which only apply to intermediate stops.
+                    if (hotelTabVisible) {
+                        ScanDocumentAction(
+                            onTakePhoto = onTakePhoto,
+                            onPickImage = onPickImage,
+                            enabled = scanState == DocumentScanUiState.Idle,
                         )
                     }
                 },
@@ -273,6 +317,9 @@ internal fun LocationDetailContent(
                         uiState = uiState,
                         innerPadding = innerPadding,
                         onNotesChange = onNotesChange,
+                        onTranslateNotes = onTranslateNotes,
+                        onDismissTranslation = onDismissNotesTranslation,
+                        onReplaceWithTranslation = onReplaceNotesWithTranslation,
                     )
                 }
             }
@@ -426,6 +473,9 @@ private fun NotesTabContent(
     uiState: LocationDetailUiState.Success,
     innerPadding: PaddingValues,
     onNotesChange: (String) -> Unit,
+    onTranslateNotes: () -> Unit = {},
+    onDismissTranslation: () -> Unit = {},
+    onReplaceWithTranslation: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -442,6 +492,12 @@ private fun NotesTabContent(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f),
+        )
+        NotesLanguageSection(
+            state = uiState.notesLanguage,
+            onTranslate = onTranslateNotes,
+            onDismissTranslation = onDismissTranslation,
+            onReplaceWithTranslation = onReplaceWithTranslation,
         )
     }
 }

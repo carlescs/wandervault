@@ -6,24 +6,34 @@ import cat.company.wandervault.domain.model.Activity
 import cat.company.wandervault.domain.model.Hotel
 import cat.company.wandervault.domain.usecase.DeleteActivityUseCase
 import cat.company.wandervault.domain.usecase.DeleteHotelUseCase
+import cat.company.wandervault.domain.usecase.DetectLanguageUseCase
 import cat.company.wandervault.domain.usecase.GetActivitiesForDestinationUseCase
 import cat.company.wandervault.domain.usecase.GetArrivalTransportForDestinationUseCase
 import cat.company.wandervault.domain.usecase.GetDestinationByIdUseCase
 import cat.company.wandervault.domain.usecase.GetDestinationsForTripUseCase
 import cat.company.wandervault.domain.usecase.GetDocumentByIdUseCase
 import cat.company.wandervault.domain.usecase.GetHotelForDestinationUseCase
+import cat.company.wandervault.domain.usecase.GetTranslationTargetLanguageUseCase
 import cat.company.wandervault.domain.usecase.SaveActivityUseCase
 import cat.company.wandervault.domain.usecase.SaveHotelUseCase
+import cat.company.wandervault.domain.usecase.ScanTravelDocumentUseCase
+import cat.company.wandervault.domain.usecase.TranslateTextUseCase
 import cat.company.wandervault.domain.usecase.UpdateDestinationUseCase
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.ZonedDateTime
 
@@ -47,6 +57,11 @@ import java.time.ZonedDateTime
  * @param getActivitiesForDestination Use-case that fetches activities for a destination.
  * @param saveActivity Use-case that persists an activity record.
  * @param deleteActivity Use-case that removes an activity record.
+ * @param detectLanguage Use-case that detects the language the notes are written in.
+ * @param translateText Use-case that translates the notes on-device.
+ * @param getTranslationTargetLanguage Use-case that resolves the language notes are translated into.
+ * @param scanTravelDocument Use-case that extracts hotel details from a photo of a reservation
+ *   using on-device ML Kit Text Recognition.
  */
 class LocationDetailViewModel(
     private val getDestinationById: GetDestinationByIdUseCase,
@@ -60,6 +75,10 @@ class LocationDetailViewModel(
     private val getActivitiesForDestination: GetActivitiesForDestinationUseCase,
     private val saveActivity: SaveActivityUseCase,
     private val deleteActivity: DeleteActivityUseCase,
+    private val detectLanguage: DetectLanguageUseCase,
+    private val translateText: TranslateTextUseCase,
+    private val getTranslationTargetLanguage: GetTranslationTargetLanguageUseCase,
+    private val scanTravelDocument: ScanTravelDocumentUseCase,
 ) : ViewModel() {
 
     private val _destinationId = MutableStateFlow<Int?>(null)
@@ -80,8 +99,21 @@ class LocationDetailViewModel(
     /** The activity currently being created or edited. `null` means the form is closed. */
     private val _activityDraft = MutableStateFlow<ActivityEditState?>(null)
 
+    /** Language detection and translation state for the notes. */
+    private val _notesLanguage = MutableStateFlow(NotesLanguageState())
+
+    /** The in-flight notes translation, if any. */
+    private var translationJob: Job? = null
+
     private val _uiState = MutableStateFlow<LocationDetailUiState>(LocationDetailUiState.Loading)
     val uiState: StateFlow<LocationDetailUiState> = _uiState.asStateFlow()
+
+    private val _scanState = MutableStateFlow<DocumentScanUiState>(DocumentScanUiState.Idle)
+
+    /** State of the current hotel-reservation scan, if any. */
+    val scanState: StateFlow<DocumentScanUiState> = _scanState.asStateFlow()
+
+    private var scanJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -103,7 +135,8 @@ class LocationDetailViewModel(
                             combine(
                                 getDestinationsForTrip(destination.tripId),
                                 _activityDraft,
-                            ) { tripDestinations, activityDraft ->
+                                _notesLanguage,
+                            ) { tripDestinations, activityDraft, notesLanguage ->
                                 val firstPosition = tripDestinations.firstOrNull()?.position
                                 val lastPosition = tripDestinations.lastOrNull()?.position
                                 val isFirst = destination.position == firstPosition
@@ -132,6 +165,7 @@ class LocationDetailViewModel(
                                     isLast = isLast,
                                     hotelEditState = hotelEditState,
                                     notes = notes,
+                                    notesLanguage = notesLanguage,
                                     activities = activities,
                                     activityDraft = activityDraft,
                                 )
@@ -154,6 +188,16 @@ class LocationDetailViewModel(
                     persistNotes()
                 }
         }
+
+        // Detect the notes language once the user stops typing (and whenever notes are loaded).
+        viewModelScope.launch {
+            _uiState
+                .map { (it as? LocationDetailUiState.Success)?.notes }
+                .filterNotNull()
+                .distinctUntilChanged()
+                .debounce(LANGUAGE_DETECTION_DEBOUNCE_MS)
+                .collectLatest { notes -> detectNotesLanguage(notes) }
+        }
     }
 
     /** Switch the screen to display the destination with the given [id]. */
@@ -163,6 +207,10 @@ class LocationDetailViewModel(
             _hasUnsavedHotelEdits = false
             _hasUnsavedNotesEdits = false
             _activityDraft.value = null
+            scanJob?.cancel()
+            _scanState.value = DocumentScanUiState.Idle
+            translationJob?.cancel()
+            _notesLanguage.value = NotesLanguageState()
             _destinationId.value = id
         }
     }
@@ -190,6 +238,106 @@ class LocationDetailViewModel(
         _hasUnsavedNotesEdits = true
         val current = _uiState.value as? LocationDetailUiState.Success ?: return
         _uiState.value = current.copy(notes = value)
+        // Any existing translation no longer matches the edited notes.
+        if (_notesLanguage.value.translation != NotesTranslationState.Idle) {
+            translationJob?.cancel()
+            _notesLanguage.update { it.copy(translation = NotesTranslationState.Idle) }
+        }
+    }
+
+    // ── Hotel reservation scanning ────────────────────────────────────────────
+
+    /**
+     * Scans the image at [imageUri] (hotel reservation, booking confirmation, …) on-device and,
+     * when hotel details are found, moves to [DocumentScanUiState.Review] so the user can
+     * confirm them. Nothing is saved until [onApplyScannedHotel] is called.
+     */
+    fun onScanDocument(imageUri: String) {
+        scanJob?.cancel()
+        _scanState.value = DocumentScanUiState.Scanning
+        scanJob = viewModelScope.launch {
+            _scanState.value = try {
+                val info = scanTravelDocument(imageUri)
+                if (info == null || !info.hasHotelFields) {
+                    DocumentScanUiState.NothingFound
+                } else {
+                    DocumentScanUiState.Review(info)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                DocumentScanUiState.Error
+            }
+        }
+    }
+
+    /** Cancels or closes the current scan without saving anything. */
+    fun onDismissScan() {
+        scanJob?.cancel()
+        _scanState.value = DocumentScanUiState.Idle
+    }
+
+    /**
+     * Applies user-confirmed scanned hotel values. Blank values leave the existing fields
+     * unchanged. The change is persisted by the auto-save debounce.
+     */
+    fun onApplyScannedHotel(name: String, address: String, reservationNumber: String) {
+        _scanState.value = DocumentScanUiState.Idle
+        val current = _uiState.value as? LocationDetailUiState.Success ?: return
+        if (current.isFirst || current.isLast) return
+        _hasUnsavedHotelEdits = true
+        updateHotelEditState {
+            copy(
+                name = name.ifBlank { this.name },
+                address = address.ifBlank { this.address },
+                reservationNumber = reservationNumber.ifBlank { this.reservationNumber },
+            )
+        }
+    }
+
+    // ── Notes language detection & translation ────────────────────────────────
+
+    /**
+     * Translates the current notes from the detected language into the target language using
+     * on-device ML Kit Translation. The result is shown alongside the notes and is only written
+     * back to the notes when the user calls [onReplaceNotesWithTranslation].
+     */
+    fun onTranslateNotes() {
+        val state = _uiState.value as? LocationDetailUiState.Success ?: return
+        val language = _notesLanguage.value
+        val source = language.detectedLanguage ?: return
+        val target = language.targetLanguage ?: return
+        if (!language.canTranslate || language.translation == NotesTranslationState.Translating) return
+        val notes = state.notes
+        _notesLanguage.update { it.copy(translation = NotesTranslationState.Translating) }
+        translationJob = viewModelScope.launch {
+            val result = try {
+                translateText(notes, source, target)?.let { translated ->
+                    NotesTranslationState.Translated(
+                        text = translated.text,
+                        sourceLanguage = translated.sourceLanguage,
+                        targetLanguage = translated.targetLanguage,
+                    )
+                } ?: NotesTranslationState.Unsupported
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                NotesTranslationState.Error
+            }
+            _notesLanguage.update { it.copy(translation = result) }
+        }
+    }
+
+    /** Hides the translation (cancelling it if still in progress). */
+    fun onDismissNotesTranslation() {
+        translationJob?.cancel()
+        _notesLanguage.update { it.copy(translation = NotesTranslationState.Idle) }
+    }
+
+    /** Replaces the notes with the current translation; persisted via auto-save. */
+    fun onReplaceNotesWithTranslation() {
+        val translated = _notesLanguage.value.translation as? NotesTranslationState.Translated ?: return
+        onNotesChange(translated.text)
     }
 
     /** Flushes any pending hotel edits immediately (e.g. on navigate-away). */
@@ -327,8 +475,28 @@ class LocationDetailViewModel(
         updateDestination(state.destination.copy(notes = updatedNotes))
     }
 
+    private suspend fun detectNotesLanguage(notes: String) {
+        val target = getTranslationTargetLanguage()
+        val (detected, failed) = try {
+            detectLanguage(notes) to false
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            null to true
+        }
+        _notesLanguage.update { current ->
+            current.copy(
+                detectedLanguage = detected,
+                targetLanguage = target,
+                canTranslate = detected != null && translateText.canTranslate(detected, target),
+                detectionFailed = failed,
+            )
+        }
+    }
+
     companion object {
         private const val AUTO_SAVE_DEBOUNCE_MS = 300L
+        private const val LANGUAGE_DETECTION_DEBOUNCE_MS = 600L
     }
 }
 
