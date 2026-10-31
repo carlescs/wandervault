@@ -208,6 +208,16 @@
     <!-- Notes tab -->
     <string name="notes_label">Notes</string>
     <string name="notes_placeholder">Add your notes here…</string>
+    <string name="notes_detected_language">Detected language: %1$s</string>
+    <string name="notes_translate_to">Translate to %1$s</string>
+    <string name="notes_language_detection_failed">Could not detect the language of these notes.</string>
+    <string name="notes_translating">Translating on-device… The language model may need to be downloaded the first time.</string>
+    <string name="notes_translation_unsupported">Translation is not available for this language.</string>
+    <string name="notes_translation_error">Could not translate the notes. Check your connection and try again.</string>
+    <string name="notes_translation_retry">Retry</string>
+    <string name="notes_translated_from_to">Translated from %1$s to %2$s</string>
+    <string name="notes_translation_hide">Hide</string>
+    <string name="notes_translation_replace">Replace notes</string>
     <!-- Activities tab -->
     <string name="activities_empty">No activities yet</string>
     <string name="activities_add">Add activity</string>

@@ -88,6 +88,9 @@ val presentationModule = module {
             getActivitiesForDestination = get(),
             saveActivity = get(),
             deleteActivity = get(),
+            detectLanguage = get(),
+            translateText = get(),
+            getTranslationTargetLanguage = get(),
         )
     }
     viewModel {

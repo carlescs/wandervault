@@ -128,6 +128,9 @@ fun LocationDetailScreen(
         onHotelAddressChange = viewModel::onHotelAddressChange,
         onHotelReservationNumberChange = viewModel::onHotelReservationNumberChange,
         onNotesChange = viewModel::onNotesChange,
+        onTranslateNotes = viewModel::onTranslateNotes,
+        onDismissNotesTranslation = viewModel::onDismissNotesTranslation,
+        onReplaceNotesWithTranslation = viewModel::onReplaceNotesWithTranslation,
         onNavigateToDocument = onNavigateToDocument,
         onClearHotelSourceDocument = viewModel::onClearHotelSourceDocument,
         onOpenNewActivityDraft = viewModel::onOpenNewActivityDraft,
@@ -158,6 +161,9 @@ internal fun LocationDetailContent(
     onHotelAddressChange: (String) -> Unit = {},
     onHotelReservationNumberChange: (String) -> Unit = {},
     onNotesChange: (String) -> Unit = {},
+    onTranslateNotes: () -> Unit = {},
+    onDismissNotesTranslation: () -> Unit = {},
+    onReplaceNotesWithTranslation: () -> Unit = {},
     onNavigateToDocument: (Int) -> Unit = {},
     onClearHotelSourceDocument: () -> Unit = {},
     onOpenNewActivityDraft: () -> Unit = {},
@@ -273,6 +279,9 @@ internal fun LocationDetailContent(
                         uiState = uiState,
                         innerPadding = innerPadding,
                         onNotesChange = onNotesChange,
+                        onTranslateNotes = onTranslateNotes,
+                        onDismissTranslation = onDismissNotesTranslation,
+                        onReplaceWithTranslation = onReplaceNotesWithTranslation,
                     )
                 }
             }
@@ -426,6 +435,9 @@ private fun NotesTabContent(
     uiState: LocationDetailUiState.Success,
     innerPadding: PaddingValues,
     onNotesChange: (String) -> Unit,
+    onTranslateNotes: () -> Unit = {},
+    onDismissTranslation: () -> Unit = {},
+    onReplaceWithTranslation: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -442,6 +454,12 @@ private fun NotesTabContent(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f),
+        )
+        NotesLanguageSection(
+            state = uiState.notesLanguage,
+            onTranslate = onTranslateNotes,
+            onDismissTranslation = onDismissTranslation,
+            onReplaceWithTranslation = onReplaceWithTranslation,
         )
     }
 }

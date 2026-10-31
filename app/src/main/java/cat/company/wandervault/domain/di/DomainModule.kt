@@ -7,6 +7,9 @@ import cat.company.wandervault.domain.usecase.CreateTripChatSessionUseCase
 import cat.company.wandervault.domain.usecase.CopyDocumentToInternalStorageUseCase
 import cat.company.wandervault.domain.usecase.ArchiveTripUseCase
 import cat.company.wandervault.domain.usecase.DeleteActivityUseCase
+import cat.company.wandervault.domain.usecase.DetectLanguageUseCase
+import cat.company.wandervault.domain.usecase.GetTranslationTargetLanguageUseCase
+import cat.company.wandervault.domain.usecase.TranslateTextUseCase
 import cat.company.wandervault.domain.usecase.GenerateWhatsNextUseCase
 import cat.company.wandervault.domain.usecase.GetArchivedTripsUseCase
 import cat.company.wandervault.domain.usecase.GetFavoriteTripsUseCase
@@ -131,4 +134,7 @@ val domainModule = module {
     factory { SuggestChatSessionNameUseCase(get()) }
     factory { AutoOrganizeDocumentsUseCase(get()) }
     factory { GetDocumentByIdUseCase(get()) }
+    factory { DetectLanguageUseCase(get()) }
+    factory { TranslateTextUseCase(get()) }
+    factory { GetTranslationTargetLanguageUseCase(get()) }
 }
