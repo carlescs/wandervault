@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -18,18 +17,22 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.outlined.Archive
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.outlined.Luggage
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconToggleButton
@@ -44,6 +47,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -52,15 +56,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -73,8 +76,6 @@ import coil.request.ImageRequest
 import org.koin.androidx.compose.koinViewModel
 import java.time.LocalDate
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
 
 /**
  * Home screen – displays the user's list of trips.
@@ -162,15 +163,30 @@ internal fun HomeScreenContent(
     onTripClick: (Int) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    val listState = rememberLazyListState()
+    val isFabExpanded by remember { derivedStateOf { listState.firstVisibleItemIndex == 0 } }
+
     Box(modifier = modifier.fillMaxSize()) {
         if (uiState.trips.isEmpty()) {
-            TripsEmptyState(modifier = Modifier.fillMaxSize())
+            EmptyState(
+                icon = Icons.Outlined.Luggage,
+                title = stringResource(R.string.trips_empty_title),
+                message = stringResource(R.string.trips_empty_subtitle),
+                modifier = Modifier.fillMaxSize(),
+            )
         } else {
             LazyColumn(
+                state = listState,
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 88.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 96.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                item(key = "header") {
+                    ScreenHeader(
+                        title = stringResource(R.string.home_title),
+                        subtitle = pluralStringResource(R.plurals.home_trip_count, uiState.trips.size, uiState.trips.size),
+                    )
+                }
                 items(uiState.trips, key = { it.id }) { trip ->
                     val currentArchiveAction by rememberUpdatedState(newValue = { onArchiveClick(trip) })
                     SwipeToRevealBox(
@@ -194,14 +210,15 @@ internal fun HomeScreenContent(
             }
         }
 
-        FloatingActionButton(
+        ExtendedFloatingActionButton(
+            text = { Text(stringResource(R.string.add_trip_title)) },
+            icon = { Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_trip_content_desc)) },
+            expanded = isFabExpanded,
             onClick = onAddTripClick,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(16.dp),
-        ) {
-            Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_trip_content_desc))
-        }
+        )
     }
 
     if (uiState.showAddTripDialog) {
@@ -241,75 +258,62 @@ internal fun HomeScreenContent(
     }
 }
 
+/**
+ * Home list card: a [TripCoverCard] with a favourite toggle and an overflow menu for the less
+ * frequent edit / archive / delete actions.
+ */
 @Composable
 private fun TripCard(trip: Trip, onEditClick: () -> Unit, onDeleteClick: () -> Unit = {}, onFavoriteClick: () -> Unit = {}, onArchiveClick: () -> Unit = {}, onCardClick: () -> Unit = {}, modifier: Modifier = Modifier) {
-    val formatter = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
-    Card(modifier = modifier.fillMaxWidth(), onClick = onCardClick) {
-        if (trip.imageUri != null) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(120.dp)
-                    .sharedTripCoverBounds(trip.id),
-            ) {
-                AsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current)
-                        .data(Uri.parse(trip.imageUri))
-                        .crossfade(true)
-                        .build(),
-                    contentDescription = stringResource(R.string.trip_image_content_desc),
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            }
-        }
-        Row(
-            modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 16.dp, end = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
+    var menuExpanded by remember { mutableStateOf(false) }
+    TripCoverCard(
+        trip = trip,
+        onClick = onCardClick,
+        modifier = modifier,
+        coverModifier = Modifier.sharedTripCoverBounds(trip.id),
+    ) {
+        IconToggleButton(
+            checked = trip.isFavorite,
+            onCheckedChange = { onFavoriteClick() },
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = trip.title,
-                    style = MaterialTheme.typography.titleMedium,
+            Icon(
+                imageVector = if (trip.isFavorite) Icons.Default.Favorite else Icons.Outlined.FavoriteBorder,
+                contentDescription = stringResource(if (trip.isFavorite) R.string.trip_remove_favorite else R.string.trip_add_favorite),
+            )
+        }
+        Box {
+            IconButton(onClick = { menuExpanded = true }) {
+                Icon(
+                    imageVector = Icons.Default.MoreVert,
+                    contentDescription = stringResource(R.string.trip_more_options),
                 )
-                if (trip.startDate != null && trip.endDate != null) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "${trip.startDate.format(formatter)} – ${trip.endDate.format(formatter)}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
             }
-            IconToggleButton(
-                checked = trip.isFavorite,
-                onCheckedChange = { onFavoriteClick() },
+            DropdownMenu(
+                expanded = menuExpanded,
+                onDismissRequest = { menuExpanded = false },
             ) {
-                Icon(
-                    imageVector = if (trip.isFavorite) Icons.Default.Favorite else Icons.Outlined.FavoriteBorder,
-                    contentDescription = stringResource(if (trip.isFavorite) R.string.trip_remove_favorite else R.string.trip_add_favorite),
-                    tint = if (trip.isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.edit_trip_content_desc)) },
+                    leadingIcon = { Icon(Icons.Outlined.Edit, contentDescription = null) },
+                    onClick = {
+                        menuExpanded = false
+                        onEditClick()
+                    },
                 )
-            }
-            IconButton(onClick = onEditClick) {
-                Icon(
-                    imageVector = Icons.Default.Edit,
-                    contentDescription = stringResource(R.string.edit_trip_content_desc),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.archive_trip_content_desc)) },
+                    leadingIcon = { Icon(Icons.Outlined.Archive, contentDescription = null) },
+                    onClick = {
+                        menuExpanded = false
+                        onArchiveClick()
+                    },
                 )
-            }
-            IconButton(onClick = onArchiveClick) {
-                Icon(
-                    imageVector = Icons.Default.Archive,
-                    contentDescription = stringResource(R.string.archive_trip_content_desc),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            IconButton(onClick = onDeleteClick) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = stringResource(R.string.delete_trip_content_desc),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.delete_trip_content_desc), color = MaterialTheme.colorScheme.error) },
+                    leadingIcon = { Icon(Icons.Outlined.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                    onClick = {
+                        menuExpanded = false
+                        onDeleteClick()
+                    },
                 )
             }
         }
@@ -485,31 +489,6 @@ private fun DeleteTripConfirmationDialog(
     )
 }
 
-@Composable
-private fun TripsEmptyState(modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(
-            text = stringResource(R.string.trips_empty_title),
-            style = MaterialTheme.typography.headlineSmall,
-            color = MaterialTheme.colorScheme.primary,
-            textAlign = TextAlign.Center
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = stringResource(R.string.trips_empty_subtitle),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center
-        )
-    }
-}
-
 /**
  * An outlined text field that opens a timezone picker dialog when tapped.
  *
@@ -585,7 +564,7 @@ private fun HomeScreenEmptyPreview() {
 private fun HomeScreenWithTripsPreview() {
     val sampleTrips = listOf(
         Trip(1, "Paris Getaway", startDate = LocalDate.of(2024, 6, 1), endDate = LocalDate.of(2024, 6, 10)),
-        Trip(2, "Tokyo Adventure"),
+        Trip(2, "Tokyo Adventure", isFavorite = true),
     )
     WanderVaultTheme {
         HomeScreenContent(

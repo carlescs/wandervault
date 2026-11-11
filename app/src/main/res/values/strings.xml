@@ -9,17 +9,36 @@
 
     <!-- Home screen – trips list -->
     <string name="trips_empty_title">No trips yet</string>
-    <string name="trips_empty_subtitle">Your saved trips will appear here</string>
+    <string name="trips_empty_subtitle">Tap “New Trip” to start planning your next adventure</string>
+    <string name="home_title">Your trips</string>
+    <plurals name="home_trip_count">
+        <item quantity="one">%d trip planned</item>
+        <item quantity="other">%d trips planned</item>
+    </plurals>
+    <string name="trip_more_options">More options</string>
+    <!-- Trip card: "<start date> – <end date> · <duration>" -->
+    <string name="trip_card_date_range">%1$s – %2$s · %3$s</string>
+    <plurals name="trip_card_duration_days">
+        <item quantity="one">%d day</item>
+        <item quantity="other">%d days</item>
+    </plurals>
+    <string name="trip_status_ongoing">Happening now</string>
+    <plurals name="trip_status_starts_in_days">
+        <item quantity="one">In %d day</item>
+        <item quantity="other">In %d days</item>
+    </plurals>
 
     <!-- Favorites screen -->
     <string name="favorites_title">Favorite Trips</string>
-    <string name="favorites_empty">No favorite trips yet.\nTap the heart icon on any trip to add it to your favorites.</string>
+    <string name="favorites_empty_title">No favorites yet</string>
+    <string name="favorites_empty">Tap the heart on any trip to keep it close at hand</string>
     <string name="trip_add_favorite">Add to favorites</string>
     <string name="trip_remove_favorite">Remove from favorites</string>
 
     <!-- Archive screen -->
     <string name="archive_title">Archived Trips</string>
-    <string name="archive_empty">No archived trips yet.\nTap the archive icon on any trip to move it here.</string>
+    <string name="archive_empty_title">Nothing archived</string>
+    <string name="archive_empty">Swipe a trip or use its menu to archive it once you\'re back home</string>
     <string name="archive_trip_content_desc">Archive trip</string>
     <string name="unarchive_trip_content_desc">Unarchive trip</string>
     <string name="trip_archived_snackbar">Trip archived</string>
