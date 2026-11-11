@@ -19,6 +19,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.outlined.Login
+import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DirectionsRun
 import androidx.compose.material.icons.filled.Edit
@@ -275,14 +278,10 @@ internal fun LocationDetailContent(
                 }
             }
             is LocationDetailUiState.Error -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(stringResource(R.string.location_detail_not_found))
-                }
+                DetailMessageState(
+                    message = stringResource(R.string.location_detail_not_found),
+                    modifier = Modifier.padding(innerPadding),
+                )
             }
             is LocationDetailUiState.Success -> {
                 when (selectedTab) {
@@ -348,48 +347,74 @@ private fun OverviewTabContent(
         contentPadding = innerPadding,
     ) {
         item {
-            Column(modifier = Modifier.padding(16.dp)) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
                 Text(
                     text = destination.name,
                     style = MaterialTheme.typography.headlineMedium,
                 )
-                Spacer(modifier = Modifier.height(16.dp))
-                if (!isFirst) {
-                    destination.arrivalDateTime?.let { arrival ->
-                        LabeledInfoRow(
-                            label = stringResource(R.string.location_detail_arrival),
-                            value = arrival.format(dateTimeFormatter),
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                    }
-                    if (arrivalTransport != null) {
-                        TransportsInfoSection(
-                            label = stringResource(R.string.location_detail_arrival_transport),
-                            transport = arrivalTransport,
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
+                val arrival = destination.arrivalDateTime
+                if (!isFirst && (arrival != null || arrivalTransport != null)) {
+                    DetailSection(
+                        title = stringResource(R.string.location_detail_section_arrival),
+                        icon = Icons.AutoMirrored.Outlined.Login,
+                    ) {
+                        if (arrival != null) {
+                            LabeledInfoRow(
+                                label = stringResource(R.string.location_detail_arrival),
+                                value = arrival.format(dateTimeFormatter),
+                            )
+                        }
+                        if (arrivalTransport != null) {
+                            if (arrival != null) Spacer(modifier = Modifier.height(8.dp))
+                            TransportsInfoSection(
+                                label = stringResource(R.string.location_detail_arrival_transport),
+                                transport = arrivalTransport,
+                            )
+                        }
                     }
                 }
                 if (!isLast) {
-                    destination.departureDateTime?.let { departure ->
-                        LabeledInfoRow(
-                            label = stringResource(R.string.location_detail_departure),
-                            value = departure.format(dateTimeFormatter),
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                    }
-                    if (destination.transport != null) {
-                        TransportsInfoSection(
-                            label = stringResource(R.string.location_detail_transport),
-                            transport = destination.transport,
-                            modifier = Modifier.clickable(role = Role.Button) { onTransportClick(destination.id) },
-                        )
-                    } else {
-                        LabeledInfoRow(
-                            label = stringResource(R.string.location_detail_transport),
-                            value = stringResource(R.string.transport_none),
-                            onClick = { onTransportClick(destination.id) },
-                        )
+                    DetailSection(
+                        title = stringResource(R.string.location_detail_section_departure),
+                        icon = Icons.AutoMirrored.Outlined.Logout,
+                    ) {
+                        destination.departureDateTime?.let { departure ->
+                            LabeledInfoRow(
+                                label = stringResource(R.string.location_detail_departure),
+                                value = departure.format(dateTimeFormatter),
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+                        // The transport block opens the Transport detail screen; the chevron
+                        // makes that affordance visible.
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable(role = Role.Button) { onTransportClick(destination.id) },
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Box(modifier = Modifier.weight(1f)) {
+                                if (destination.transport != null) {
+                                    TransportsInfoSection(
+                                        label = stringResource(R.string.location_detail_transport),
+                                        transport = destination.transport,
+                                    )
+                                } else {
+                                    LabeledInfoRow(
+                                        label = stringResource(R.string.location_detail_transport),
+                                        value = stringResource(R.string.transport_none),
+                                    )
+                                }
+                            }
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 }
             }

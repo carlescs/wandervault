@@ -185,7 +185,7 @@ private fun TripCoverPlaceholder(modifier: Modifier = Modifier) {
 
 /** Date range and trip length, e.g. "Jun 1, 2024 – Jun 10, 2024 · 10 days". */
 @Composable
-private fun TripDateLine(trip: Trip) {
+internal fun TripDateLine(trip: Trip) {
     val start = trip.startDate ?: return
     val end = trip.endDate ?: return
     val formatter = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
@@ -217,7 +217,7 @@ private fun TripDateLine(trip: Trip) {
  * trips or trips without dates.
  */
 @Composable
-private fun TripStatusBadge(trip: Trip, modifier: Modifier = Modifier) {
+internal fun TripStatusBadge(trip: Trip, modifier: Modifier = Modifier) {
     val start = trip.startDate ?: return
     val end = trip.endDate ?: start
     val today = remember { LocalDate.now() }

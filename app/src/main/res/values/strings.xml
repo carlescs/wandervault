@@ -208,6 +208,8 @@
 
     <!-- Location Detail screen -->
     <string name="location_detail_navigate_up">Navigate up</string>
+    <string name="location_detail_section_arrival">Getting here</string>
+    <string name="location_detail_section_departure">Moving on</string>
     <string name="location_detail_arrival">Arrival</string>
     <string name="location_detail_departure">Departure</string>
     <string name="location_detail_arrival_transport">Arrival Transport</string>

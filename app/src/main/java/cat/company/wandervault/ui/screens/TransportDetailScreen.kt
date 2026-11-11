@@ -23,6 +23,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AltRoute
 import androidx.compose.material.icons.filled.Check
@@ -81,6 +82,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -271,14 +273,10 @@ internal fun TransportDetailContent(
             }
 
             is TransportDetailUiState.Error -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(stringResource(R.string.transport_detail_not_found))
-                }
+                DetailMessageState(
+                    message = stringResource(R.string.transport_detail_not_found),
+                    modifier = Modifier.padding(innerPadding),
+                )
             }
 
             is TransportDetailUiState.Success -> {
@@ -360,9 +358,17 @@ private fun TransportDetailsTabContent(
                 )
                 Text(
                     text = uiState.originName,
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleLarge,
                 )
             }
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .padding(horizontal = 12.dp)
+                    .align(Alignment.CenterVertically),
+            )
             Column(horizontalAlignment = Alignment.End, modifier = Modifier.weight(1f)) {
                 Text(
                     text = stringResource(R.string.transport_detail_destination_label),
@@ -371,7 +377,8 @@ private fun TransportDetailsTabContent(
                 )
                 Text(
                     text = uiState.nextDestinationName ?: stringResource(R.string.transport_detail_no_destination),
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleLarge,
+                    textAlign = TextAlign.End,
                 )
             }
         }
@@ -749,7 +756,7 @@ private fun TransportLegSection(
     Card(
         modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         ),
     ) {
         Column(

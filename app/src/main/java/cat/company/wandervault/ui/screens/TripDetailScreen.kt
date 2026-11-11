@@ -3,6 +3,7 @@ package cat.company.wandervault.ui.screens
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.annotation.StringRes
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,17 +22,21 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.DepartureBoard
+import androidx.compose.material.icons.outlined.Place
+import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material.icons.outlined.TipsAndUpdates
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -44,12 +49,14 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -84,7 +91,18 @@ private enum class TripDetailTab(@StringRes val labelRes: Int, val icon: ImageVe
 }
 
 /** Height of the trip cover image when rendered below the top app bar. */
-private val BASE_IMAGE_HEIGHT = 200.dp
+private val BASE_IMAGE_HEIGHT = 260.dp
+
+/**
+ * Scrim drawn over the hero cover image: darkens the top so the back arrow stays legible on
+ * bright photos, and the bottom so the overlaid title and dates are readable.
+ */
+private val HERO_SCRIM = Brush.verticalGradient(
+    0f to Color.Black.copy(alpha = 0.45f),
+    0.3f to Color.Transparent,
+    0.5f to Color.Transparent,
+    1f to Color.Black.copy(alpha = 0.75f),
+)
 
 /** Shared date formatter for the Trip Detail screen (medium style, e.g. "Sep 2, 2024"). */
 private val DETAIL_DATE_FORMATTER: DateTimeFormatter =
@@ -313,23 +331,14 @@ private fun TripDetailsTabContent(
         }
 
         is TripDetailUiState.Error -> {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = stringResource(R.string.trip_detail_error),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.error,
-                )
-            }
+            DetailMessageState(
+                message = stringResource(R.string.trip_detail_error),
+                modifier = Modifier.padding(innerPadding),
+            )
         }
 
         is TripDetailUiState.Success -> {
             val trip = uiState.trip
-            val formatter = DETAIL_DATE_FORMATTER
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = if (isImageCoveringTopBar) {
@@ -338,73 +347,99 @@ private fun TripDetailsTabContent(
                     innerPadding
                 },
             ) {
-                    if (trip.imageUri != null) {
-                        item {
-                            val imageHeight = if (isImageCoveringTopBar) {
-                                BASE_IMAGE_HEIGHT + innerPadding.calculateTopPadding()
-                            } else {
-                                BASE_IMAGE_HEIGHT
-                            }
+                if (trip.imageUri != null) {
+                    item(key = "hero") {
+                        val imageHeight = if (isImageCoveringTopBar) {
+                            BASE_IMAGE_HEIGHT + innerPadding.calculateTopPadding()
+                        } else {
+                            BASE_IMAGE_HEIGHT
+                        }
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(imageHeight)
+                                .sharedTripCoverBounds(trip.id),
+                        ) {
+                            AsyncImage(
+                                model = ImageRequest.Builder(LocalContext.current)
+                                    .data(Uri.parse(trip.imageUri))
+                                    .crossfade(true)
+                                    .build(),
+                                contentDescription = stringResource(
+                                    R.string.trip_detail_cover_image_desc,
+                                    trip.title,
+                                ),
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize(),
+                            )
                             Box(
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(imageHeight)
-                                    .sharedTripCoverBounds(trip.id),
-                            ) {
-                                AsyncImage(
-                                    model = ImageRequest.Builder(LocalContext.current)
-                                        .data(Uri.parse(trip.imageUri))
-                                        .crossfade(true)
-                                        .build(),
-                                    contentDescription = stringResource(
-                                        R.string.trip_detail_cover_image_desc,
-                                        trip.title,
-                                    ),
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.fillMaxSize(),
+                                    .matchParentSize()
+                                    .background(HERO_SCRIM),
+                            )
+                            CompositionLocalProvider(LocalContentColor provides Color.White) {
+                                TripDetailHeader(
+                                    trip = trip,
+                                    modifier = Modifier
+                                        .align(Alignment.BottomStart)
+                                        .padding(16.dp),
                                 )
                             }
                         }
                     }
-                    item {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text(
-                                text = trip.title,
-                                style = MaterialTheme.typography.headlineMedium,
-                            )
-                            if (trip.startDate != null && trip.endDate != null) {
-                                Text(
-                                    text = "${trip.startDate.format(formatter)} – ${trip.endDate.format(formatter)}",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(16.dp))
-                            UpcomingEventsSection(
-                                events = uiState.upcomingEvents,
-                                onNavigateToDestination = onNavigateToDestination,
-                                onNavigateToTransport = onNavigateToTransport,
-                            )
-                            WhatsNextSection(
-                                whatsNextState = uiState.whatsNextState,
+                } else {
+                    item(key = "header") {
+                        TripDetailHeader(
+                            trip = trip,
+                            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp),
+                        )
+                    }
+                }
+                item(key = "sections") {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                    ) {
+                        UpcomingEventsSection(
+                            events = uiState.upcomingEvents,
+                            onNavigateToDestination = onNavigateToDestination,
+                            onNavigateToTransport = onNavigateToTransport,
+                        )
+                        WhatsNextSection(
+                            whatsNextState = uiState.whatsNextState,
+                            isAiAvailable = uiState.isAiAvailable,
+                            onRefresh = onRefreshWhatsNext,
+                        )
+                        if (uiState.isAiAvailable && uiState.descriptionState !is DescriptionState.Unavailable) {
+                            AiDescriptionSection(
+                                descriptionState = uiState.descriptionState,
                                 isAiAvailable = uiState.isAiAvailable,
-                                onRefresh = onRefreshWhatsNext,
+                                onRegenerate = onRegenerateDescription,
+                                onDelete = onDeleteDescription,
+                                onClearSource = onClearDescriptionSource,
+                                onNavigateToDocument = onNavigateToDocument,
                             )
-                            if (uiState.isAiAvailable && uiState.descriptionState !is DescriptionState.Unavailable) {
-                                Spacer(modifier = Modifier.height(16.dp))
-                                AiDescriptionSection(
-                                    descriptionState = uiState.descriptionState,
-                                    isAiAvailable = uiState.isAiAvailable,
-                                    onRegenerate = onRegenerateDescription,
-                                    onDelete = onDeleteDescription,
-                                    onClearSource = onClearDescriptionSource,
-                                    onNavigateToDocument = onNavigateToDocument,
-                                )
-                            }
                         }
                     }
                 }
+            }
         }
+    }
+}
+
+/**
+ * Trip status badge, title and date line. Placed over the cover image (white content colour) or,
+ * when the trip has no image, at the top of the Details tab.
+ */
+@Composable
+private fun TripDetailHeader(trip: Trip, modifier: Modifier = Modifier) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        TripStatusBadge(trip = trip, modifier = Modifier.padding(bottom = 8.dp))
+        Text(
+            text = trip.title,
+            style = MaterialTheme.typography.headlineMedium,
+        )
+        TripDateLine(trip = trip)
     }
 }
 
@@ -430,77 +465,69 @@ private fun AiDescriptionSection(
     onClearSource: () -> Unit = {},
     onNavigateToDocument: (Int) -> Unit = {},
 ) {
-    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = stringResource(R.string.trip_detail_ai_summary_title),
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.weight(1f),
-                )
-                if (isAiAvailable && (descriptionState is DescriptionState.Available || descriptionState is DescriptionState.Error)) {
-                    IconButton(onClick = onRegenerate) {
-                        Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = stringResource(R.string.trip_detail_ai_summary_regenerate),
-                        )
-                    }
-                }
-                if (descriptionState is DescriptionState.Available) {
-                    IconButton(onClick = onDelete) {
-                        Icon(
-                            imageVector = Icons.Default.Delete,
-                            contentDescription = stringResource(R.string.trip_detail_ai_summary_delete),
-                        )
-                    }
+    DetailSection(
+        title = stringResource(R.string.trip_detail_ai_summary_title),
+        icon = Icons.Outlined.AutoAwesome,
+        actions = {
+            if (isAiAvailable && (descriptionState is DescriptionState.Available || descriptionState is DescriptionState.Error)) {
+                IconButton(onClick = onRegenerate) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = stringResource(R.string.trip_detail_ai_summary_regenerate),
+                    )
                 }
             }
-            Spacer(modifier = Modifier.height(8.dp))
-            when (descriptionState) {
-                is DescriptionState.Loading -> {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = stringResource(R.string.trip_detail_ai_summary_generating),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-                is DescriptionState.Available -> {
-                    Text(
-                        text = descriptionState.text,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    val docId = descriptionState.sourceDocumentId
-                    if (docId != null) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        SourceDocumentChip(
-                            documentName = descriptionState.sourceDocumentName,
-                            onDocumentClick = { onNavigateToDocument(docId) },
-                            onRemove = onClearSource,
-                        )
-                    }
-                }
-                is DescriptionState.Error -> {
-                    Text(
-                        text = stringResource(R.string.trip_detail_ai_summary_error),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.error,
+            if (descriptionState is DescriptionState.Available) {
+                IconButton(onClick = onDelete) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = stringResource(R.string.trip_detail_ai_summary_delete),
                     )
                 }
-                is DescriptionState.None -> {
-                    TextButton(onClick = onRegenerate) {
-                        Text(text = stringResource(R.string.trip_detail_ai_summary_generate))
-                    }
+            }
+        },
+    ) {
+        when (descriptionState) {
+            is DescriptionState.Loading -> {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = stringResource(R.string.trip_detail_ai_summary_generating),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
-                is DescriptionState.Unavailable -> {
-                    error("AiDescriptionSection should not be called with DescriptionState.Unavailable. Hide the section at the call site instead.")
+            }
+            is DescriptionState.Available -> {
+                Text(
+                    text = descriptionState.text,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                val docId = descriptionState.sourceDocumentId
+                if (docId != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    SourceDocumentChip(
+                        documentName = descriptionState.sourceDocumentName,
+                        onDocumentClick = { onNavigateToDocument(docId) },
+                        onRemove = onClearSource,
+                    )
                 }
+            }
+            is DescriptionState.Error -> {
+                Text(
+                    text = stringResource(R.string.trip_detail_ai_summary_error),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+            is DescriptionState.None -> {
+                TextButton(onClick = onRegenerate) {
+                    Text(text = stringResource(R.string.trip_detail_ai_summary_generate))
+                }
+            }
+            is DescriptionState.Unavailable -> {
+                error("AiDescriptionSection should not be called with DescriptionState.Unavailable. Hide the section at the call site instead.")
             }
         }
     }
@@ -525,71 +552,65 @@ private fun UpcomingEventsSection(
     val dateFormatter = DETAIL_DATE_FORMATTER
     val timeFormatter = DETAIL_TIME_FORMATTER
 
-    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = stringResource(R.string.trip_detail_next_up_title),
-                style = MaterialTheme.typography.titleMedium,
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            events.forEachIndexed { index, event ->
-                if (index > 0) {
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                }
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 48.dp)
-                        .clickable(
-                            role = Role.Button,
-                            onClickLabel = when (event.eventType) {
-                                UpcomingEvent.EventType.ARRIVAL ->
-                                    stringResource(R.string.trip_detail_next_up_open_destination)
-                                UpcomingEvent.EventType.DEPARTURE ->
-                                    stringResource(R.string.trip_detail_next_up_open_transport)
-                            },
-                        ) {
-                            when (event.eventType) {
-                                UpcomingEvent.EventType.ARRIVAL ->
-                                    onNavigateToDestination(event.destinationId)
-                                UpcomingEvent.EventType.DEPARTURE ->
-                                    onNavigateToTransport(event.destinationId)
-                            }
-                        }
-                        .padding(vertical = 4.dp),
-                ) {
-                    Icon(
-                        imageVector = when (event.eventType) {
-                            UpcomingEvent.EventType.ARRIVAL -> Icons.AutoMirrored.Filled.ArrowBack
-                            UpcomingEvent.EventType.DEPARTURE -> Icons.AutoMirrored.Filled.ArrowForward
+    DetailSection(
+        title = stringResource(R.string.trip_detail_next_up_title),
+        icon = Icons.Outlined.Schedule,
+    ) {
+        events.forEach { event ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 56.dp)
+                    .clickable(
+                        role = Role.Button,
+                        onClickLabel = when (event.eventType) {
+                            UpcomingEvent.EventType.ARRIVAL ->
+                                stringResource(R.string.trip_detail_next_up_open_destination)
+                            UpcomingEvent.EventType.DEPARTURE ->
+                                stringResource(R.string.trip_detail_next_up_open_transport)
                         },
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp),
-                    )
-                    Column {
-                        Text(
-                            text = when (event.eventType) {
-                                UpcomingEvent.EventType.ARRIVAL ->
-                                    stringResource(R.string.trip_detail_next_up_arrive, event.destinationName)
-                                UpcomingEvent.EventType.DEPARTURE ->
-                                    stringResource(R.string.trip_detail_next_up_depart, event.destinationName)
-                            },
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                        Text(
-                            text = "${event.dateTime.format(dateFormatter)}, ${event.dateTime.format(timeFormatter)}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                    ) {
+                        when (event.eventType) {
+                            UpcomingEvent.EventType.ARRIVAL ->
+                                onNavigateToDestination(event.destinationId)
+                            UpcomingEvent.EventType.DEPARTURE ->
+                                onNavigateToTransport(event.destinationId)
+                        }
                     }
+                    .padding(vertical = 4.dp),
+            ) {
+                IconBadge(
+                    icon = when (event.eventType) {
+                        UpcomingEvent.EventType.ARRIVAL -> Icons.Outlined.Place
+                        UpcomingEvent.EventType.DEPARTURE -> Icons.Outlined.DepartureBoard
+                    },
+                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = when (event.eventType) {
+                            UpcomingEvent.EventType.ARRIVAL ->
+                                stringResource(R.string.trip_detail_next_up_arrive, event.destinationName)
+                            UpcomingEvent.EventType.DEPARTURE ->
+                                stringResource(R.string.trip_detail_next_up_depart, event.destinationName)
+                        },
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                    Text(
+                        text = "${event.dateTime.format(dateFormatter)}, ${event.dateTime.format(timeFormatter)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }
-    Spacer(modifier = Modifier.height(16.dp))
 }
 
 /**
@@ -611,60 +632,50 @@ private fun WhatsNextSection(
     // Render nothing when AI is disabled or for terminal non-display states.
     if (!isAiAvailable || whatsNextState is WhatsNextState.Unavailable || whatsNextState is WhatsNextState.None) return
 
-    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
+    DetailSection(
+        title = stringResource(R.string.trip_detail_whats_next_title),
+        icon = Icons.Outlined.TipsAndUpdates,
+        actions = {
+            if (whatsNextState is WhatsNextState.Available || whatsNextState is WhatsNextState.Error) {
+                IconButton(onClick = onRefresh) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = stringResource(
+                            R.string.trip_detail_whats_next_refresh,
+                        ),
+                    )
+                }
+            }
+        },
+    ) {
+        when (whatsNextState) {
+            is WhatsNextState.Loading -> {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = stringResource(R.string.trip_detail_whats_next_generating),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            is WhatsNextState.Available -> {
                 Text(
-                    text = stringResource(R.string.trip_detail_whats_next_title),
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.weight(1f),
+                    text = whatsNextState.text,
+                    style = MaterialTheme.typography.bodyMedium,
                 )
-                if (isAiAvailable &&
-                    (whatsNextState is WhatsNextState.Available || whatsNextState is WhatsNextState.Error)
-                ) {
-                    IconButton(onClick = onRefresh) {
-                        Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = stringResource(
-                                R.string.trip_detail_whats_next_refresh,
-                            ),
-                        )
-                    }
-                }
             }
-            Spacer(modifier = Modifier.height(8.dp))
-            when (whatsNextState) {
-                is WhatsNextState.Loading -> {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = stringResource(R.string.trip_detail_whats_next_generating),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-                is WhatsNextState.Available -> {
-                    Text(
-                        text = whatsNextState.text,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
-                is WhatsNextState.Error -> {
-                    Text(
-                        text = stringResource(R.string.trip_detail_whats_next_error),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                }
-                is WhatsNextState.Unavailable,
-                is WhatsNextState.None,
-                -> Unit // Already handled by the early return above.
+            is WhatsNextState.Error -> {
+                Text(
+                    text = stringResource(R.string.trip_detail_whats_next_error),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
+                )
             }
+            is WhatsNextState.Unavailable,
+            is WhatsNextState.None,
+            -> Unit // Already handled by the early return above.
         }
     }
 }
