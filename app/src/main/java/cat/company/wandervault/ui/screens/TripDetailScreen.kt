@@ -38,8 +38,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Refresh
@@ -94,13 +92,14 @@ private enum class TripDetailTab(@StringRes val labelRes: Int, val icon: ImageVe
 private val BASE_IMAGE_HEIGHT = 260.dp
 
 /**
- * Scrim drawn over the hero cover image: darkens the top so the back arrow stays legible on
- * bright photos, and the bottom so the overlaid title and dates are readable.
+ * Scrim drawn over the hero cover image: darkens the top so the back arrow and tab row stay
+ * legible on bright photos, and the bottom so the overlaid title and dates are readable.
  */
 private val HERO_SCRIM = Brush.verticalGradient(
-    0f to Color.Black.copy(alpha = 0.45f),
-    0.3f to Color.Transparent,
+    0f to Color.Black.copy(alpha = 0.55f),
+    0.3f to Color.Black.copy(alpha = 0.3f),
     0.5f to Color.Transparent,
+    0.65f to Color.Transparent,
     1f to Color.Black.copy(alpha = 0.75f),
 )
 
@@ -200,46 +199,70 @@ internal fun TripDetailContent(
         },
         contentWindowInsets = WindowInsets(0),
         topBar = {
-            TopAppBar(
-                title = {
-                    // Hide the title while the image is visible; show it once content scrolls
-                    // behind the bar (scrolledFraction > 0) so the bar is opaque.
-                    if (!isImageCoveringTopBar || scrolledFraction > 0f) {
-                        Text(
-                            if (uiState is TripDetailUiState.Success) {
-                                uiState.trip.title
-                            } else {
-                                stringResource(R.string.trip_detail_title)
-                            },
+            Column {
+                TopAppBar(
+                    title = {
+                        // Hide the title while the image is visible; show it once content scrolls
+                        // behind the bar (scrolledFraction > 0) so the bar is opaque.
+                        if (!isImageCoveringTopBar || scrolledFraction > 0f) {
+                            Text(
+                                if (uiState is TripDetailUiState.Success) {
+                                    uiState.trip.title
+                                } else {
+                                    stringResource(R.string.trip_detail_title)
+                                },
+                            )
+                        }
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onNavigateUp) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = stringResource(R.string.trip_detail_navigate_up),
+                                tint = navIconColor,
+                            )
+                        }
+                    },
+                    scrollBehavior = if (isImageCoveringTopBar) scrollBehavior else null,
+                    colors = if (isImageCoveringTopBar) {
+                        TopAppBarDefaults.topAppBarColors(
+                            containerColor = Color.Transparent,
+                            scrolledContainerColor = MaterialTheme.colorScheme.surface,
+                            navigationIconContentColor = navIconColor,
                         )
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateUp) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.trip_detail_navigate_up),
-                            tint = navIconColor,
-                        )
-                    }
-                },
-                scrollBehavior = if (isImageCoveringTopBar) scrollBehavior else null,
-                colors = if (isImageCoveringTopBar) {
-                    TopAppBarDefaults.topAppBarColors(
-                        containerColor = Color.Transparent,
-                        scrolledContainerColor = MaterialTheme.colorScheme.surface,
-                        navigationIconContentColor = navIconColor,
-                    )
-                } else {
-                    TopAppBarDefaults.topAppBarColors()
-                },
-            )
-        },
-        bottomBar = {
-            TripDetailBottomBar(
-                selectedTab = selectedTab,
-                onTabSelected = { selectedTab = it },
-            )
+                    } else {
+                        TopAppBarDefaults.topAppBarColors()
+                    },
+                )
+                // Over the hero image the tabs start transparent with white content, then blend
+                // into the regular surface colours in step with the top app bar as content scrolls.
+                val surface = MaterialTheme.colorScheme.surface
+                val primary = MaterialTheme.colorScheme.primary
+                val onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
+                DetailTabRow(
+                    tabs = TripDetailTab.entries,
+                    selectedTab = selectedTab,
+                    onTabSelected = { selectedTab = it },
+                    labelRes = { it.labelRes },
+                    icon = { it.icon },
+                    containerColor = if (isImageCoveringTopBar) {
+                        lerp(Color.Transparent, surface, scrolledFraction)
+                    } else {
+                        surface
+                    },
+                    selectedContentColor = if (isImageCoveringTopBar) {
+                        lerp(Color.White, primary, scrolledFraction)
+                    } else {
+                        primary
+                    },
+                    unselectedContentColor = if (isImageCoveringTopBar) {
+                        lerp(Color.White.copy(alpha = 0.8f), onSurfaceVariant, scrolledFraction)
+                    } else {
+                        onSurfaceVariant
+                    },
+                    showDivider = !isImageCoveringTopBar || scrolledFraction > 0f,
+                )
+            }
         },
     ) { innerPadding ->
         when (selectedTab) {
@@ -274,23 +297,6 @@ internal fun TripDetailContent(
                 tripId = tripId,
                 innerPadding = innerPadding,
                 onNavigateToDocument = onNavigateToDocument,
-            )
-        }
-    }
-}
-
-@Composable
-private fun TripDetailBottomBar(
-    selectedTab: TripDetailTab,
-    onTabSelected: (TripDetailTab) -> Unit,
-) {
-    NavigationBar {
-        TripDetailTab.entries.forEach { tab ->
-            NavigationBarItem(
-                selected = tab == selectedTab,
-                onClick = { onTabSelected(tab) },
-                icon = { Icon(tab.icon, contentDescription = null) },
-                label = { Text(stringResource(tab.labelRes)) },
             )
         }
     }

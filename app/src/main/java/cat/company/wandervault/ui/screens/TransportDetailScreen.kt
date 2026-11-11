@@ -43,6 +43,7 @@ import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.Train
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -54,8 +55,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -232,32 +231,35 @@ internal fun TransportDetailContent(
     Scaffold(
         modifier = modifier,
         topBar = {
-            TopAppBar(
-                title = { Text(title) },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateUp) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.transport_detail_navigate_up),
-                        )
-                    }
-                },
-                actions = {
-                    if (uiState is TransportDetailUiState.Success) {
-                        ScanDocumentAction(
-                            onTakePhoto = onTakePhoto,
-                            onPickImage = onPickImage,
-                            enabled = scanState == DocumentScanUiState.Idle,
-                        )
-                    }
-                },
-            )
-        },
-        bottomBar = {
-            TransportDetailBottomBar(
-                selectedTab = selectedTab,
-                onTabSelected = { selectedTab = it },
-            )
+            Column {
+                TopAppBar(
+                    title = { Text(title) },
+                    navigationIcon = {
+                        IconButton(onClick = onNavigateUp) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = stringResource(R.string.transport_detail_navigate_up),
+                            )
+                        }
+                    },
+                    actions = {
+                        if (uiState is TransportDetailUiState.Success) {
+                            ScanDocumentAction(
+                                onTakePhoto = onTakePhoto,
+                                onPickImage = onPickImage,
+                                enabled = scanState == DocumentScanUiState.Idle,
+                            )
+                        }
+                    },
+                )
+                DetailTabRow(
+                    tabs = TransportDetailTab.entries,
+                    selectedTab = selectedTab,
+                    onTabSelected = { selectedTab = it },
+                    labelRes = { it.labelRes },
+                    icon = { it.icon },
+                )
+            }
         },
     ) { innerPadding ->
         when (uiState) {
@@ -305,23 +307,6 @@ internal fun TransportDetailContent(
                     )
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun TransportDetailBottomBar(
-    selectedTab: TransportDetailTab,
-    onTabSelected: (TransportDetailTab) -> Unit,
-) {
-    NavigationBar {
-        TransportDetailTab.entries.forEach { tab ->
-            NavigationBarItem(
-                selected = tab == selectedTab,
-                onClick = { onTabSelected(tab) },
-                icon = { Icon(tab.icon, contentDescription = null) },
-                label = { Text(stringResource(tab.labelRes)) },
-            )
         }
     }
 }
@@ -1178,8 +1163,8 @@ internal fun EditableLabel(
             }
         }
     } else {
-        Column(
-            verticalArrangement = Arrangement.Center,
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
             modifier = modifier
                 .defaultMinSize(minHeight = 48.dp)
                 .clickable(role = Role.Button, onClickLabel = editActionLabel) {
@@ -1188,19 +1173,30 @@ internal fun EditableLabel(
                 }
                 .padding(vertical = 4.dp),
         ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                text = value.ifBlank { notSetPlaceholder },
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (value.isBlank()) {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                } else {
-                    MaterialTheme.colorScheme.onSurface
-                },
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = value.ifBlank { notSetPlaceholder },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (value.isBlank()) {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    },
+                )
+            }
+            // Visual hint that the field is tappable; the click label already announces it.
+            Icon(
+                imageVector = Icons.Outlined.Edit,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .padding(start = 8.dp)
+                    .size(18.dp),
             )
         }
     }

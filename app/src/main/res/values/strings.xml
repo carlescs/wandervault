@@ -223,9 +223,12 @@
     <string name="hotel_name_label">Hotel name</string>
     <string name="hotel_address_label">Address</string>
     <string name="hotel_reservation_number_label">Reservation No.</string>
-    <string name="hotel_nights_label">Nights</string>
-    <string name="hotel_nights_value">%d</string>
-    <string name="hotel_nights_not_available">—</string>
+    <string name="hotel_section_title">Your stay</string>
+    <string name="hotel_nights_unknown">Dates not set</string>
+    <plurals name="hotel_nights_count">
+        <item quantity="one">%d night</item>
+        <item quantity="other">%d nights</item>
+    </plurals>
     <!-- Notes tab -->
     <string name="notes_label">Notes</string>
     <string name="notes_placeholder">Add your notes here…</string>
@@ -296,7 +299,7 @@
     </plurals>
 
     <!-- Documents tab -->
-    <string name="documents_empty_title">No folders yet</string>
+    <string name="documents_empty_title">No documents yet</string>
     <string name="documents_empty_subtitle">Create a folder to organize your trip documents</string>
     <string name="documents_add_folder">Add folder</string>
     <string name="documents_new_folder_title">New Folder</string>
@@ -440,6 +443,7 @@
     <string name="chat_message_play">Play message</string>
     <string name="chat_message_stop">Stop speaking</string>
     <string name="trip_chat_not_found">Trip not found.</string>
+    <string name="trip_chat_empty_title">Trip assistant</string>
     <string name="trip_chat_empty">Ask a question about %1$s to start the conversation.</string>
     <string name="trip_chat_unavailable">AI trip chat is not available on this device.</string>
     <string name="trip_chat_thinking">Thinking…</string>

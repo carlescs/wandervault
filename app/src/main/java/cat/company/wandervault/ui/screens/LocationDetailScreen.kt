@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -28,6 +29,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Hotel
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Notes
+import androidx.compose.material.icons.outlined.Hotel
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -35,19 +37,18 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
@@ -60,9 +61,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -227,42 +231,44 @@ internal fun LocationDetailContent(
         )
     }
 
+    // The large title collapses into a regular top app bar as the content scrolls, so the
+    // destination name is shown once (no duplicate heading in the Overview tab).
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    val visibleTabs = LocationDetailTab.entries.filter { it != LocationDetailTab.HOTEL || hotelTabVisible }
+
     Scaffold(
-        modifier = modifier,
+        modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            TopAppBar(
-                title = { Text(title) },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateUp) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.location_detail_navigate_up),
-                        )
-                    }
-                },
-                actions = {
-                    // Scanning fills in hotel details, which only apply to intermediate stops.
-                    if (hotelTabVisible) {
-                        ScanDocumentAction(
-                            onTakePhoto = onTakePhoto,
-                            onPickImage = onPickImage,
-                            enabled = scanState == DocumentScanUiState.Idle,
-                        )
-                    }
-                },
-            )
-        },
-        bottomBar = {
-            NavigationBar {
-                LocationDetailTab.entries.forEach { tab ->
-                    if (tab == LocationDetailTab.HOTEL && !hotelTabVisible) return@forEach
-                    NavigationBarItem(
-                        selected = tab == selectedTab,
-                        onClick = { selectedTab = tab },
-                        icon = { Icon(tab.icon, contentDescription = null) },
-                        label = { Text(stringResource(tab.labelRes)) },
-                    )
-                }
+            Column {
+                LargeTopAppBar(
+                    title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    scrollBehavior = scrollBehavior,
+                    navigationIcon = {
+                        IconButton(onClick = onNavigateUp) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = stringResource(R.string.location_detail_navigate_up),
+                            )
+                        }
+                    },
+                    actions = {
+                        // Scanning fills in hotel details, which only apply to intermediate stops.
+                        if (hotelTabVisible) {
+                            ScanDocumentAction(
+                                onTakePhoto = onTakePhoto,
+                                onPickImage = onPickImage,
+                                enabled = scanState == DocumentScanUiState.Idle,
+                            )
+                        }
+                    },
+                )
+                DetailTabRow(
+                    tabs = visibleTabs,
+                    selectedTab = selectedTab,
+                    onTabSelected = { selectedTab = it },
+                    labelRes = { it.labelRes },
+                    icon = { it.icon },
+                )
             }
         },
     ) { innerPadding ->
@@ -351,10 +357,6 @@ private fun OverviewTabContent(
                 modifier = Modifier.padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                Text(
-                    text = destination.name,
-                    style = MaterialTheme.typography.headlineMedium,
-                )
                 val arrival = destination.arrivalDateTime
                 if (!isFirst && (arrival != null || arrivalTransport != null)) {
                     DetailSection(
@@ -450,45 +452,57 @@ private fun HotelTabContent(
             .fillMaxSize()
             .padding(innerPadding)
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+            .padding(16.dp),
     ) {
-        EditableLabel(
-            value = hotel.name,
-            onValueChange = onNameChange,
-            label = stringResource(R.string.hotel_name_label),
-            modifier = Modifier.fillMaxWidth(),
-        )
-        HorizontalDivider()
-        EditableLabel(
-            value = hotel.address,
-            onValueChange = onAddressChange,
-            label = stringResource(R.string.hotel_address_label),
-            modifier = Modifier.fillMaxWidth(),
-        )
-        HorizontalDivider()
-        EditableLabel(
-            value = hotel.reservationNumber,
-            onValueChange = onReservationNumberChange,
-            label = stringResource(R.string.hotel_reservation_number_label),
-            modifier = Modifier.fillMaxWidth(),
-        )
-        HorizontalDivider()
-        LabeledInfoRow(
-            label = stringResource(R.string.hotel_nights_label),
-            value = if (nights != null) {
-                stringResource(R.string.hotel_nights_value, nights)
-            } else {
-                stringResource(R.string.hotel_nights_not_available)
+        DetailSection(
+            title = stringResource(R.string.hotel_section_title),
+            icon = Icons.Outlined.Hotel,
+            actions = {
+                // Length of stay, derived from the arrival / departure dates.
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier = Modifier.padding(end = 8.dp),
+                ) {
+                    Text(
+                        text = if (nights != null) {
+                            pluralStringResource(R.plurals.hotel_nights_count, nights.toInt(), nights.toInt())
+                        } else {
+                            stringResource(R.string.hotel_nights_unknown)
+                        },
+                        style = MaterialTheme.typography.labelMedium,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                    )
+                }
             },
-        )
-        hotel.sourceDocumentId?.let { sourceDocumentId ->
-            HorizontalDivider()
-            SourceDocumentChip(
-                documentName = hotel.sourceDocumentName,
-                onDocumentClick = { onNavigateToDocument(sourceDocumentId) },
-                onRemove = onClearSourceDocument,
+        ) {
+            EditableLabel(
+                value = hotel.name,
+                onValueChange = onNameChange,
+                label = stringResource(R.string.hotel_name_label),
+                modifier = Modifier.fillMaxWidth(),
             )
+            EditableLabel(
+                value = hotel.address,
+                onValueChange = onAddressChange,
+                label = stringResource(R.string.hotel_address_label),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            EditableLabel(
+                value = hotel.reservationNumber,
+                onValueChange = onReservationNumberChange,
+                label = stringResource(R.string.hotel_reservation_number_label),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            hotel.sourceDocumentId?.let { sourceDocumentId ->
+                Spacer(modifier = Modifier.height(8.dp))
+                SourceDocumentChip(
+                    documentName = hotel.sourceDocumentName,
+                    onDocumentClick = { onNavigateToDocument(sourceDocumentId) },
+                    onRemove = onClearSourceDocument,
+                )
+            }
         }
     }
 }

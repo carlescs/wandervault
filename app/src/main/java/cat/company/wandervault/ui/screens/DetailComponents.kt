@@ -21,14 +21,20 @@ import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LeadingIconTab
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.PrimaryScrollableTabRow
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
@@ -87,6 +93,75 @@ internal fun DetailSection(
                 content = content,
             )
         }
+    }
+}
+
+/** Above this many tabs, [DetailTabRow] scrolls horizontally instead of splitting the width. */
+private const val MAX_FIXED_TABS = 3
+
+/**
+ * Tab row shown under the top app bar of a detail screen to switch between its sub-views.
+ *
+ * Uses a fixed [PrimaryTabRow] for up to [MAX_FIXED_TABS] tabs and a [PrimaryScrollableTabRow]
+ * beyond that, so labels never get truncated on narrow phones.
+ *
+ * @param tabs The tabs to show, in order.
+ * @param selectedTab The currently selected tab; must be one of [tabs].
+ * @param onTabSelected Called when the user taps a tab.
+ * @param labelRes Maps a tab to its label string resource.
+ * @param icon Maps a tab to its leading icon.
+ * @param containerColor Background of the row (e.g. transparent over a hero image).
+ * @param selectedContentColor Colour of the selected tab's label and icon.
+ * @param unselectedContentColor Colour of the other tabs' labels and icons.
+ * @param showDivider Whether to draw the divider below the row.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun <T> DetailTabRow(
+    tabs: List<T>,
+    selectedTab: T,
+    onTabSelected: (T) -> Unit,
+    labelRes: (T) -> Int,
+    icon: (T) -> ImageVector,
+    modifier: Modifier = Modifier,
+    containerColor: Color = MaterialTheme.colorScheme.surface,
+    selectedContentColor: Color = MaterialTheme.colorScheme.primary,
+    unselectedContentColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    showDivider: Boolean = true,
+) {
+    val selectedIndex = tabs.indexOf(selectedTab).coerceAtLeast(0)
+    val tabContent: @Composable () -> Unit = {
+        tabs.forEach { tab ->
+            LeadingIconTab(
+                selected = tab == selectedTab,
+                onClick = { onTabSelected(tab) },
+                text = { Text(stringResource(labelRes(tab)), maxLines = 1) },
+                icon = { Icon(icon(tab), contentDescription = null) },
+                selectedContentColor = selectedContentColor,
+                unselectedContentColor = unselectedContentColor,
+            )
+        }
+    }
+    val divider: @Composable () -> Unit = { if (showDivider) HorizontalDivider() }
+    if (tabs.size <= MAX_FIXED_TABS) {
+        PrimaryTabRow(
+            selectedTabIndex = selectedIndex,
+            modifier = modifier,
+            containerColor = containerColor,
+            contentColor = selectedContentColor,
+            divider = divider,
+            tabs = tabContent,
+        )
+    } else {
+        PrimaryScrollableTabRow(
+            selectedTabIndex = selectedIndex,
+            modifier = modifier,
+            containerColor = containerColor,
+            contentColor = selectedContentColor,
+            edgePadding = 8.dp,
+            divider = divider,
+            tabs = tabContent,
+        )
     }
 }
 

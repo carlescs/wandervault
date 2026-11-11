@@ -51,6 +51,7 @@ import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.TextSnippet
 import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -86,7 +87,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -350,26 +350,14 @@ internal fun TripDocumentsContent(
                         } else {
                             stringResource(R.string.documents_empty_folder_subtitle)
                         }
-                        Column(
+                        EmptyState(
+                            icon = Icons.Outlined.FolderOpen,
+                            title = stringResource(R.string.documents_empty_title),
+                            message = emptySubtitle,
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxWidth(),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center,
-                        ) {
-                            Text(
-                                text = stringResource(R.string.documents_empty_title),
-                                style = MaterialTheme.typography.titleMedium,
-                                textAlign = TextAlign.Center,
-                            )
-                            Text(
-                                text = emptySubtitle,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.padding(horizontal = 32.dp, vertical = 8.dp),
-                            )
-                        }
+                        )
                     } else {
                         LazyColumn(modifier = Modifier.weight(1f)) {
                             items(uiState.folders, key = { "folder-${it.id}" }) { folder ->
