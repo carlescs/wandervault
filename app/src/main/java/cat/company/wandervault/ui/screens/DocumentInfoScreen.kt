@@ -228,14 +228,10 @@ internal fun DocumentInfoContent(
             }
 
             is DocumentInfoUiState.NotFound -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(stringResource(R.string.document_info_not_found))
-                }
+                DetailMessageState(
+                    message = stringResource(R.string.document_info_not_found),
+                    modifier = Modifier.padding(innerPadding),
+                )
             }
 
             is DocumentInfoUiState.Success -> {

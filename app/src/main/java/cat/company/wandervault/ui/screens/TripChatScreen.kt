@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -60,7 +61,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -217,24 +217,18 @@ private fun TripChatSuccessContent(
         )
         HorizontalDivider()
         if (uiState.messages.isEmpty() && !uiState.isThinking) {
-            Box(
+            EmptyState(
+                icon = Icons.Outlined.AutoAwesome,
+                title = stringResource(R.string.trip_chat_empty_title),
+                message = if (uiState.isAiAvailable) {
+                    stringResource(R.string.trip_chat_empty, uiState.trip.title)
+                } else {
+                    stringResource(R.string.trip_chat_unavailable)
+                },
                 modifier = Modifier
                     .weight(1f)
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = if (uiState.isAiAvailable) {
-                        stringResource(R.string.trip_chat_empty, uiState.trip.title)
-                    } else {
-                        stringResource(R.string.trip_chat_unavailable)
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                )
-            }
+                    .fillMaxWidth(),
+            )
         } else {
             LazyColumn(
                 state = listState,
@@ -551,8 +545,8 @@ private fun TripChatMessageRow(
             is ChatMessage.AiMessage -> {
                 TripChatBubble(
                     text = message.text,
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    contentColor = MaterialTheme.colorScheme.onSurface,
                     isUser = false,
                     ttsState = ttsState,
                     onLongClick = {
@@ -662,7 +656,7 @@ private fun TripChatThinkingIndicator(
         horizontalArrangement = Arrangement.Start,
     ) {
         Surface(
-            color = MaterialTheme.colorScheme.surfaceVariant,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
             contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
             shape = RoundedCornerShape(topStart = 4.dp, topEnd = 16.dp, bottomStart = 16.dp, bottomEnd = 16.dp),
         ) {
