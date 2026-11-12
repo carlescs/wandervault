@@ -2,6 +2,8 @@ package cat.company.wandervault.ui.screens
 
 import androidx.activity.compose.BackHandler
 import androidx.annotation.StringRes
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,8 +18,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -28,7 +32,6 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AltRoute
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DirectionsBike
 import androidx.compose.material.icons.filled.DirectionsBoat
 import androidx.compose.material.icons.filled.DirectionsBus
@@ -43,28 +46,21 @@ import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.Train
+import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Edit
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TimePicker
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.rememberDatePickerState
-import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -75,8 +71,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -84,27 +84,24 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cat.company.wandervault.R
 import cat.company.wandervault.domain.model.TransportType
 import cat.company.wandervault.ui.theme.WanderVaultTheme
 import org.koin.androidx.compose.koinViewModel
-import java.time.Duration
-import java.time.LocalDate
-import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZonedDateTime
-import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
-import java.time.format.TextStyle
-import java.util.Locale
 
-private const val MILLIS_PER_DAY = 86_400_000L
+/** Width of the rail column on the legs timeline. */
+private const val LEG_RAIL_WIDTH_DP = 32
 
-/** Converts a [ZonedDateTime] to epoch-day milliseconds used by the [DatePicker] API. */
-private fun ZonedDateTime?.toDateEpochMillis(): Long? =
-    this?.toLocalDate()?.toEpochDay()?.times(MILLIS_PER_DAY)
+/** Height of the origin / final-destination rows; the rail starts and ends at their centre. */
+private const val LEG_ENDPOINT_ROW_HEIGHT_DP = 56
+
+/** Stroke width of the legs timeline rail. */
+private const val LEG_RAIL_STROKE_DP = 3
 
 /** Tabs shown in the Transport Detail bottom navigation bar. */
 private enum class TransportDetailTab(@StringRes val labelRes: Int, val icon: ImageVector) {
@@ -520,105 +517,131 @@ private fun TransportLegsTabContent(
     innerPadding: PaddingValues,
     modifier: Modifier = Modifier,
 ) {
+    val railColor = MaterialTheme.colorScheme.primary
     Column(
         modifier = modifier
             .fillMaxSize()
             .padding(innerPadding)
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+            .padding(horizontal = 16.dp, vertical = 12.dp),
     ) {
-        // Origin location marker (not editable here)
-        LegTimelineStop(name = uiState.originName, isOrigin = true)
-
-        if (uiState.legs.isEmpty()) {
-            Text(
-                text = stringResource(R.string.transport_detail_no_legs),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(vertical = 8.dp),
-            )
-        }
-
-        uiState.legs.forEachIndexed { index, leg ->
-            key(leg.clientKey) {
-                val isLastLeg = index == uiState.legs.lastIndex
-                // Compute date bounds from the parent destination and next destination so the
-                // picker constrains leg dates within the overall transport window.
-                val minDateMillis = uiState.destinationDepartureDateTime.toDateEpochMillis()
-                val maxDateMillis = uiState.nextDestinationArrivalDateTime.toDateEpochMillis()
-                // Infer the default timezone for each date picker from the surrounding items so
-                // the user does not have to manually pick a zone when setting a fresh date.
-                // For departure: prefer the previous leg's arrival zone, then fall back to the
-                // origin destination's departure zone, then the device default.
-                val defaultDepartureZoneId = (
-                    if (index == 0) null else uiState.legs[index - 1].arrivalDateTime?.zone
-                ) ?: uiState.destinationDepartureDateTime?.zone
-                    ?: ZoneId.systemDefault()
-                // For arrival: prefer the next leg's departure zone, then fall back to the
-                // next destination's arrival zone, then the device default.
-                val defaultArrivalZoneId = (
-                    if (isLastLeg) null else uiState.legs[index + 1].departureDateTime?.zone
-                ) ?: uiState.nextDestinationArrivalDateTime?.zone
-                    ?: ZoneId.systemDefault()
-                // Leg card: type selector + booking details + move controls.
-                // Intermediate legs are deleted via their corresponding IntermediateLegStop
-                // delete button below.
-                TransportLegSection(
-                    index = index,
-                    totalLegs = uiState.legs.size,
-                    leg = leg,
-                    onMoveUp = { onMoveLegUp(index) },
-                    onMoveDown = { onMoveLegDown(index) },
-                    onTypeSelected = { typeName -> onTypeSelected(index, typeName) },
-                    onCompanyChange = { value -> onCompanyChange(index, value) },
-                    onFlightNumberChange = { value -> onFlightNumberChange(index, value) },
-                    onConfirmationNumberChange = { value -> onConfirmationNumberChange(index, value) },
-                    onSetDefault = { onSetDefaultLeg(index) },
-                    onDepartureDateTimeChange = { dt -> onDepartureDateTimeChange(index, dt) },
-                    onArrivalDateTimeChange = { dt -> onArrivalDateTimeChange(index, dt) },
-                    onNavigateToDocument = onNavigateToDocument,
-                    onClearSourceDocument = { onClearLegSourceDocument(index) },
-                    minDateMillis = minDateMillis,
-                    maxDateMillis = maxDateMillis,
-                    defaultDepartureZoneId = defaultDepartureZoneId,
-                    defaultArrivalZoneId = defaultArrivalZoneId,
-                )
-
-                // Editable intermediate stop shown only between legs.
-                // The last leg ends at the final destination, which is already displayed below.
-                // The delete button on the stop deletes the leg that ends there (this leg, at [index]),
-                // which removes both the leg and its destination stop in one action.
-                if (!isLastLeg) {
-                    IntermediateLegStop(
-                        stopName = leg.stopName,
-                        onStopNameChange = { value -> onStopNameChange(index, value) },
-                        onRemove = { onRemoveLeg(index) },
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .drawBehind {
+                    // One continuous rail from the origin node to the final destination node;
+                    // the leg and stop nodes are drawn on top of it.
+                    val x = (LEG_RAIL_WIDTH_DP / 2).dp.toPx()
+                    val endpointCenter = (LEG_ENDPOINT_ROW_HEIGHT_DP / 2).dp.toPx()
+                    drawLine(
+                        color = railColor,
+                        start = Offset(x, endpointCenter),
+                        end = Offset(x, size.height - endpointCenter),
+                        strokeWidth = LEG_RAIL_STROKE_DP.dp.toPx(),
                     )
-                    // Show layover duration: time between this leg's arrival and the next leg's departure.
-                    val nextLeg = uiState.legs.getOrNull(index + 1)
-                    val layoverDuration = leg.arrivalDateTime.durationUntil(nextLeg?.departureDateTime)
-                    if (layoverDuration != null) {
-                        Text(
-                            text = stringResource(R.string.transport_detail_layover_duration, layoverDuration.formatted()),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(start = 28.dp, top = 2.dp),
+                },
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            // Origin location marker (not editable here)
+            LegTimelineStop(name = uiState.originName, isOrigin = true)
+
+            if (uiState.legs.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.transport_detail_no_legs),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = LEG_RAIL_WIDTH_DP.dp + 12.dp, top = 8.dp, bottom = 8.dp),
+                )
+            }
+
+            uiState.legs.forEachIndexed { index, leg ->
+                key(leg.clientKey) {
+                    val isLastLeg = index == uiState.legs.lastIndex
+                    // Compute date bounds from the parent destination and next destination so the
+                    // picker constrains leg dates within the overall transport window.
+                    val minDateMillis = uiState.destinationDepartureDateTime.toDateEpochMillis()
+                    val maxDateMillis = uiState.nextDestinationArrivalDateTime.toDateEpochMillis()
+                    // Infer the default timezone for each date picker from the surrounding items so
+                    // the user does not have to manually pick a zone when setting a fresh date.
+                    // For departure: prefer the previous leg's arrival zone, then fall back to the
+                    // origin destination's departure zone, then the device default.
+                    val defaultDepartureZoneId = (
+                        if (index == 0) null else uiState.legs[index - 1].arrivalDateTime?.zone
+                    ) ?: uiState.destinationDepartureDateTime?.zone
+                        ?: ZoneId.systemDefault()
+                    // For arrival: prefer the next leg's departure zone, then fall back to the
+                    // next destination's arrival zone, then the device default.
+                    val defaultArrivalZoneId = (
+                        if (isLastLeg) null else uiState.legs[index + 1].departureDateTime?.zone
+                    ) ?: uiState.nextDestinationArrivalDateTime?.zone
+                        ?: ZoneId.systemDefault()
+                    // Leg card: type selector + booking details + move controls.
+                    // Intermediate legs are deleted via their corresponding IntermediateLegStop
+                    // delete button below.
+                    val legType = leg.typeName?.let { name ->
+                        runCatching { TransportType.valueOf(name) }.getOrNull()
+                    }
+                    LegTimelineRow(
+                        nodeTopPadding = 16.dp,
+                        node = { LegTypeNode(type = legType) },
+                    ) {
+                        TransportLegSection(
+                            index = index,
+                            totalLegs = uiState.legs.size,
+                            leg = leg,
+                            onMoveUp = { onMoveLegUp(index) },
+                            onMoveDown = { onMoveLegDown(index) },
+                            onTypeSelected = { typeName -> onTypeSelected(index, typeName) },
+                            onCompanyChange = { value -> onCompanyChange(index, value) },
+                            onFlightNumberChange = { value -> onFlightNumberChange(index, value) },
+                            onConfirmationNumberChange = { value -> onConfirmationNumberChange(index, value) },
+                            onSetDefault = { onSetDefaultLeg(index) },
+                            onDepartureDateTimeChange = { dt -> onDepartureDateTimeChange(index, dt) },
+                            onArrivalDateTimeChange = { dt -> onArrivalDateTimeChange(index, dt) },
+                            onNavigateToDocument = onNavigateToDocument,
+                            onClearSourceDocument = { onClearLegSourceDocument(index) },
+                            minDateMillis = minDateMillis,
+                            maxDateMillis = maxDateMillis,
+                            defaultDepartureZoneId = defaultDepartureZoneId,
+                            defaultArrivalZoneId = defaultArrivalZoneId,
                         )
+                    }
+
+                    // Editable intermediate stop shown only between legs.
+                    // The last leg ends at the final destination, which is already displayed below.
+                    // The delete button on the stop deletes the leg that ends there (this leg, at [index]),
+                    // which removes both the leg and its destination stop in one action.
+                    if (!isLastLeg) {
+                        IntermediateLegStop(
+                            stopName = leg.stopName,
+                            onStopNameChange = { value -> onStopNameChange(index, value) },
+                            onRemove = { onRemoveLeg(index) },
+                        )
+                        // Show layover duration: time between this leg's arrival and the next leg's departure.
+                        val nextLeg = uiState.legs.getOrNull(index + 1)
+                        val layoverDuration = leg.arrivalDateTime.durationUntil(nextLeg?.departureDateTime)
+                        if (layoverDuration != null) {
+                            Text(
+                                text = stringResource(R.string.transport_detail_layover_duration, layoverDuration.formatted()),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(start = LEG_RAIL_WIDTH_DP.dp + 12.dp),
+                            )
+                        }
                     }
                 }
             }
+
+            // Final destination marker (not editable here)
+            LegTimelineStop(
+                name = uiState.nextDestinationName ?: stringResource(R.string.transport_detail_no_destination),
+                isOrigin = false,
+            )
         }
 
-        // Final destination marker (not editable here)
-        LegTimelineStop(
-            name = uiState.nextDestinationName ?: stringResource(R.string.transport_detail_no_destination),
-            isOrigin = false,
-        )
+        Spacer(modifier = Modifier.height(16.dp))
 
-        Spacer(modifier = Modifier.height(4.dp))
-
-        TextButton(
+        FilledTonalButton(
             onClick = onAddLeg,
             modifier = Modifier.align(Alignment.CenterHorizontally),
         ) {
@@ -634,8 +657,58 @@ private fun TransportLegsTabContent(
 }
 
 /**
+ * A row on the legs timeline: a [node] drawn over the rail on the left, and [content] on the
+ * right. [nodeTopPadding] aligns the node with the content's header.
+ */
+@Composable
+private fun LegTimelineRow(
+    nodeTopPadding: Dp,
+    node: @Composable () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    Row(modifier = modifier.fillMaxWidth()) {
+        Box(
+            modifier = Modifier
+                .width(LEG_RAIL_WIDTH_DP.dp)
+                .padding(top = nodeTopPadding),
+            contentAlignment = Alignment.TopCenter,
+        ) {
+            node()
+        }
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = 12.dp),
+        ) {
+            content()
+        }
+    }
+}
+
+/** Circular node showing the transport type icon of a leg, drawn over the timeline rail. */
+@Composable
+private fun LegTypeNode(type: TransportType?, modifier: Modifier = Modifier) {
+    IconBadge(
+        icon = type?.detailIcon ?: Icons.Default.MoreHoriz,
+        modifier = modifier,
+        containerColor = if (type != null) {
+            MaterialTheme.colorScheme.primaryContainer
+        } else {
+            MaterialTheme.colorScheme.surfaceContainerHighest
+        },
+        contentColor = if (type != null) {
+            MaterialTheme.colorScheme.onPrimaryContainer
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        },
+        size = LEG_RAIL_WIDTH_DP.dp,
+    )
+}
+
+/**
  * A read-only location marker shown at the top (origin) and bottom (final destination) of the
- * legs timeline.
+ * legs timeline: a filled pin node on the rail, a "From" / "To" caption and the place name.
  */
 @Composable
 private fun LegTimelineStop(
@@ -644,28 +717,49 @@ private fun LegTimelineStop(
     modifier: Modifier = Modifier,
 ) {
     Row(
-        modifier = modifier.padding(vertical = 4.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .height(LEG_ENDPOINT_ROW_HEIGHT_DP.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Icon(
-            imageVector = Icons.Default.LocationOn,
-            contentDescription = null,
-            modifier = Modifier.size(20.dp),
-            tint = if (isOrigin) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary,
-        )
-        Text(
-            text = name,
-            style = MaterialTheme.typography.bodyMedium,
-            color = if (isOrigin) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary,
-        )
+        Box(
+            modifier = Modifier.width(LEG_RAIL_WIDTH_DP.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            IconBadge(
+                icon = Icons.Default.LocationOn,
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+                size = 28.dp,
+            )
+        }
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = 12.dp),
+        ) {
+            Text(
+                text = stringResource(
+                    if (isOrigin) R.string.transport_detail_origin_label else R.string.transport_detail_destination_label,
+                ),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                text = name,
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
 
 /**
- * An editable intermediate stop shown between two leg cards. The stop name is displayed as
- * a tappable label; tapping it switches to an [OutlinedTextField] so the user can edit it
- * inline. Explicit Save (✓) and Cancel (✗) buttons commit or discard the change.
+ * An editable intermediate stop shown between two leg cards, with a ring node on the timeline
+ * rail. The stop name is displayed as a tappable label; tapping it switches to an
+ * [OutlinedTextField] so the user can edit it inline. Explicit Save (✓) and Cancel (✗) buttons
+ * commit or discard the change.
  *
  * @param onRemove Called when the user taps the delete button.  Deletes the leg that ends at
  *   this stop (i.e. the leg immediately before this stop in the timeline), which removes both
@@ -679,23 +773,27 @@ private fun IntermediateLegStop(
     modifier: Modifier = Modifier,
 ) {
     Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(start = 4.dp),
+        modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Icon(
-            imageVector = Icons.Default.LocationOn,
-            contentDescription = null,
-            modifier = Modifier.size(20.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Box(
+            modifier = Modifier.width(LEG_RAIL_WIDTH_DP.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(16.dp)
+                    .background(MaterialTheme.colorScheme.surface, CircleShape)
+                    .border(4.dp, MaterialTheme.colorScheme.primary, CircleShape),
+            )
+        }
         EditableLabel(
             value = stopName,
             onValueChange = onStopNameChange,
             label = stringResource(R.string.transport_detail_stop_name_label),
-            modifier = Modifier.weight(1f),
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = 12.dp),
         )
         val removeDescription = if (stopName.isNotBlank()) {
             stringResource(R.string.transport_detail_remove_leg_named, stopName)
@@ -704,7 +802,7 @@ private fun IntermediateLegStop(
         }
         IconButton(onClick = onRemove) {
             Icon(
-                imageVector = Icons.Default.Delete,
+                imageVector = Icons.Outlined.DeleteOutline,
                 contentDescription = removeDescription,
                 tint = MaterialTheme.colorScheme.error,
             )
@@ -761,7 +859,6 @@ private fun TransportLegSection(
                         stringResource(R.string.transport_detail_type_label)
                     },
                     style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f),
                 )
                 if (totalLegs > 1) {
@@ -841,7 +938,7 @@ private fun TransportLegSection(
 
                 // Departure date/time – shown on all legs; for the first leg this is also the
                 // transport departure and is kept in sync with the destination's departure.
-                LegDateTimeRow(
+                DateTimeField(
                     label = stringResource(R.string.transport_detail_departure_label),
                     dateTime = leg.departureDateTime,
                     onDateTimeChange = onDepartureDateTimeChange,
@@ -853,7 +950,7 @@ private fun TransportLegSection(
 
                 // Arrival date/time – shown on all legs; for the last leg this is also the
                 // transport arrival and is kept in sync with the next destination's arrival.
-                LegDateTimeRow(
+                DateTimeField(
                     label = stringResource(R.string.transport_detail_arrival_label),
                     dateTime = leg.arrivalDateTime,
                     onDateTimeChange = onArrivalDateTimeChange,
@@ -904,191 +1001,6 @@ private fun TransportLegSection(
                     )
                 }
             }
-        }
-    }
-}
-
-/**
- * A labelled row showing date, time, and timezone buttons for a single [ZonedDateTime] value on a leg.
- *
- * - Tapping the date button opens a [DatePickerDialog].
- * - Tapping the time button opens a [TimePicker] dialog (requires a date to be set first).
- * - Tapping the timezone button opens a timezone picker dialog (requires a date to be set first).
- * - Selecting a new date preserves the existing time (or defaults to midnight) and zone.
- * - Changing the timezone keeps the same local date and time, only the zone offset changes.
- *
- * @param minDateMillis Optional lower bound (inclusive) for selectable dates, in epoch-day
- *   milliseconds.  Dates before this value are disabled in the picker.
- * @param maxDateMillis Optional upper bound (inclusive) for selectable dates, in epoch-day
- *   milliseconds.  Dates after this value are disabled in the picker.
- */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun LegDateTimeRow(
-    label: String,
-    dateTime: ZonedDateTime?,
-    onDateTimeChange: (ZonedDateTime?) -> Unit,
-    minDateMillis: Long? = null,
-    maxDateMillis: Long? = null,
-    defaultZoneId: ZoneId = ZoneId.systemDefault(),
-    modifier: Modifier = Modifier,
-) {
-    var showDatePicker by rememberSaveable { mutableStateOf(false) }
-    var showTimePicker by rememberSaveable { mutableStateOf(false) }
-    var showTimezonePicker by rememberSaveable { mutableStateOf(false) }
-
-    val dateFormatter = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
-    val timeFormatter = remember { DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT) }
-
-    if (showDatePicker) {
-        // Normalize bounds so an inverted range (e.g. from out-of-order existing data) doesn't
-        // disable all dates and lock the user out of correcting them.
-        val (normalizedMin, normalizedMax) = remember(minDateMillis, maxDateMillis) {
-            if (minDateMillis != null && maxDateMillis != null && minDateMillis > maxDateMillis) {
-                maxDateMillis to minDateMillis
-            } else {
-                minDateMillis to maxDateMillis
-            }
-        }
-        val selectableDates = remember(normalizedMin, normalizedMax) {
-            val minYear = normalizedMin?.let { LocalDate.ofEpochDay(it / MILLIS_PER_DAY).year }
-            val maxYear = normalizedMax?.let { LocalDate.ofEpochDay(it / MILLIS_PER_DAY).year }
-            object : SelectableDates {
-                override fun isSelectableDate(utcTimeMillis: Long): Boolean {
-                    val afterMin = normalizedMin == null || utcTimeMillis >= normalizedMin
-                    val beforeMax = normalizedMax == null || utcTimeMillis <= normalizedMax
-                    return afterMin && beforeMax
-                }
-                override fun isSelectableYear(year: Int): Boolean {
-                    val afterMin = minYear == null || year >= minYear
-                    val beforeMax = maxYear == null || year <= maxYear
-                    return afterMin && beforeMax
-                }
-            }
-        }
-        // Open the picker at the current selection, falling back to the min bound so the user
-        // sees a relevant month rather than today when the trip dates are far away.
-        val initialDisplayedMonthMillis = dateTime.toDateEpochMillis() ?: normalizedMin ?: normalizedMax
-        val state = rememberDatePickerState(
-            initialSelectedDateMillis = dateTime.toDateEpochMillis(),
-            initialDisplayedMonthMillis = initialDisplayedMonthMillis,
-            selectableDates = selectableDates,
-        )
-        DatePickerDialog(
-            onDismissRequest = { showDatePicker = false },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        state.selectedDateMillis?.let { millis ->
-                            val pickedDate = LocalDate.ofEpochDay(millis / MILLIS_PER_DAY)
-                            val existingTime = dateTime?.toLocalTime() ?: LocalTime.MIDNIGHT
-                            val zone = dateTime?.zone ?: defaultZoneId
-                            onDateTimeChange(ZonedDateTime.of(pickedDate, existingTime, zone))
-                        }
-                        showDatePicker = false
-                    },
-                ) { Text(stringResource(R.string.dialog_ok)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) {
-                    Text(stringResource(R.string.dialog_cancel))
-                }
-            },
-        ) { DatePicker(state = state) }
-    }
-
-    if (showTimePicker) {
-        val timeState = rememberTimePickerState(
-            initialHour = dateTime?.hour ?: 0,
-            initialMinute = dateTime?.minute ?: 0,
-        )
-        AlertDialog(
-            onDismissRequest = { showTimePicker = false },
-            title = { Text(stringResource(R.string.itinerary_pick_time)) },
-            text = { TimePicker(state = timeState) },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        // dateTime is always non-null here: the time button is disabled when
-                        // dateTime == null, so this branch is purely defensive.
-                        val date = dateTime?.toLocalDate() ?: LocalDate.now(defaultZoneId)
-                        val zone = dateTime?.zone ?: defaultZoneId
-                        onDateTimeChange(ZonedDateTime.of(date, LocalTime.of(timeState.hour, timeState.minute), zone))
-                        showTimePicker = false
-                    },
-                ) { Text(stringResource(R.string.dialog_ok)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showTimePicker = false }) {
-                    Text(stringResource(R.string.dialog_cancel))
-                }
-            },
-        )
-    }
-
-    if (showTimezonePicker) {
-        TimezonePickerDialog(
-            onTimezoneSelected = { zoneId ->
-                val zone = if (zoneId != null) ZoneId.of(zoneId) else ZoneId.systemDefault()
-                dateTime?.let { onDateTimeChange(it.withZoneSameLocal(zone)) }
-                showTimezonePicker = false
-            },
-            onDismiss = { showTimezonePicker = false },
-        )
-    }
-
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
-        OutlinedButton(
-            onClick = { showDatePicker = true },
-            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-            modifier = Modifier.height(32.dp),
-        ) {
-            Text(
-                text = dateTime?.toLocalDate()?.format(dateFormatter)
-                    ?: stringResource(R.string.itinerary_pick_date),
-                style = MaterialTheme.typography.bodySmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        Spacer(modifier = Modifier.width(4.dp))
-        OutlinedButton(
-            onClick = { showTimePicker = true },
-            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-            modifier = Modifier.height(32.dp),
-            enabled = dateTime != null,
-        ) {
-            Text(
-                text = if (dateTime != null) dateTime.format(timeFormatter) else "--:--",
-                style = MaterialTheme.typography.bodySmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        Spacer(modifier = Modifier.width(4.dp))
-        OutlinedButton(
-            onClick = { showTimezonePicker = true },
-            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-            modifier = Modifier.height(32.dp),
-            enabled = dateTime != null,
-        ) {
-            Text(
-                text = dateTime?.zone?.getDisplayName(TextStyle.SHORT, Locale.getDefault()) ?: "---",
-                style = MaterialTheme.typography.bodySmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
         }
     }
 }
@@ -1209,20 +1121,31 @@ private fun TransportDetailOption(
     isSelected: Boolean,
     onClick: () -> Unit,
 ) {
-    val contentColor =
-        if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+    val contentColor = if (isSelected) {
+        MaterialTheme.colorScheme.onSecondaryContainer
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    val shape = MaterialTheme.shapes.medium
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
+            .widthIn(min = 64.dp)
+            .clip(shape)
+            .background(
+                color = if (isSelected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
+                shape = shape,
+            )
             .selectable(selected = isSelected, onClick = onClick, role = Role.RadioButton)
-            .padding(8.dp),
+            .padding(horizontal = 6.dp, vertical = 8.dp),
     ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = contentColor,
-            modifier = Modifier.size(28.dp),
+            tint = if (isSelected) MaterialTheme.colorScheme.primary else contentColor,
+            modifier = Modifier.size(24.dp),
         )
+        Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,

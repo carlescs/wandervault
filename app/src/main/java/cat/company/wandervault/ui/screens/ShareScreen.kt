@@ -3,28 +3,26 @@ package cat.company.wandervault.ui.screens
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AirplanemodeActive
-import androidx.compose.material.icons.filled.EventNote
-import androidx.compose.material.icons.filled.Hotel
-import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.ErrorOutline
+import androidx.compose.material.icons.outlined.FileDownload
+import androidx.compose.material.icons.outlined.Flight
+import androidx.compose.material.icons.outlined.Hotel
+import androidx.compose.material.icons.outlined.LocalActivity
+import androidx.compose.material.icons.outlined.Luggage
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -36,8 +34,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -237,6 +233,7 @@ private fun ShareScreenContent(shareIntent: Intent, sharedUri: String, onDismiss
 private fun ShareLoadingDialog(onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
+        icon = { DialogIcon(Icons.Outlined.FileDownload) },
         title = { Text(stringResource(R.string.share_title)) },
         text = {
             Box(
@@ -266,14 +263,11 @@ private fun ShareTripSelectionDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
+        icon = { DialogIcon(Icons.Outlined.FileDownload) },
         title = { Text(stringResource(R.string.share_title)) },
         text = {
-            Column {
-                Text(
-                    text = stringResource(R.string.share_select_trip_label, documentName),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                Spacer(Modifier.height(12.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                DialogSupportingText(text = stringResource(R.string.share_select_trip_label, documentName))
                 if (trips.isEmpty()) {
                     Text(
                         text = stringResource(R.string.share_no_trips),
@@ -281,13 +275,15 @@ private fun ShareTripSelectionDialog(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 } else {
-                    LazyColumn(modifier = Modifier.heightIn(max = 320.dp)) {
+                    LazyColumn(
+                        modifier = Modifier.heightIn(max = 320.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
                         items(trips) { trip ->
                             TripSelectionItem(
                                 trip = trip,
                                 onClick = { onTripSelected(trip) },
                             )
-                            HorizontalDivider()
                         }
                     }
                 }
@@ -304,49 +300,24 @@ private fun ShareTripSelectionDialog(
 
 @Composable
 private fun TripSelectionItem(trip: Trip, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(vertical = 12.dp, horizontal = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            imageVector = Icons.Default.Place,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(20.dp),
-        )
-        Spacer(Modifier.width(12.dp))
-        Text(
-            text = trip.title,
-            style = MaterialTheme.typography.bodyLarge,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
+    val dateFormatter = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
+    DialogOptionItem(
+        icon = Icons.Outlined.Luggage,
+        title = trip.title,
+        details = listOf(trip.startDate?.format(dateFormatter)),
+        onClick = onClick,
+        titleMaxLines = 1,
+        modifier = modifier,
+    )
 }
 
 @Composable
 private fun ShareProcessingDialog() {
     AlertDialog(
         onDismissRequest = { /* non-cancellable while processing */ },
+        icon = { DialogIcon(Icons.Outlined.AutoAwesome) },
         title = { Text(stringResource(R.string.share_title)) },
-        text = {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                CircularProgressIndicator(modifier = Modifier.size(24.dp))
-                Spacer(Modifier.width(16.dp))
-                Text(
-                    text = stringResource(R.string.share_processing),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
-        },
+        text = { DialogProgressRow(message = stringResource(R.string.share_processing)) },
         confirmButton = {},
     )
 }
@@ -360,25 +331,14 @@ private fun ShareFlightLegSelectionDialog(
 ) {
     AlertDialog(
         onDismissRequest = onSkip,
+        icon = { DialogIcon(Icons.Outlined.Flight) },
         title = { Text(stringResource(R.string.share_flight_selection_title)) },
         text = {
-            Column {
-                FlightInfoSummary(flightInfo = flightInfo)
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    text = stringResource(R.string.share_flight_selection_message),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.height(8.dp))
-                LazyColumn(modifier = Modifier.heightIn(max = 280.dp)) {
-                    items(candidates) { leg ->
-                        FlightLegItem(
-                            leg = leg,
-                            onClick = { onLegSelected(leg) },
-                        )
-                        HorizontalDivider()
-                    }
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                AnalyzeFlightInfoSummary(flightInfo = flightInfo)
+                DialogSupportingText(text = stringResource(R.string.share_flight_selection_message))
+                DialogSelectionList(options = candidates) { leg ->
+                    FlightLegListItem(leg = leg, onClick = { onLegSelected(leg) })
                 }
             }
         },
@@ -389,82 +349,6 @@ private fun ShareFlightLegSelectionDialog(
             }
         },
     )
-}
-
-@Composable
-private fun FlightInfoSummary(flightInfo: FlightInfo, modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            imageVector = Icons.Default.AirplanemodeActive,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(20.dp),
-        )
-        Spacer(Modifier.width(8.dp))
-        Column {
-            val flightLabel = listOfNotNull(flightInfo.airline, flightInfo.flightNumber)
-                .joinToString(" ")
-                .ifBlank { stringResource(R.string.share_unknown_flight) }
-            Text(text = flightLabel, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
-            if (!flightInfo.bookingReference.isNullOrBlank()) {
-                Text(
-                    text = stringResource(R.string.share_booking_ref, flightInfo.bookingReference),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun FlightLegItem(leg: TransportLeg, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(vertical = 10.dp, horizontal = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            imageVector = Icons.Default.AirplanemodeActive,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.secondary,
-            modifier = Modifier.size(18.dp),
-        )
-        Spacer(Modifier.width(12.dp))
-        FlightLegDetails(leg = leg)
-    }
-}
-
-/** Renders the label, booking reference and stop name for a [TransportLeg]. */
-@Composable
-private fun FlightLegDetails(leg: TransportLeg, modifier: Modifier = Modifier) {
-    Column(modifier = modifier) {
-        val label = listOfNotNull(leg.company, leg.flightNumber)
-            .joinToString(" ")
-            .ifBlank { stringResource(R.string.share_unnamed_flight_leg) }
-        Text(text = label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
-        if (!leg.reservationConfirmationNumber.isNullOrBlank()) {
-            Text(
-                text = stringResource(R.string.share_booking_ref, leg.reservationConfirmationNumber),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        if (!leg.stopName.isNullOrBlank()) {
-            Text(
-                text = stringResource(R.string.documents_analyze_to, leg.stopName),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
 }
 
 @Composable
@@ -474,27 +358,21 @@ private fun ShareHotelDestinationSelectionDialog(
     onDestinationSelected: (Destination) -> Unit,
     onSkip: () -> Unit,
 ) {
+    val dateFormatter = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
     AlertDialog(
         onDismissRequest = onSkip,
+        icon = { DialogIcon(Icons.Outlined.Hotel) },
         title = { Text(stringResource(R.string.share_hotel_selection_title)) },
         text = {
-            Column {
-                HotelInfoSummary(hotelInfo = hotelInfo)
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    text = stringResource(R.string.share_hotel_selection_message),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.height(8.dp))
-                LazyColumn(modifier = Modifier.heightIn(max = 280.dp)) {
-                    items(candidates) { destination ->
-                        DestinationItem(
-                            destination = destination,
-                            onClick = { onDestinationSelected(destination) },
-                        )
-                        HorizontalDivider()
-                    }
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                AnalyzeHotelInfoSummary(hotelInfo = hotelInfo)
+                DialogSupportingText(text = stringResource(R.string.share_hotel_selection_message))
+                DialogSelectionList(options = candidates) { destination ->
+                    DestinationListItem(
+                        destination = destination,
+                        dateFormatter = dateFormatter,
+                        onClick = { onDestinationSelected(destination) },
+                    )
                 }
             }
         },
@@ -505,36 +383,6 @@ private fun ShareHotelDestinationSelectionDialog(
             }
         },
     )
-}
-
-@Composable
-private fun HotelInfoSummary(hotelInfo: HotelInfo, modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            imageVector = Icons.Default.Hotel,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(20.dp),
-        )
-        Spacer(Modifier.width(8.dp))
-        Column {
-            val hotelLabel = hotelInfo.name?.ifBlank { null }
-                ?: stringResource(R.string.share_unknown_hotel)
-            Text(text = hotelLabel, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
-            if (!hotelInfo.bookingReference.isNullOrBlank()) {
-                Text(
-                    text = stringResource(R.string.share_booking_ref, hotelInfo.bookingReference),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-    }
 }
 
 @Composable
@@ -546,32 +394,16 @@ private fun ShareFlightConfirmDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
+        icon = { DialogIcon(Icons.Outlined.Flight) },
         title = { Text(stringResource(R.string.documents_analyze_confirm_flight_title)) },
         text = {
-            Column {
-                FlightInfoSummary(flightInfo = flightInfo)
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text = stringResource(R.string.documents_analyze_confirm_flight_message),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.AirplanemodeActive,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.secondary,
-                        modifier = Modifier.size(20.dp),
-                    )
-                    Spacer(Modifier.width(12.dp))
-                    FlightLegDetails(leg = matchedLeg)
-                }
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                AnalyzeFlightInfoSummary(flightInfo = flightInfo)
+                DialogSupportingText(text = stringResource(R.string.documents_analyze_confirm_flight_message))
+                FlightLegListItem(leg = matchedLeg, onClick = null)
             }
         },
         confirmButton = {
@@ -594,27 +426,21 @@ private fun ShareFlightTransportSelectionDialog(
     onDestinationSelected: (Destination) -> Unit,
     onSkip: () -> Unit,
 ) {
+    val dateFormatter = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
     AlertDialog(
         onDismissRequest = onSkip,
+        icon = { DialogIcon(Icons.Outlined.Flight) },
         title = { Text(stringResource(R.string.documents_analyze_transport_selection_title)) },
         text = {
-            Column {
-                FlightInfoSummary(flightInfo = flightInfo)
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    text = stringResource(R.string.documents_analyze_transport_selection_message),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.height(8.dp))
-                LazyColumn(modifier = Modifier.heightIn(max = 280.dp)) {
-                    items(candidates) { destination ->
-                        DestinationItem(
-                            destination = destination,
-                            onClick = { onDestinationSelected(destination) },
-                        )
-                        HorizontalDivider()
-                    }
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                AnalyzeFlightInfoSummary(flightInfo = flightInfo)
+                DialogSupportingText(text = stringResource(R.string.documents_analyze_transport_selection_message))
+                DialogSelectionList(options = candidates) { destination ->
+                    DestinationListItem(
+                        destination = destination,
+                        dateFormatter = dateFormatter,
+                        onClick = { onDestinationSelected(destination) },
+                    )
                 }
             }
         },
@@ -635,20 +461,27 @@ private fun ShareFlightAddLegConfirmDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val dateFormatter = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
     AlertDialog(
         onDismissRequest = onDismiss,
+        icon = { DialogIcon(Icons.Outlined.Flight) },
         title = { Text(stringResource(R.string.documents_analyze_confirm_add_leg_title)) },
         text = {
-            Column {
-                FlightInfoSummary(flightInfo = flightInfo)
-                Spacer(Modifier.height(4.dp))
-                Text(
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                AnalyzeFlightInfoSummary(flightInfo = flightInfo)
+                DialogSupportingText(
                     text = stringResource(
                         R.string.documents_analyze_confirm_add_leg_message,
                         destination.name,
                     ),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                DestinationListItem(
+                    destination = destination,
+                    dateFormatter = dateFormatter,
+                    onClick = null,
                 )
             }
         },
@@ -676,76 +509,30 @@ private fun ShareHotelConfirmDialog(
     val dateFormatter = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
     AlertDialog(
         onDismissRequest = onDismiss,
+        icon = { DialogIcon(Icons.Outlined.Hotel) },
         title = { Text(stringResource(R.string.documents_analyze_confirm_hotel_title)) },
         text = {
-            Column {
-                HotelInfoSummary(hotelInfo = hotelInfo)
-                Spacer(Modifier.height(4.dp))
-                if (existingHotel != null) {
-                    Text(
-                        text = stringResource(
-                            R.string.documents_analyze_confirm_hotel_message,
-                            destination.name,
-                        ),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                } else {
-                    Text(
-                        text = stringResource(
-                            R.string.documents_analyze_confirm_hotel_new_message,
-                            destination.name,
-                        ),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Place,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.secondary,
-                        modifier = Modifier.size(20.dp),
-                    )
-                    Spacer(Modifier.width(12.dp))
-                    Column {
-                        Text(
-                            text = destination.name,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        val arrival = destination.arrivalDateTime?.toLocalDate()
-                        val departure = destination.departureDateTime?.toLocalDate()
-                        if (arrival != null || departure != null) {
-                            val dateRange = when {
-                                arrival != null && departure != null ->
-                                    "${arrival.format(dateFormatter)} – ${departure.format(dateFormatter)}"
-                                arrival != null -> arrival.format(dateFormatter)
-                                else -> requireNotNull(departure).format(dateFormatter)
-                            }
-                            Text(
-                                text = dateRange,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        existingHotel?.name?.ifBlank { null }?.let { hotelName ->
-                            Text(
-                                text = hotelName,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-                }
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                AnalyzeHotelInfoSummary(hotelInfo = hotelInfo)
+                DialogSupportingText(
+                    text = stringResource(
+                        if (existingHotel != null) {
+                            R.string.documents_analyze_confirm_hotel_message
+                        } else {
+                            R.string.documents_analyze_confirm_hotel_new_message
+                        },
+                        destination.name,
+                    ),
+                )
+                DestinationListItem(
+                    destination = destination,
+                    dateFormatter = dateFormatter,
+                    onClick = null,
+                    extraDetail = existingHotel?.name?.ifBlank { null },
+                )
             }
         },
         confirmButton = {
@@ -762,80 +549,27 @@ private fun ShareHotelConfirmDialog(
 }
 
 @Composable
-private fun DestinationItem(
-    destination: Destination,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val dateFormatter = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(vertical = 10.dp, horizontal = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            imageVector = Icons.Default.Place,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.secondary,
-            modifier = Modifier.size(18.dp),
-        )
-        Spacer(Modifier.width(12.dp))
-        Column {
-            Text(
-                text = destination.name,
-                style = MaterialTheme.typography.bodyMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            val arrival = destination.arrivalDateTime?.toLocalDate()
-            val departure = destination.departureDateTime?.toLocalDate()
-            if (arrival != null || departure != null) {
-                val dateRange = when {
-                    arrival != null && departure != null ->
-                        "${arrival.format(dateFormatter)} – ${departure.format(dateFormatter)}"
-                    arrival != null -> arrival.format(dateFormatter)
-                    else -> requireNotNull(departure).format(dateFormatter)
-                }
-                Text(
-                    text = dateRange,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-    }
-}
-
-@Composable
 private fun ShareActivityDestinationSelectionDialog(
     activityInfo: ActivityInfo,
     candidates: List<Destination>,
     onDestinationSelected: (Destination) -> Unit,
     onSkip: () -> Unit,
 ) {
+    val dateFormatter = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
     AlertDialog(
         onDismissRequest = onSkip,
+        icon = { DialogIcon(Icons.Outlined.LocalActivity) },
         title = { Text(stringResource(R.string.documents_analyze_activity_selection_title)) },
         text = {
-            Column {
-                ActivityInfoSummary(activityInfo = activityInfo)
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    text = stringResource(R.string.documents_analyze_activity_selection_message),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.height(8.dp))
-                LazyColumn(modifier = Modifier.heightIn(max = 280.dp)) {
-                    items(candidates) { destination ->
-                        DestinationItem(
-                            destination = destination,
-                            onClick = { onDestinationSelected(destination) },
-                        )
-                        HorizontalDivider()
-                    }
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                AnalyzeActivityInfoSummary(activityInfo = activityInfo)
+                DialogSupportingText(text = stringResource(R.string.documents_analyze_activity_selection_message))
+                DialogSelectionList(options = candidates) { destination ->
+                    DestinationListItem(
+                        destination = destination,
+                        dateFormatter = dateFormatter,
+                        onClick = { onDestinationSelected(destination) },
+                    )
                 }
             }
         },
@@ -855,43 +589,28 @@ private fun ShareActivityConfirmDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val dateFormatter = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
     AlertDialog(
         onDismissRequest = onDismiss,
+        icon = { DialogIcon(Icons.Outlined.LocalActivity) },
         title = { Text(stringResource(R.string.documents_analyze_confirm_activity_title)) },
         text = {
-            Column {
-                ActivityInfoSummary(activityInfo = activityInfo)
-                Spacer(Modifier.height(4.dp))
-                Text(
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                AnalyzeActivityInfoSummary(activityInfo = activityInfo)
+                DialogSupportingText(
                     text = stringResource(
                         R.string.documents_analyze_confirm_activity_message,
                         destination.name,
                     ),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Place,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.secondary,
-                        modifier = Modifier.size(20.dp),
-                    )
-                    Spacer(Modifier.width(12.dp))
-                    Text(
-                        text = destination.name,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
+                DestinationListItem(
+                    destination = destination,
+                    dateFormatter = dateFormatter,
+                    onClick = null,
+                )
             }
         },
         confirmButton = {
@@ -908,50 +627,10 @@ private fun ShareActivityConfirmDialog(
 }
 
 @Composable
-private fun ActivityInfoSummary(activityInfo: ActivityInfo, modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            imageVector = Icons.Default.EventNote,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(20.dp),
-        )
-        Spacer(Modifier.width(8.dp))
-        Column {
-            val activityLabel = activityInfo.title?.ifBlank { null }
-                ?: stringResource(R.string.documents_analyze_activity_unknown)
-            Text(
-                text = activityLabel,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Bold,
-            )
-            if (!activityInfo.description.isNullOrBlank()) {
-                Text(
-                    text = activityInfo.description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            if (!activityInfo.confirmationNumber.isNullOrBlank()) {
-                Text(
-                    text = stringResource(R.string.share_booking_ref, activityInfo.confirmationNumber),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-    }
-}
-
-@Composable
 private fun ShareErrorDialog(onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
+        icon = { DialogIcon(Icons.Outlined.ErrorOutline, isDestructive = true) },
         title = { Text(stringResource(R.string.share_error_title)) },
         text = { Text(stringResource(R.string.share_error_message)) },
         confirmButton = {

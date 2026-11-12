@@ -1,5 +1,6 @@
 package cat.company.wandervault.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -20,12 +21,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.Login
+import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DirectionsBike
 import androidx.compose.material.icons.filled.DirectionsBoat
@@ -39,28 +42,29 @@ import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Train
+import androidx.compose.material.icons.outlined.AddLocationAlt
+import androidx.compose.material.icons.outlined.Hotel
 import androidx.compose.material.icons.outlined.Map
+import androidx.compose.material.icons.outlined.Place
+import androidx.compose.material.icons.outlined.Public
+import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material.icons.outlined.Timer
+import androidx.compose.material.icons.outlined.WrongLocation
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.SmallFloatingActionButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TimePicker
-import androidx.compose.material3.rememberDatePickerState
-import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -72,12 +76,16 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -92,21 +100,20 @@ import kotlinx.coroutines.delay
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
 import java.time.Instant
-import java.time.LocalDate
-import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZonedDateTime
-import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
-import java.time.format.TextStyle
-import java.util.Locale
 
-private const val MILLIS_PER_DAY = 86_400_000L
+/** Width of the timeline rail column; transport nodes use it as their diameter. */
 private const val TIMELINE_COLUMN_WIDTH_DP = 32
 
-/** Converts a [ZonedDateTime] to epoch-day milliseconds used by the [DatePicker] API. */
-private fun ZonedDateTime?.toDateEpochMillis(): Long? =
-    this?.toLocalDate()?.toEpochDay()?.times(MILLIS_PER_DAY)
+/** Vertical position of a destination node's centre, aligned with the card's title row. */
+private const val TIMELINE_NODE_CENTER_DP = 36
+
+/** Size of the box that holds a destination node (including the "current" halo). */
+private const val TIMELINE_NODE_BOX_DP = 28
+
+/** Stroke width of the timeline rail. */
+private const val TIMELINE_STROKE_DP = 3
 
 /**
  * Stateful entry point for the Itinerary tab.
@@ -333,76 +340,86 @@ private fun DestinationTimelineItem(
     var showTransportDurationInDays by rememberSaveable { mutableStateOf(false) }
     var showActionsMenu by remember { mutableStateOf(false) }
 
+    val railColor = MaterialTheme.colorScheme.primary
+
     Column(modifier = modifier.fillMaxWidth()) {
-        // ── Section 1: destination dot + destination info (name, dates, stay duration) ──
+        // ── Section 1: destination node + destination card (name, dates, stay duration) ──
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(IntrinsicSize.Max),
         ) {
-            // Timeline: top line → destination dot → connector line to transport section
-            Column(
+            // Timeline rail: line in from the previous transport → node → line out to transport.
+            Box(
                 modifier = Modifier
                     .width(TIMELINE_COLUMN_WIDTH_DP.dp)
-                    .fillMaxHeight(),
-                horizontalAlignment = Alignment.CenterHorizontally,
+                    .fillMaxHeight()
+                    .drawBehind {
+                        val x = size.width / 2
+                        val nodeY = TIMELINE_NODE_CENTER_DP.dp.toPx()
+                        val stroke = TIMELINE_STROKE_DP.dp.toPx()
+                        if (!isFirst) {
+                            drawLine(railColor, Offset(x, 0f), Offset(x, nodeY), stroke)
+                        }
+                        if (!isLast) {
+                            drawLine(railColor, Offset(x, nodeY), Offset(x, size.height), stroke)
+                        }
+                    },
             ) {
-                Box(
+                DestinationNode(
+                    isCurrent = isTodayInStay,
                     modifier = Modifier
-                        .width(2.dp)
-                        .height(if (isFirst) 8.dp else 16.dp)
-                        .background(if (isFirst) Color.Transparent else MaterialTheme.colorScheme.primary),
+                        .align(Alignment.TopCenter)
+                        .padding(top = (TIMELINE_NODE_CENTER_DP - TIMELINE_NODE_BOX_DP / 2).dp),
                 )
-                // Destination dot.  When today falls within this stay, a secondary-colour ring is
-                // drawn around the dot to indicate the current position in the itinerary.
-                Box(contentAlignment = Alignment.Center) {
-                    if (isTodayInStay) {
-                        Box(
-                            modifier = Modifier
-                                .size(20.dp)
-                                .border(2.dp, MaterialTheme.colorScheme.secondary, CircleShape),
-                        )
-                    }
-                    Box(
-                        modifier = Modifier
-                            .size(12.dp)
-                            .background(MaterialTheme.colorScheme.primary, CircleShape),
-                    )
-                }
-                if (!isLast) {
-                    Box(
-                        modifier = Modifier
-                            .width(2.dp)
-                            .weight(1f)
-                            .background(MaterialTheme.colorScheme.primary),
-                    )
-                }
             }
 
-            // Destination info content
-            Column(
+            // Destination card
+            val cardShape = CardDefaults.shape
+            Card(
                 modifier = Modifier
                     .weight(1f)
-                    .padding(start = 12.dp, bottom = if (isLast) 8.dp else 4.dp),
+                    .padding(start = 8.dp, top = 8.dp, bottom = 8.dp)
+                    .clip(cardShape)
+                    .clickable(
+                        role = Role.Button,
+                        onClickLabel = stringResource(R.string.itinerary_destination_open_details),
+                        onClick = onClick,
+                    ),
+                shape = cardShape,
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                ),
+                border = if (isTodayInStay) {
+                    BorderStroke(1.dp, MaterialTheme.colorScheme.secondary)
+                } else {
+                    null
+                },
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, top = 4.dp, end = 4.dp)
+                        .heightIn(min = 48.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(
-                        text = destination.name,
-                        style = MaterialTheme.typography.titleMedium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier
-                            .weight(1f)
-                            .heightIn(min = 48.dp)
-                            .clickable(
-                                role = Role.Button,
-                                onClickLabel = stringResource(R.string.itinerary_destination_open_details),
-                                onClick = onClick,
-                            ),
-                    )
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = destination.name,
+                            style = MaterialTheme.typography.titleMedium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false),
+                        )
+                        // "Today" chip — shown when today falls within this destination's stay.
+                        if (isTodayInStay) {
+                            Spacer(modifier = Modifier.width(8.dp))
+                            TodayChip()
+                        }
+                    }
                     Box {
                         IconButton(onClick = { showActionsMenu = true }) {
                             Icon(
@@ -453,219 +470,166 @@ private fun DestinationTimelineItem(
                     }
                 }
 
-                // "Today" chip — shown when today falls within this destination's stay.
-                if (isTodayInStay) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    TodayChip()
-                }
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    // Show arrival only for non-first destinations (hidden when there is only one place)
+                    if (!isFirst) {
+                        DateTimeField(
+                            label = stringResource(R.string.itinerary_arrival_label),
+                            labelIcon = Icons.AutoMirrored.Outlined.Login,
+                            dateTime = destination.arrivalDateTime,
+                            onDateTimeChange = onUpdateArrivalDateTime,
+                            minDateMillis = prevDepartureMillis,
+                            maxDateMillis = ownDepartureMillis,
+                        )
+                    }
+                    // Show departure only for non-last destinations (hidden when there is only one place)
+                    if (!isLast) {
+                        DateTimeField(
+                            label = stringResource(R.string.itinerary_departure_label),
+                            labelIcon = Icons.AutoMirrored.Outlined.Logout,
+                            dateTime = destination.departureDateTime,
+                            onDateTimeChange = onUpdateDepartureDateTime,
+                            minDateMillis = listOfNotNull(ownArrivalMillis, prevDepartureMillis).maxOrNull(),
+                            maxDateMillis = nextArrivalMillis,
+                        )
+                    }
 
-                // Show arrival only for non-first destinations (hidden when there is only one place)
-                if (!isFirst) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    DateTimeRow(
-                        label = stringResource(R.string.itinerary_arrival_label),
-                        dateTime = destination.arrivalDateTime,
-                        onDateTimeChange = onUpdateArrivalDateTime,
-                        minDateMillis = prevDepartureMillis,
-                        maxDateMillis = ownDepartureMillis,
-                    )
-                }
-                // Show departure only for non-last destinations (hidden when there is only one place)
-                if (!isLast) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    DateTimeRow(
-                        label = stringResource(R.string.itinerary_departure_label),
-                        dateTime = destination.departureDateTime,
-                        onDateTimeChange = onUpdateDepartureDateTime,
-                        minDateMillis = listOfNotNull(ownArrivalMillis, prevDepartureMillis).maxOrNull(),
-                        maxDateMillis = nextArrivalMillis,
-                    )
-                }
-
-                // Show stay duration when both arrival and departure are set.
-                val stayDuration = destination.arrivalDateTime.durationUntil(destination.departureDateTime)
-                if (stayDuration != null) {
-                    Text(
-                        text = stringResource(
-                            R.string.itinerary_stay_duration,
-                            if (showStayDurationInDays) stayDuration.formattedWithDays() else stayDuration.formatted(),
-                        ),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 48.dp)
-                            .clickable(
-                                role = Role.Button,
-                                onClickLabel = stringResource(R.string.itinerary_duration_toggle),
-                                onClick = { showStayDurationInDays = !showStayDurationInDays },
-                            )
-                            .padding(top = 6.dp, bottom = 2.dp),
-                    )
+                    // Show stay duration when both arrival and departure are set.
+                    val stayDuration = destination.arrivalDateTime.durationUntil(destination.departureDateTime)
+                    if (stayDuration != null) {
+                        DurationPill(
+                            text = stringResource(
+                                R.string.itinerary_stay_duration,
+                                if (showStayDurationInDays) stayDuration.formattedWithDays() else stayDuration.formatted(),
+                            ),
+                            icon = Icons.Outlined.Hotel,
+                            onClick = { showStayDurationInDays = !showStayDurationInDays },
+                        )
+                    }
                 }
             }
         }
 
-        // ── Section 2: transport circle + transport info ──────────────────────────────
+        // ── Section 2: transport node + transport summary ──────────────────────────────
         if (!isLast) {
             val hasTransport = destination.transport != null && destination.transport.legs.isNotEmpty()
-            val timelineColor = MaterialTheme.colorScheme.primary
+            val pendingRailColor = MaterialTheme.colorScheme.outlineVariant
+            val transportLabel = stringResource(
+                if (hasTransport) R.string.itinerary_change_transport else R.string.itinerary_add_transport,
+            )
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .drawBehind {
-                        // Draw the connecting line behind the content without a separate IntrinsicSize pass.
-                        // The Column sizes itself to the transport content + "add here" button; the line fills its full height.
-                        val x = 16.dp.toPx()
+                        // Solid rail when transport is planned, dashed when it is still missing.
+                        val x = (TIMELINE_COLUMN_WIDTH_DP / 2).dp.toPx()
+                        val stroke = TIMELINE_STROKE_DP.dp.toPx()
                         drawLine(
-                            color = timelineColor,
+                            color = if (hasTransport) railColor else pendingRailColor,
                             start = Offset(x, 0f),
                             end = Offset(x, size.height),
-                            strokeWidth = 2.dp.toPx(),
+                            strokeWidth = stroke,
+                            pathEffect = if (hasTransport) {
+                                null
+                            } else {
+                                PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 4.dp.toPx()))
+                            },
                         )
                     },
             ) {
-                Row(modifier = Modifier.fillMaxWidth()) {
-                    // Transport circle: aligned to the top of the Row to match the info column
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    // Transport node: filled when transport legs are set, outlined otherwise
                     Box(
-                        modifier = Modifier
-                            .width(TIMELINE_COLUMN_WIDTH_DP.dp)
-                            .align(Alignment.Top),
+                        modifier = Modifier.width(TIMELINE_COLUMN_WIDTH_DP.dp),
                         contentAlignment = Alignment.Center,
                     ) {
-                        // Transport circle: filled when transport legs are set, dimmed outline otherwise
                         Box(
                             modifier = Modifier
                                 .size(TIMELINE_COLUMN_WIDTH_DP.dp)
+                                .clip(CircleShape)
                                 .background(
                                     color = if (hasTransport) {
                                         MaterialTheme.colorScheme.primaryContainer
                                     } else {
                                         MaterialTheme.colorScheme.surface
                                     },
+                                )
+                                .border(
+                                    width = 1.dp,
+                                    color = if (hasTransport) Color.Transparent else pendingRailColor,
                                     shape = CircleShape,
                                 )
                                 .clickable(
                                     role = Role.Button,
-                                    onClickLabel = stringResource(
-                                        if (hasTransport) R.string.itinerary_change_transport
-                                        else R.string.itinerary_add_transport,
-                                    ),
+                                    onClickLabel = transportLabel,
                                     onClick = onTransportClick,
                                 ),
                             contentAlignment = Alignment.Center,
                         ) {
                             Icon(
                                 imageVector = destination.transport?.legs?.timelineLeg()?.type?.icon ?: Icons.Default.Add,
-                                contentDescription = stringResource(
-                                    if (hasTransport) R.string.itinerary_change_transport
-                                    else R.string.itinerary_add_transport,
-                                ),
+                                contentDescription = transportLabel,
                                 modifier = Modifier.size(18.dp),
                                 tint = if (hasTransport) {
                                     MaterialTheme.colorScheme.onPrimaryContainer
                                 } else {
-                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                                    MaterialTheme.colorScheme.onSurfaceVariant
                                 },
                             )
                         }
                     }
 
-                    // Transport info content
+                    // Transport summary
                     Column(
                         modifier = Modifier
                             .weight(1f)
-                            .padding(start = 12.dp),
+                            .padding(start = 8.dp),
                     ) {
-                        // Show transport details for all legs when set
-                        val legIconSize = 12.dp
-                        val legIconSpacing = 4.dp
-                        destination.transport?.legs?.forEach { leg ->
-                            // Show the type icon + type label + booking details first
-                            val typeLabel = stringResource(leg.type.labelRes)
-                            val bookingDetails = listOfNotNull(
-                                leg.company,
-                                leg.flightNumber,
-                                leg.reservationConfirmationNumber,
-                            )
-                            val rowText = if (bookingDetails.isNotEmpty()) {
-                                "$typeLabel · ${bookingDetails.joinToString(" · ")}"
-                            } else {
-                                typeLabel
-                            }
-                            Row(
-                                modifier = Modifier.padding(top = 2.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(legIconSpacing),
-                            ) {
-                                Icon(
-                                    imageVector = leg.type.icon,
-                                    contentDescription = typeLabel,
-                                    modifier = Modifier.size(legIconSize),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                                Text(
-                                    text = rowText,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            }
-                            // Show the stop name (intermediate destination) after booking details
-                            leg.stopName?.takeIf { it.isNotBlank() }?.let { stopName ->
-                                Text(
-                                    text = stopName,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.padding(top = 2.dp, start = legIconSize + legIconSpacing),
-                                )
-                            }
-                        }
-                        // Show total transport duration when the destination has a departure and the
-                        // next destination has an arrival.  Using the destination-level date-times
-                        // (rather than the individual leg fields) ensures the duration is always
-                        // visible for single-leg transports whose leg dates may not have been
-                        // explicitly persisted to the database.
                         val legs = destination.transport?.legs
                         if (!legs.isNullOrEmpty()) {
-                            val transportDuration =
-                                destination.departureDateTime.durationUntil(nextDestination?.arrivalDateTime)
-                            if (transportDuration != null) {
-                                Text(
-                                    text = stringResource(
-                                        R.string.itinerary_transport_duration,
-                                        if (showTransportDurationInDays) transportDuration.formattedWithDays() else transportDuration.formatted(),
-                                    ),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .heightIn(min = 48.dp)
-                                        .clickable(
-                                            role = Role.Button,
-                                            onClickLabel = stringResource(R.string.itinerary_duration_toggle),
-                                            onClick = { showTransportDurationInDays = !showTransportDurationInDays },
+                            TransportSummary(
+                                legs = legs,
+                                durationText = destination.departureDateTime
+                                    .durationUntil(nextDestination?.arrivalDateTime)
+                                    ?.let { duration ->
+                                        // Using the destination-level date-times (rather than the
+                                        // individual leg fields) ensures the duration is always
+                                        // visible for single-leg transports whose leg dates may not
+                                        // have been explicitly persisted to the database.
+                                        stringResource(
+                                            R.string.itinerary_transport_duration,
+                                            if (showTransportDurationInDays) duration.formattedWithDays() else duration.formatted(),
                                         )
-                                        .padding(top = 6.dp, bottom = 2.dp),
+                                    },
+                                onDurationClick = { showTransportDurationInDays = !showTransportDurationInDays },
+                                isCurrent = isTodayInTransport,
+                                onClick = onTransportClick,
+                            )
+                        } else {
+                            TextButton(onClick = onTransportClick) {
+                                Text(
+                                    text = transportLabel,
+                                    style = MaterialTheme.typography.labelLarge,
                                 )
                             }
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        // "Today" chip — shown when today falls in the transit window after this
-                        // destination's departure and before the next destination's arrival.
-                        if (isTodayInTransport) {
-                            TodayChip()
-                            Spacer(modifier = Modifier.height(8.dp))
                         }
                     }
                 }
                 // "Add destination here" button shown between this item and the next
                 TextButton(
                     onClick = onAddAfter,
-                    modifier = Modifier.padding(start = TIMELINE_COLUMN_WIDTH_DP.dp),
+                    modifier = Modifier.padding(start = (TIMELINE_COLUMN_WIDTH_DP + 4).dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                 ) {
                     Icon(
                         imageVector = Icons.Default.Add,
@@ -675,10 +639,169 @@ private fun DestinationTimelineItem(
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = stringResource(R.string.itinerary_add_destination_here),
-                        style = MaterialTheme.typography.labelSmall,
+                        style = MaterialTheme.typography.labelMedium,
                     )
                 }
             }
+        }
+    }
+}
+
+/**
+ * The node drawn on the timeline rail for a destination: a ring in the primary colour, or a
+ * filled secondary dot with a soft halo when the user is currently at this destination.
+ */
+@Composable
+private fun DestinationNode(isCurrent: Boolean, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier.size(TIMELINE_NODE_BOX_DP.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (isCurrent) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.25f), CircleShape),
+            )
+            Box(
+                modifier = Modifier
+                    .size(16.dp)
+                    .background(MaterialTheme.colorScheme.secondary, CircleShape),
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .size(16.dp)
+                    .background(MaterialTheme.colorScheme.surface, CircleShape)
+                    .border(4.dp, MaterialTheme.colorScheme.primary, CircleShape),
+            )
+        }
+    }
+}
+
+/**
+ * Tappable card summarising a destination's onward transport: one line per leg (type, booking
+ * details and intermediate stop) plus the total travel time.
+ */
+@Composable
+private fun TransportSummary(
+    legs: List<TransportLeg>,
+    durationText: String?,
+    onDurationClick: () -> Unit,
+    isCurrent: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        onClick = onClick,
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        border = if (isCurrent) BorderStroke(1.dp, MaterialTheme.colorScheme.secondary) else null,
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            val legIconSize = 16.dp
+            val legIconSpacing = 8.dp
+            legs.forEach { leg ->
+                val typeLabel = stringResource(leg.type.labelRes)
+                val bookingDetails = listOfNotNull(
+                    leg.company,
+                    leg.flightNumber,
+                    leg.reservationConfirmationNumber,
+                ).filter { it.isNotBlank() }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(legIconSpacing),
+                ) {
+                    Icon(
+                        imageVector = leg.type.icon,
+                        contentDescription = null,
+                        modifier = Modifier.size(legIconSize),
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                    Text(
+                        text = typeLabel,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    if (bookingDetails.isNotEmpty()) {
+                        Text(
+                            text = bookingDetails.joinToString(" · "),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+                // Show the stop name (intermediate destination) after booking details
+                leg.stopName?.takeIf { it.isNotBlank() }?.let { stopName ->
+                    Text(
+                        text = stopName,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(start = legIconSize + legIconSpacing),
+                    )
+                }
+            }
+            if (durationText != null || isCurrent) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    if (durationText != null) {
+                        DurationPill(
+                            text = durationText,
+                            icon = Icons.Outlined.Timer,
+                            onClick = onDurationClick,
+                        )
+                    }
+                    // "Today" chip — shown when today falls in the transit window after this
+                    // destination's departure and before the next destination's arrival.
+                    if (isCurrent) {
+                        TodayChip()
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Small tonal pill showing a duration. Tapping it toggles the duration format (e.g. hours vs
+ * days + hours).
+ */
+@Composable
+private fun DurationPill(
+    text: String,
+    icon: ImageVector,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        modifier = modifier
+            .clip(CircleShape)
+            .clickable(
+                role = Role.Button,
+                onClickLabel = stringResource(R.string.itinerary_duration_toggle),
+                onClick = onClick,
+            ),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(14.dp))
+            Text(text = text, style = MaterialTheme.typography.labelMedium)
         }
     }
 }
@@ -716,207 +839,22 @@ private val TransportType.labelRes: Int
     }
 
 /**
- * A labelled row showing date, time, and timezone buttons for a single [ZonedDateTime] value.
- *
- * - Tapping the date button opens a [DatePickerDialog].
- * - Tapping the time button opens a [TimePicker] dialog (requires a date to be set first).
- * - Tapping the timezone button opens a timezone picker dialog (requires a date to be set first).
- * - Selecting a new date preserves the existing time (or defaults to midnight) and zone.
- * - Changing the timezone keeps the same local date and time, only the zone offset changes.
- */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun DateTimeRow(
-    label: String,
-    dateTime: ZonedDateTime?,
-    onDateTimeChange: (ZonedDateTime?) -> Unit,
-    minDateMillis: Long? = null,
-    maxDateMillis: Long? = null,
-    defaultZoneId: ZoneId = ZoneId.systemDefault(),
-    modifier: Modifier = Modifier,
-) {
-    var showDatePicker by rememberSaveable { mutableStateOf(false) }
-    var showTimePicker by rememberSaveable { mutableStateOf(false) }
-    var showTimezonePicker by rememberSaveable { mutableStateOf(false) }
-
-    val dateFormatter = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
-    val timeFormatter = remember { DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT) }
-
-    if (showDatePicker) {
-        // Normalize bounds once so an inverted range (e.g. from out-of-order existing data)
-        // doesn't disable all dates and lock the user out of correcting them.
-        // Both selectableDates and initialDisplayedMonthMillis use these same values.
-        val (normalizedMin, normalizedMax) = remember(minDateMillis, maxDateMillis) {
-            if (minDateMillis != null && maxDateMillis != null && minDateMillis > maxDateMillis) {
-                maxDateMillis to minDateMillis
-            } else {
-                minDateMillis to maxDateMillis
-            }
-        }
-        val selectableDates = remember(normalizedMin, normalizedMax) {
-            val minYear = normalizedMin?.let { LocalDate.ofEpochDay(it / MILLIS_PER_DAY).year }
-            val maxYear = normalizedMax?.let { LocalDate.ofEpochDay(it / MILLIS_PER_DAY).year }
-            object : SelectableDates {
-                override fun isSelectableDate(utcTimeMillis: Long): Boolean {
-                    val afterMin = normalizedMin == null || utcTimeMillis >= normalizedMin
-                    val beforeMax = normalizedMax == null || utcTimeMillis <= normalizedMax
-                    return afterMin && beforeMax
-                }
-                override fun isSelectableYear(year: Int): Boolean {
-                    val afterMin = minYear == null || year >= minYear
-                    val beforeMax = maxYear == null || year <= maxYear
-                    return afterMin && beforeMax
-                }
-            }
-        }
-        // When no date is selected yet, open the picker at the month of the nearest contextual
-        // bound so the user sees a relevant month instead of today, which may be far from the
-        // trip dates. normalizedMin is preferred because it represents the chronological
-        // predecessor in the itinerary (e.g. the previous destination's departure), giving the
-        // user a natural starting point for sequential date entry.
-        val initialDisplayedMonthMillis = dateTime.toDateEpochMillis() ?: normalizedMin ?: normalizedMax
-        val state = rememberDatePickerState(
-            initialSelectedDateMillis = dateTime.toDateEpochMillis(),
-            initialDisplayedMonthMillis = initialDisplayedMonthMillis,
-            selectableDates = selectableDates,
-        )
-        DatePickerDialog(
-            onDismissRequest = { showDatePicker = false },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        state.selectedDateMillis?.let { millis ->
-                            val pickedDate = LocalDate.ofEpochDay(millis / MILLIS_PER_DAY)
-                            val existingTime = dateTime?.toLocalTime() ?: LocalTime.MIDNIGHT
-                            val zone = dateTime?.zone ?: defaultZoneId
-                            onDateTimeChange(ZonedDateTime.of(pickedDate, existingTime, zone))
-                        }
-                        showDatePicker = false
-                    },
-                ) { Text(stringResource(R.string.dialog_ok)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) {
-                    Text(stringResource(R.string.dialog_cancel))
-                }
-            },
-        ) { DatePicker(state = state) }
-    }
-
-    if (showTimePicker) {
-        val timeState = rememberTimePickerState(
-            initialHour = dateTime?.hour ?: 0,
-            initialMinute = dateTime?.minute ?: 0,
-        )
-        AlertDialog(
-            onDismissRequest = { showTimePicker = false },
-            title = { Text(stringResource(R.string.itinerary_pick_time)) },
-            text = { TimePicker(state = timeState) },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        // dateTime is always non-null here: the time button is disabled when
-                        // dateTime == null, so this branch is purely defensive.
-                        val date = dateTime?.toLocalDate() ?: LocalDate.now(defaultZoneId)
-                        val zone = dateTime?.zone ?: defaultZoneId
-                        onDateTimeChange(ZonedDateTime.of(date, LocalTime.of(timeState.hour, timeState.minute), zone))
-                        showTimePicker = false
-                    },
-                ) { Text(stringResource(R.string.dialog_ok)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showTimePicker = false }) {
-                    Text(stringResource(R.string.dialog_cancel))
-                }
-            },
-        )
-    }
-
-    if (showTimezonePicker) {
-        TimezonePickerDialog(
-            onTimezoneSelected = { zoneId ->
-                val zone = if (zoneId != null) ZoneId.of(zoneId) else ZoneId.systemDefault()
-                dateTime?.let { onDateTimeChange(it.withZoneSameLocal(zone)) }
-                showTimezonePicker = false
-            },
-            onDismiss = { showTimezonePicker = false },
-        )
-    }
-
-    Column(modifier = modifier) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(modifier = Modifier.height(2.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            OutlinedButton(
-                onClick = { showDatePicker = true },
-                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                modifier = Modifier
-                    .weight(1f)
-                    .height(32.dp),
-            ) {
-                Text(
-                    text = dateTime?.toLocalDate()?.format(dateFormatter)
-                        ?: stringResource(R.string.itinerary_pick_date),
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            OutlinedButton(
-                onClick = { showTimePicker = true },
-                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                modifier = Modifier.height(32.dp),
-                enabled = dateTime != null,
-            ) {
-                Text(
-                    text = if (dateTime != null) dateTime.format(timeFormatter) else "--:--",
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            OutlinedButton(
-                onClick = { showTimezonePicker = true },
-                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                modifier = Modifier.height(32.dp),
-                enabled = dateTime != null,
-            ) {
-                Text(
-                    text = dateTime?.zone?.getDisplayName(TextStyle.SHORT, Locale.getDefault()) ?: "---",
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
-    }
-}
-
-/**
- * A small pill-shaped chip labelled "Today" using [MaterialTheme.colorScheme.secondaryContainer]
- * as the background.  Used on the itinerary timeline to indicate the user's current position
- * in the trip, whether they are at a destination stay or in transit between two destinations.
+ * A small pill-shaped chip labelled "Today", filled with [MaterialTheme.colorScheme.secondary].
+ * Used on the itinerary timeline to indicate the user's current position in the trip, whether
+ * they are at a destination stay or in transit between two destinations.
  */
 @Composable
 private fun TodayChip(modifier: Modifier = Modifier) {
     Text(
         text = stringResource(R.string.itinerary_today),
-        style = MaterialTheme.typography.labelSmall,
-        color = MaterialTheme.colorScheme.onSecondaryContainer,
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSecondary,
         modifier = modifier
             .background(
-                color = MaterialTheme.colorScheme.secondaryContainer,
+                color = MaterialTheme.colorScheme.secondary,
                 shape = CircleShape,
             )
-            .padding(horizontal = 8.dp, vertical = 2.dp),
+            .padding(horizontal = 10.dp, vertical = 2.dp),
     )
 }
 
@@ -942,13 +880,20 @@ private fun AddDestinationDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
+        icon = { DialogIcon(Icons.Outlined.AddLocationAlt) },
         title = { Text(stringResource(R.string.itinerary_add_destination_title)) },
         text = {
             OutlinedTextField(
                 value = name,
                 onValueChange = onNameChange,
                 label = { Text(stringResource(R.string.itinerary_destination_name_label)) },
+                leadingIcon = { Icon(Icons.Outlined.Place, contentDescription = null) },
                 singleLine = true,
+                keyboardOptions = KeyboardOptions(
+                    capitalization = KeyboardCapitalization.Words,
+                    imeAction = ImeAction.Done,
+                ),
+                keyboardActions = KeyboardActions(onDone = { if (isFormValid) onSave() }),
                 modifier = Modifier.fillMaxWidth(),
             )
         },
@@ -970,18 +915,13 @@ private fun DeleteDestinationConfirmationDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.itinerary_delete_destination_dialog_title)) },
-        text = { Text(stringResource(R.string.itinerary_delete_destination_dialog_message, destinationName)) },
-        confirmButton = {
-            TextButton(onClick = onConfirm) {
-                Text(stringResource(R.string.itinerary_delete_destination_dialog_confirm))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.dialog_cancel)) }
-        },
+    DestructiveConfirmationDialog(
+        title = stringResource(R.string.itinerary_delete_destination_dialog_title),
+        message = stringResource(R.string.itinerary_delete_destination_dialog_message, destinationName),
+        confirmLabel = stringResource(R.string.itinerary_delete_destination_dialog_confirm),
+        onConfirm = onConfirm,
+        onDismiss = onDismiss,
+        icon = Icons.Outlined.WrongLocation,
     )
 }
 
@@ -1016,6 +956,8 @@ private fun TimezoneRangeDialog(
 
     if (showTimezonePicker) {
         TimezonePickerDialog(
+            selectedZoneId = selectedZoneId,
+            isDeviceDefaultSelected = hasSelectedTimezone && selectedZoneId == null,
             onTimezoneSelected = { zoneId ->
                 selectedZoneId = zoneId
                 hasSelectedTimezone = true
@@ -1035,6 +977,7 @@ private fun TimezoneRangeDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        icon = { DialogIcon(Icons.Outlined.Public) },
         title = { Text(stringResource(R.string.itinerary_change_timezone_range_dialog_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -1050,29 +993,13 @@ private fun TimezoneRangeDialog(
                     selectedIndex = toIndex,
                     onIndexSelected = { toIndex = it },
                 )
-                HorizontalDivider()
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = stringResource(R.string.itinerary_timezone_range_timezone),
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.weight(1f),
-                    )
-                    OutlinedButton(
-                        onClick = { showTimezonePicker = true },
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                        modifier = Modifier.height(32.dp),
-                    ) {
-                        Text(
-                            text = timezoneButtonLabel,
-                            style = MaterialTheme.typography.bodySmall,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                }
+                SelectorField(
+                    label = stringResource(R.string.itinerary_timezone_range_timezone),
+                    value = timezoneButtonLabel,
+                    leadingIcon = Icons.Outlined.Schedule,
+                    isPlaceholder = !hasSelectedTimezone,
+                    onClick = { showTimezonePicker = true },
+                )
             }
         },
         confirmButton = {
@@ -1090,7 +1017,7 @@ private fun TimezoneRangeDialog(
 }
 
 /**
- * A labelled row with an [OutlinedButton] that opens a [DropdownMenu] listing all destinations.
+ * A labelled [SelectorField] that opens a [DropdownMenu] listing all destinations.
  * Used inside [TimezoneRangeDialog] to pick the "from" and "to" endpoints.
  */
 @Composable
@@ -1102,46 +1029,30 @@ private fun DestinationRangeDropdown(
     modifier: Modifier = Modifier,
 ) {
     var expanded by remember { mutableStateOf(false) }
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.weight(1f),
+    Box(modifier = modifier.fillMaxWidth()) {
+        SelectorField(
+            label = label,
+            value = destinations.getOrNull(selectedIndex)?.name.orEmpty(),
+            leadingIcon = Icons.Outlined.Place,
+            onClick = { expanded = true },
         )
-        Box {
-            OutlinedButton(
-                onClick = { expanded = true },
-                contentPadding = PaddingValues(start = 8.dp, end = 4.dp, top = 0.dp, bottom = 0.dp),
-                modifier = Modifier.height(32.dp),
-            ) {
-                Text(
-                    text = destinations.getOrNull(selectedIndex)?.name.orEmpty(),
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            destinations.forEachIndexed { index, destination ->
+                DropdownMenuItem(
+                    text = { Text(destination.name) },
+                    onClick = {
+                        onIndexSelected(index)
+                        expanded = false
+                    },
+                    leadingIcon = if (index == selectedIndex) {
+                        { Icon(Icons.Default.Check, contentDescription = null) }
+                    } else {
+                        null
+                    },
                 )
-                Icon(
-                    imageVector = Icons.Default.ArrowDropDown,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp),
-                )
-            }
-            DropdownMenu(
-                expanded = expanded,
-                onDismissRequest = { expanded = false },
-            ) {
-                destinations.forEachIndexed { index, destination ->
-                    DropdownMenuItem(
-                        text = { Text(destination.name) },
-                        onClick = {
-                            onIndexSelected(index)
-                            expanded = false
-                        },
-                    )
-                }
             }
         }
     }

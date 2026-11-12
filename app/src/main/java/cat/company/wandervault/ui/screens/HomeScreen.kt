@@ -4,7 +4,6 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,25 +14,35 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.outlined.AddPhotoAlternate
 import androidx.compose.material.icons.outlined.Archive
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Luggage
+import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconToggleButton
@@ -57,6 +66,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
@@ -65,6 +76,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -339,6 +351,7 @@ private fun TripCard(trip: Trip, onEditClick: () -> Unit, onDeleteClick: () -> U
 @Composable
 private fun TripFormDialog(
     dialogTitle: String,
+    dialogIcon: ImageVector,
     title: String,
     onTitleChange: (String) -> Unit,
     imageUri: String?,
@@ -357,41 +370,54 @@ private fun TripFormDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        icon = { DialogIcon(dialogIcon) },
         title = { Text(dialogTitle) },
         text = {
-            Column {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
                 OutlinedTextField(
                     value = title,
                     onValueChange = onTitleChange,
                     label = { Text(stringResource(R.string.add_trip_name_label)) },
+                    leadingIcon = { Icon(Icons.Outlined.Luggage, contentDescription = null) },
                     singleLine = true,
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                     modifier = Modifier.fillMaxWidth(),
                 )
-                Spacer(modifier = Modifier.height(8.dp))
                 TimezoneDropdown(
                     selectedTimezone = timezone,
                     onTimezoneChange = onTimezoneChange,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                Spacer(modifier = Modifier.height(8.dp))
                 if (imageUri != null) {
-                    AsyncImage(
-                        model = ImageRequest.Builder(LocalContext.current)
-                            .data(Uri.parse(imageUri))
-                            .crossfade(true)
-                            .build(),
-                        contentDescription = stringResource(R.string.trip_image_content_desc),
-                        contentScale = ContentScale.Crop,
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(100.dp),
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    OutlinedButton(
-                        onClick = { onImageUriChange(null) },
-                        modifier = Modifier.fillMaxWidth(),
+                            .height(120.dp)
+                            .clip(MaterialTheme.shapes.medium),
                     ) {
-                        Text(stringResource(R.string.trip_image_remove))
+                        AsyncImage(
+                            model = ImageRequest.Builder(LocalContext.current)
+                                .data(Uri.parse(imageUri))
+                                .crossfade(true)
+                                .build(),
+                            contentDescription = stringResource(R.string.trip_image_content_desc),
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                        FilledTonalIconButton(
+                            onClick = { onImageUriChange(null) },
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(4.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = stringResource(R.string.trip_image_remove),
+                            )
+                        }
                     }
                 } else {
                     OutlinedButton(
@@ -402,6 +428,12 @@ private fun TripFormDialog(
                         },
                         modifier = Modifier.fillMaxWidth(),
                     ) {
+                        Icon(
+                            imageVector = Icons.Outlined.AddPhotoAlternate,
+                            contentDescription = null,
+                            modifier = Modifier.size(ButtonDefaults.IconSize),
+                        )
+                        Spacer(modifier = Modifier.width(ButtonDefaults.IconSpacing))
                         Text(stringResource(R.string.trip_image_pick))
                     }
                 }
@@ -430,6 +462,7 @@ private fun AddTripDialog(
 ) {
     TripFormDialog(
         dialogTitle = stringResource(R.string.add_trip_title),
+        dialogIcon = Icons.Outlined.Luggage,
         title = title,
         onTitleChange = onTitleChange,
         imageUri = imageUri,
@@ -456,6 +489,7 @@ private fun EditTripDialog(
 ) {
     TripFormDialog(
         dialogTitle = stringResource(R.string.edit_trip_title),
+        dialogIcon = Icons.Outlined.Edit,
         title = title,
         onTitleChange = onTitleChange,
         imageUri = imageUri,
@@ -475,18 +509,12 @@ private fun DeleteTripConfirmationDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.home_delete_trip_dialog_title)) },
-        text = { Text(stringResource(R.string.home_delete_trip_dialog_message, tripTitle)) },
-        confirmButton = {
-            TextButton(onClick = onConfirm) {
-                Text(stringResource(R.string.home_delete_trip_dialog_confirm))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.dialog_cancel)) }
-        },
+    DestructiveConfirmationDialog(
+        title = stringResource(R.string.home_delete_trip_dialog_title),
+        message = stringResource(R.string.home_delete_trip_dialog_message, tripTitle),
+        confirmLabel = stringResource(R.string.home_delete_trip_dialog_confirm),
+        onConfirm = onConfirm,
+        onDismiss = onDismiss,
     )
 }
 
@@ -508,6 +536,8 @@ private fun TimezoneDropdown(
 
     if (showPicker) {
         TimezonePickerDialog(
+            selectedZoneId = selectedTimezone,
+            isDeviceDefaultSelected = selectedTimezone == null,
             onTimezoneSelected = { zoneId ->
                 onTimezoneChange(zoneId)
                 showPicker = false
@@ -522,6 +552,7 @@ private fun TimezoneDropdown(
             onValueChange = {},
             readOnly = true,
             label = { Text(stringResource(R.string.trip_timezone_label)) },
+            leadingIcon = { Icon(Icons.Outlined.Public, contentDescription = null) },
             trailingIcon = {
                 Icon(Icons.Default.ArrowDropDown, contentDescription = null)
             },

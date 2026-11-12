@@ -7,6 +7,7 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -24,8 +25,15 @@ import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.outlined.Business
+import androidx.compose.material.icons.outlined.ConfirmationNumber
+import androidx.compose.material.icons.outlined.DocumentScanner
+import androidx.compose.material.icons.outlined.ErrorOutline
+import androidx.compose.material.icons.outlined.Flight
+import androidx.compose.material.icons.outlined.Hotel
+import androidx.compose.material.icons.outlined.Place
+import androidx.compose.material.icons.outlined.SearchOff
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -43,6 +51,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -189,16 +199,9 @@ internal fun DocumentScanStatusDialogs(state: DocumentScanUiState, onDismiss: ()
     when (state) {
         DocumentScanUiState.Scanning -> AlertDialog(
             onDismissRequest = onDismiss,
+            icon = { DialogIcon(Icons.Outlined.DocumentScanner) },
             title = { Text(stringResource(R.string.scan_document_title)) },
-            text = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
-                    Text(
-                        text = stringResource(R.string.scan_document_scanning),
-                        modifier = Modifier.padding(start = 16.dp),
-                    )
-                }
-            },
+            text = { DialogProgressRow(message = stringResource(R.string.scan_document_scanning)) },
             confirmButton = {},
             dismissButton = {
                 TextButton(onClick = onDismiss) { Text(stringResource(R.string.dialog_cancel)) }
@@ -206,6 +209,7 @@ internal fun DocumentScanStatusDialogs(state: DocumentScanUiState, onDismiss: ()
         )
         DocumentScanUiState.NothingFound -> AlertDialog(
             onDismissRequest = onDismiss,
+            icon = { DialogIcon(Icons.Outlined.SearchOff) },
             title = { Text(stringResource(R.string.scan_document_title)) },
             text = { Text(stringResource(R.string.scan_document_nothing_found)) },
             confirmButton = {
@@ -214,6 +218,7 @@ internal fun DocumentScanStatusDialogs(state: DocumentScanUiState, onDismiss: ()
         )
         DocumentScanUiState.Error -> AlertDialog(
             onDismissRequest = onDismiss,
+            icon = { DialogIcon(Icons.Outlined.ErrorOutline, isDestructive = true) },
             title = { Text(stringResource(R.string.scan_document_title)) },
             text = { Text(stringResource(R.string.scan_document_error)) },
             confirmButton = {
@@ -252,20 +257,19 @@ internal fun ScannedTransportReviewDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        icon = { DialogIcon(Icons.Outlined.DocumentScanner) },
         title = { Text(stringResource(R.string.scan_document_review_title)) },
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Text(
-                    text = stringResource(R.string.scan_document_review_message),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
+                DialogSupportingText(text = stringResource(R.string.scan_document_review_message))
                 OutlinedTextField(
                     value = flightNumber,
                     onValueChange = { flightNumber = it },
                     label = { Text(stringResource(R.string.transport_flight_number_label)) },
+                    leadingIcon = { Icon(Icons.Outlined.Flight, contentDescription = null) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -273,6 +277,7 @@ internal fun ScannedTransportReviewDialog(
                     value = confirmation,
                     onValueChange = { confirmation = it },
                     label = { Text(stringResource(R.string.transport_confirmation_label)) },
+                    leadingIcon = { Icon(Icons.Outlined.ConfirmationNumber, contentDescription = null) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -280,14 +285,19 @@ internal fun ScannedTransportReviewDialog(
                     value = company,
                     onValueChange = { company = it },
                     label = { Text(stringResource(R.string.transport_company_label)) },
+                    leadingIcon = { Icon(Icons.Outlined.Business, contentDescription = null) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Text(
                     text = stringResource(R.string.scan_document_apply_to_leg),
                     style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.padding(top = 8.dp),
                 )
-                Column(modifier = Modifier.selectableGroup()) {
+                Column(
+                    modifier = Modifier.selectableGroup(),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
                     legs.forEachIndexed { index, leg ->
                         LegChoiceRow(
                             label = legChoiceLabel(index, leg),
@@ -347,20 +357,19 @@ internal fun ScannedHotelReviewDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        icon = { DialogIcon(Icons.Outlined.DocumentScanner) },
         title = { Text(stringResource(R.string.scan_document_review_title)) },
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Text(
-                    text = stringResource(R.string.scan_document_review_hotel_message),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
+                DialogSupportingText(text = stringResource(R.string.scan_document_review_hotel_message))
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
                     label = { Text(stringResource(R.string.hotel_name_label)) },
+                    leadingIcon = { Icon(Icons.Outlined.Hotel, contentDescription = null) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -368,12 +377,14 @@ internal fun ScannedHotelReviewDialog(
                     value = address,
                     onValueChange = { address = it },
                     label = { Text(stringResource(R.string.hotel_address_label)) },
+                    leadingIcon = { Icon(Icons.Outlined.Place, contentDescription = null) },
                     modifier = Modifier.fillMaxWidth(),
                 )
                 OutlinedTextField(
                     value = reservation,
                     onValueChange = { reservation = it },
                     label = { Text(stringResource(R.string.hotel_reservation_number_label)) },
+                    leadingIcon = { Icon(Icons.Outlined.ConfirmationNumber, contentDescription = null) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -410,17 +421,24 @@ private fun legChoiceLabel(index: Int, leg: TransportLegEditState): String {
 
 @Composable
 private fun LegChoiceRow(label: String, selected: Boolean, onClick: () -> Unit) {
+    val shape = MaterialTheme.shapes.medium
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .selectable(selected = selected, onClick = onClick, role = Role.RadioButton),
+            .clip(shape)
+            .background(
+                color = if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
+                shape = shape,
+            )
+            .selectable(selected = selected, onClick = onClick, role = Role.RadioButton)
+            .padding(horizontal = 4.dp, vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        RadioButton(selected = selected, onClick = null)
+        RadioButton(selected = selected, onClick = null, modifier = Modifier.padding(8.dp))
         Text(
             text = label,
             style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.padding(start = 8.dp),
+            modifier = Modifier.padding(start = 4.dp, end = 8.dp),
         )
     }
 }
