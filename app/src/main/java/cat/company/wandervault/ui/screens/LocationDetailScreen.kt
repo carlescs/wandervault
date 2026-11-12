@@ -30,7 +30,6 @@ import androidx.compose.material.icons.filled.Hotel
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Notes
 import androidx.compose.material.icons.outlined.Hotel
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -47,10 +46,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TimePicker
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDatePickerState
-import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -80,7 +77,6 @@ import cat.company.wandervault.ui.theme.WanderVaultTheme
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
 import java.time.Instant
-import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZoneOffset
@@ -755,33 +751,21 @@ private fun ActivityDraftForm(
     }
 
     if (showTimePicker && draft.dateTime != null) {
-        val timeState = rememberTimePickerState(
+        TimeSelectionDialog(
+            title = stringResource(R.string.activity_time_label),
             initialHour = draft.dateTime.hour,
             initialMinute = draft.dateTime.minute,
-        )
-        AlertDialog(
-            onDismissRequest = { showTimePicker = false },
-            title = { Text(stringResource(R.string.activity_time_label)) },
-            text = { TimePicker(state = timeState) },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        onDateTimeChange(
-                            ZonedDateTime.of(
-                                draft.dateTime.toLocalDate(),
-                                LocalTime.of(timeState.hour, timeState.minute),
-                                draft.dateTime.zone,
-                            ),
-                        )
-                        showTimePicker = false
-                    },
-                ) { Text(stringResource(R.string.dialog_ok)) }
+            onConfirm = { hour, minute ->
+                onDateTimeChange(
+                    ZonedDateTime.of(
+                        draft.dateTime.toLocalDate(),
+                        LocalTime.of(hour, minute),
+                        draft.dateTime.zone,
+                    ),
+                )
+                showTimePicker = false
             },
-            dismissButton = {
-                TextButton(onClick = { showTimePicker = false }) {
-                    Text(stringResource(R.string.dialog_cancel))
-                }
-            },
+            onDismiss = { showTimePicker = false },
         )
     } else if (showTimePicker) {
         // draft.dateTime became null after state restoration – close the dialog.

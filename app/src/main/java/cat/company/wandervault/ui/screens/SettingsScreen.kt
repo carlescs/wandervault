@@ -281,6 +281,8 @@ private fun AppTimezoneRow(
 
     if (showPicker) {
         TimezonePickerDialog(
+            selectedZoneId = currentTimezone,
+            isDeviceDefaultSelected = currentTimezone == null,
             onTimezoneSelected = { zoneId ->
                 onTimezoneChange(zoneId)
                 showPicker = false

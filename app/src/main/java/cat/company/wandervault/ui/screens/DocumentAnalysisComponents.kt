@@ -1,9 +1,7 @@
 package cat.company.wandervault.ui.screens
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -12,23 +10,23 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AirplanemodeActive
-import androidx.compose.material.icons.filled.Hotel
-import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.ErrorOutline
+import androidx.compose.material.icons.outlined.Flight
+import androidx.compose.material.icons.outlined.Hotel
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.LocalActivity
+import androidx.compose.material.icons.outlined.Place
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import cat.company.wandervault.R
 import cat.company.wandervault.domain.model.ActivityInfo
@@ -115,8 +113,31 @@ internal fun AnalyzeDocumentDialog(
         analyzeState !is AnalyzeDocumentUiState.HotelDestinationSelection &&
         analyzeState !is AnalyzeDocumentUiState.ActivityDestinationSelection
 
+    val dialogIcon = when (analyzeState) {
+        is AnalyzeDocumentUiState.FlightLegSelection,
+        is AnalyzeDocumentUiState.FlightTransportSelection,
+        is AnalyzeDocumentUiState.FlightConfirm,
+        is AnalyzeDocumentUiState.FlightAddLegConfirm,
+        -> Icons.Outlined.Flight
+        is AnalyzeDocumentUiState.HotelDestinationSelection,
+        is AnalyzeDocumentUiState.HotelConfirm,
+        -> Icons.Outlined.Hotel
+        is AnalyzeDocumentUiState.ActivityDestinationSelection,
+        is AnalyzeDocumentUiState.ActivityConfirm,
+        -> Icons.Outlined.LocalActivity
+        is AnalyzeDocumentUiState.TripInfoConfirm -> Icons.Outlined.Info
+        is AnalyzeDocumentUiState.Error -> Icons.Outlined.ErrorOutline
+        else -> Icons.Outlined.AutoAwesome
+    }
+
     AlertDialog(
         onDismissRequest = onDismiss,
+        icon = {
+            DialogIcon(
+                icon = dialogIcon,
+                isDestructive = analyzeState is AnalyzeDocumentUiState.Error,
+            )
+        },
         title = { Text(stringResource(titleRes)) },
         text = {
             Column(
@@ -124,15 +145,11 @@ internal fun AnalyzeDocumentDialog(
                     .fillMaxWidth()
                     .heightIn(min = 48.dp)
                     .then(if (useScroll) Modifier.verticalScroll(scrollState) else Modifier),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 when (analyzeState) {
                     is AnalyzeDocumentUiState.Unavailable -> {
-                        Text(
-                            text = stringResource(R.string.documents_analyze_unavailable),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        DialogSupportingText(text = stringResource(R.string.documents_analyze_unavailable))
                     }
 
                     is AnalyzeDocumentUiState.Error -> {
@@ -157,199 +174,60 @@ internal fun AnalyzeDocumentDialog(
 
                     is AnalyzeDocumentUiState.FlightConfirm -> {
                         AnalyzeFlightInfoSummary(flightInfo = analyzeState.flightInfo)
-                        Text(
-                            text = stringResource(R.string.documents_analyze_confirm_flight_message),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        HorizontalDivider()
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.AirplanemodeActive,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.secondary,
-                                modifier = Modifier.padding(end = 12.dp),
-                            )
-                            Column {
-                                val legLabel = listOfNotNull(
-                                    analyzeState.matchedLeg.company,
-                                    analyzeState.matchedLeg.flightNumber,
-                                ).joinToString(" ")
-                                    .ifBlank { stringResource(R.string.share_unnamed_flight_leg) }
-                                Text(
-                                    text = legLabel,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Bold,
-                                )
-                                if (!analyzeState.matchedLeg.reservationConfirmationNumber.isNullOrBlank()) {
-                                    Text(
-                                        text = stringResource(
-                                            R.string.documents_analyze_ref,
-                                            analyzeState.matchedLeg.reservationConfirmationNumber,
-                                        ),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
-                                if (!analyzeState.matchedLeg.stopName.isNullOrBlank()) {
-                                    Text(
-                                        text = stringResource(
-                                            R.string.documents_analyze_to,
-                                            analyzeState.matchedLeg.stopName,
-                                        ),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
-                            }
-                        }
+                        DialogSupportingText(text = stringResource(R.string.documents_analyze_confirm_flight_message))
+                        FlightLegListItem(leg = analyzeState.matchedLeg, onClick = null)
                     }
 
                     is AnalyzeDocumentUiState.HotelConfirm -> {
                         AnalyzeHotelInfoSummary(hotelInfo = analyzeState.hotelInfo)
-                        if (analyzeState.existingHotel != null) {
-                            Text(
-                                text = stringResource(
-                                    R.string.documents_analyze_confirm_hotel_message,
-                                    analyzeState.destination.name,
-                                ),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        } else {
-                            Text(
-                                text = stringResource(
-                                    R.string.documents_analyze_confirm_hotel_new_message,
-                                    analyzeState.destination.name,
-                                ),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        HorizontalDivider()
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Place,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.secondary,
-                                modifier = Modifier.padding(end = 12.dp),
-                            )
-                            Column {
-                                Text(
-                                    text = analyzeState.destination.name,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Bold,
-                                )
-                                val arrival = analyzeState.destination.arrivalDateTime?.toLocalDate()
-                                val departure = analyzeState.destination.departureDateTime?.toLocalDate()
-                                if (arrival != null || departure != null) {
-                                    val dateRange = when {
-                                        arrival != null && departure != null ->
-                                            "${arrival.format(dateFormatter)} – ${departure.format(dateFormatter)}"
-                                        arrival != null -> arrival.format(dateFormatter)
-                                        else -> requireNotNull(departure).format(dateFormatter)
-                                    }
-                                    Text(
-                                        text = dateRange,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
-                                analyzeState.existingHotel?.name?.ifBlank { null }?.let { hotelName ->
-                                    Text(
-                                        text = hotelName,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
-                            }
-                        }
+                        DialogSupportingText(
+                            text = stringResource(
+                                if (analyzeState.existingHotel != null) {
+                                    R.string.documents_analyze_confirm_hotel_message
+                                } else {
+                                    R.string.documents_analyze_confirm_hotel_new_message
+                                },
+                                analyzeState.destination.name,
+                            ),
+                        )
+                        DestinationListItem(
+                            destination = analyzeState.destination,
+                            dateFormatter = dateFormatter,
+                            onClick = null,
+                            extraDetail = analyzeState.existingHotel?.name?.ifBlank { null },
+                        )
                     }
 
                     is AnalyzeDocumentUiState.FlightLegSelection -> {
                         AnalyzeFlightInfoSummary(flightInfo = analyzeState.flightInfo)
-                        Text(
-                            text = stringResource(R.string.share_flight_selection_message),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        LazyColumn(modifier = Modifier.heightIn(max = 280.dp)) {
-                            items(analyzeState.candidates) { leg ->
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable { onFlightLegSelected(leg) }
-                                        .padding(vertical = 10.dp, horizontal = 4.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.AirplanemodeActive,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.secondary,
-                                        modifier = Modifier.padding(end = 12.dp),
-                                    )
-                                    Column {
-                                        val label = listOfNotNull(leg.company, leg.flightNumber)
-                                            .joinToString(" ")
-                                            .ifBlank { stringResource(R.string.share_unnamed_flight_leg) }
-                                        Text(text = label, style = MaterialTheme.typography.bodyMedium)
-                                        if (!leg.reservationConfirmationNumber.isNullOrBlank()) {
-                                            Text(
-                                                text = stringResource(
-                                                    R.string.documents_analyze_ref,
-                                                    leg.reservationConfirmationNumber,
-                                                ),
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            )
-                                        }
-                                    }
-                                }
-                                HorizontalDivider()
-                            }
+                        DialogSupportingText(text = stringResource(R.string.share_flight_selection_message))
+                        DialogSelectionList(options = analyzeState.candidates) { leg ->
+                            FlightLegListItem(leg = leg, onClick = { onFlightLegSelected(leg) })
                         }
                     }
 
                     is AnalyzeDocumentUiState.FlightTransportSelection -> {
                         AnalyzeFlightInfoSummary(flightInfo = analyzeState.flightInfo)
-                        Text(
+                        DialogSupportingText(
                             text = stringResource(R.string.documents_analyze_transport_selection_message),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        LazyColumn(modifier = Modifier.heightIn(max = 280.dp)) {
-                            items(analyzeState.candidates) { destination ->
-                                DestinationListItem(
-                                    destination = destination,
-                                    dateFormatter = dateFormatter,
-                                    onClick = { onFlightTransportSelected(destination) },
-                                )
-                                HorizontalDivider()
-                            }
+                        DialogSelectionList(options = analyzeState.candidates) { destination ->
+                            DestinationListItem(
+                                destination = destination,
+                                dateFormatter = dateFormatter,
+                                onClick = { onFlightTransportSelected(destination) },
+                            )
                         }
                     }
 
                     is AnalyzeDocumentUiState.FlightAddLegConfirm -> {
                         AnalyzeFlightInfoSummary(flightInfo = analyzeState.flightInfo)
-                        Text(
+                        DialogSupportingText(
                             text = stringResource(
                                 R.string.documents_analyze_confirm_add_leg_message,
                                 analyzeState.destination.name,
                             ),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        HorizontalDivider()
                         DestinationListItem(
                             destination = analyzeState.destination,
                             dateFormatter = dateFormatter,
@@ -359,66 +237,53 @@ internal fun AnalyzeDocumentDialog(
 
                     is AnalyzeDocumentUiState.HotelDestinationSelection -> {
                         AnalyzeHotelInfoSummary(hotelInfo = analyzeState.hotelInfo)
-                        Text(
-                            text = stringResource(R.string.share_hotel_selection_message),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        LazyColumn(modifier = Modifier.heightIn(max = 280.dp)) {
-                            items(analyzeState.candidates) { destination ->
-                                DestinationListItem(
-                                    destination = destination,
-                                    dateFormatter = dateFormatter,
-                                    onClick = { onHotelDestinationSelected(destination) },
-                                )
-                                HorizontalDivider()
-                            }
+                        DialogSupportingText(text = stringResource(R.string.share_hotel_selection_message))
+                        DialogSelectionList(options = analyzeState.candidates) { destination ->
+                            DestinationListItem(
+                                destination = destination,
+                                dateFormatter = dateFormatter,
+                                onClick = { onHotelDestinationSelected(destination) },
+                            )
                         }
                     }
 
                     is AnalyzeDocumentUiState.TripInfoConfirm -> {
-                        Text(
-                            text = stringResource(R.string.documents_analyze_confirm_trip_info_message),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        HorizontalDivider()
-                        Text(
-                            text = analyzeState.relevantTripInfo,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
+                        DialogSupportingText(text = stringResource(R.string.documents_analyze_confirm_trip_info_message))
+                        Surface(
+                            shape = MaterialTheme.shapes.medium,
+                            color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(
+                                text = analyzeState.relevantTripInfo,
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.padding(12.dp),
+                            )
+                        }
                     }
 
                     is AnalyzeDocumentUiState.ActivityDestinationSelection -> {
                         AnalyzeActivityInfoSummary(activityInfo = analyzeState.activityInfo)
-                        Text(
+                        DialogSupportingText(
                             text = stringResource(R.string.documents_analyze_activity_selection_message),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        LazyColumn(modifier = Modifier.heightIn(max = 280.dp)) {
-                            items(analyzeState.candidates) { destination ->
-                                DestinationListItem(
-                                    destination = destination,
-                                    dateFormatter = dateFormatter,
-                                    onClick = { onActivityDestinationSelected(destination) },
-                                )
-                                HorizontalDivider()
-                            }
+                        DialogSelectionList(options = analyzeState.candidates) { destination ->
+                            DestinationListItem(
+                                destination = destination,
+                                dateFormatter = dateFormatter,
+                                onClick = { onActivityDestinationSelected(destination) },
+                            )
                         }
                     }
 
                     is AnalyzeDocumentUiState.ActivityConfirm -> {
                         AnalyzeActivityInfoSummary(activityInfo = analyzeState.activityInfo)
-                        Text(
+                        DialogSupportingText(
                             text = stringResource(
                                 R.string.documents_analyze_confirm_activity_message,
                                 analyzeState.destination.name,
                             ),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        HorizontalDivider()
                         DestinationListItem(
                             destination = analyzeState.destination,
                             dateFormatter = dateFormatter,
@@ -487,115 +352,105 @@ internal fun AnalyzeDocumentDialog(
     )
 }
 
+/**
+ * Scrollable list of selectable options inside an analysis / share dialog. Uses a bounded height
+ * so the dialog's summary and buttons stay visible with long candidate lists.
+ */
+@Composable
+internal fun <T> DialogSelectionList(
+    options: List<T>,
+    modifier: Modifier = Modifier,
+    itemContent: @Composable (T) -> Unit,
+) {
+    LazyColumn(
+        modifier = modifier.heightIn(max = 280.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        items(options) { option -> itemContent(option) }
+    }
+}
+
+/** Summary card for flight details extracted from a document. */
 @Composable
 internal fun AnalyzeFlightInfoSummary(flightInfo: FlightInfo, modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            imageVector = Icons.Default.AirplanemodeActive,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(end = 8.dp),
-        )
-        Column {
-            val flightLabel = listOfNotNull(flightInfo.airline, flightInfo.flightNumber)
-                .joinToString(" ")
-                .ifBlank { stringResource(R.string.share_unknown_flight) }
-            Text(text = flightLabel, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
-            if (!flightInfo.bookingReference.isNullOrBlank()) {
-                Text(
-                    text = stringResource(R.string.documents_analyze_ref, flightInfo.bookingReference),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-    }
+    DialogSummaryCard(
+        icon = Icons.Outlined.Flight,
+        title = listOfNotNull(flightInfo.airline, flightInfo.flightNumber)
+            .joinToString(" ")
+            .ifBlank { stringResource(R.string.share_unknown_flight) },
+        details = listOf(
+            flightInfo.bookingReference?.ifBlank { null }
+                ?.let { stringResource(R.string.documents_analyze_ref, it) },
+        ),
+        modifier = modifier,
+    )
 }
 
+/** Summary card for hotel details extracted from a document. */
 @Composable
 internal fun AnalyzeHotelInfoSummary(hotelInfo: HotelInfo, modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            imageVector = Icons.Default.Hotel,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(end = 8.dp),
-        )
-        Column {
-            val hotelLabel = hotelInfo.name?.ifBlank { null }
-                ?: stringResource(R.string.share_unknown_hotel)
-            Text(
-                text = hotelLabel,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Bold,
-            )
-            if (!hotelInfo.bookingReference.isNullOrBlank()) {
-                Text(
-                    text = stringResource(R.string.documents_analyze_ref, hotelInfo.bookingReference),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-    }
+    DialogSummaryCard(
+        icon = Icons.Outlined.Hotel,
+        title = hotelInfo.name?.ifBlank { null } ?: stringResource(R.string.share_unknown_hotel),
+        details = listOf(
+            hotelInfo.bookingReference?.ifBlank { null }
+                ?.let { stringResource(R.string.documents_analyze_ref, it) },
+        ),
+        modifier = modifier,
+    )
 }
 
+/** Summary card for activity details extracted from a document. */
 @Composable
 internal fun AnalyzeActivityInfoSummary(activityInfo: ActivityInfo, modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            imageVector = Icons.Default.Place,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(end = 8.dp),
-        )
-        Column {
-            val activityLabel = activityInfo.title?.ifBlank { null }
-                ?: stringResource(R.string.documents_analyze_activity_unknown)
-            Text(
-                text = activityLabel,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Bold,
-            )
-            if (!activityInfo.description.isNullOrBlank()) {
-                Text(
-                    text = activityInfo.description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            if (!activityInfo.confirmationNumber.isNullOrBlank()) {
-                Text(
-                    text = stringResource(R.string.documents_analyze_ref, activityInfo.confirmationNumber),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-    }
+    DialogSummaryCard(
+        icon = Icons.Outlined.LocalActivity,
+        title = activityInfo.title?.ifBlank { null }
+            ?: stringResource(R.string.documents_analyze_activity_unknown),
+        details = listOf(
+            activityInfo.description,
+            activityInfo.confirmationNumber?.ifBlank { null }
+                ?.let { stringResource(R.string.documents_analyze_ref, it) },
+        ),
+        modifier = modifier,
+    )
+}
+
+/**
+ * A transport leg rendered inside a selection or confirmation dialog: company + flight number
+ * as the title, with the booking reference and intermediate stop underneath.
+ *
+ * When [onClick] is non-null the row is tappable; otherwise it is a static preview.
+ */
+@Composable
+internal fun FlightLegListItem(
+    leg: TransportLeg,
+    onClick: (() -> Unit)?,
+    modifier: Modifier = Modifier,
+) {
+    DialogOptionItem(
+        icon = Icons.Outlined.Flight,
+        title = listOfNotNull(leg.company, leg.flightNumber)
+            .joinToString(" ")
+            .ifBlank { stringResource(R.string.share_unnamed_flight_leg) },
+        details = listOf(
+            leg.reservationConfirmationNumber?.ifBlank { null }
+                ?.let { stringResource(R.string.documents_analyze_ref, it) },
+            leg.stopName?.ifBlank { null }
+                ?.let { stringResource(R.string.documents_analyze_to, it) },
+        ),
+        onClick = onClick,
+        modifier = modifier,
+    )
 }
 
 /**
  * A single destination row rendered inside a selection or confirmation dialog.
  *
- * When [onClick] is non-null the row is clickable and uses list-item styling (compact padding,
- * single-line name with ellipsis). When [onClick] is null the row is non-interactive and uses
- * confirmation styling (larger vertical padding, bold multi-line name).
+ * When [onClick] is non-null the row is tappable (single-line name, trailing chevron). When
+ * [onClick] is null the row is a static preview of the destination that will be updated.
+ *
+ * @param extraDetail Optional additional line shown under the stay dates (e.g. the hotel name).
  */
 @Composable
 internal fun DestinationListItem(
@@ -603,47 +458,30 @@ internal fun DestinationListItem(
     dateFormatter: DateTimeFormatter,
     onClick: (() -> Unit)?,
     modifier: Modifier = Modifier,
+    extraDetail: String? = null,
 ) {
-    val isListItem = onClick != null
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
-            .padding(
-                vertical = if (isListItem) 4.dp else 10.dp,
-                horizontal = if (isListItem) 0.dp else 4.dp,
-            ),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            imageVector = Icons.Default.Place,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.secondary,
-            modifier = Modifier.padding(end = 12.dp),
-        )
-        Column {
-            Text(
-                text = destination.name,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = if (isListItem) null else FontWeight.Bold,
-                maxLines = if (isListItem) 1 else Int.MAX_VALUE,
-                overflow = if (isListItem) TextOverflow.Ellipsis else TextOverflow.Clip,
-            )
-            val arrival = destination.arrivalDateTime?.toLocalDate()
-            val departure = destination.departureDateTime?.toLocalDate()
-            if (arrival != null || departure != null) {
-                val dateRange = when {
-                    arrival != null && departure != null ->
-                        "${arrival.format(dateFormatter)} – ${departure.format(dateFormatter)}"
-                    arrival != null -> arrival.format(dateFormatter)
-                    else -> requireNotNull(departure).format(dateFormatter)
-                }
-                Text(
-                    text = dateRange,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
+    DialogOptionItem(
+        icon = Icons.Outlined.Place,
+        title = destination.name,
+        details = listOf(destination.stayDateRange(dateFormatter), extraDetail),
+        onClick = onClick,
+        titleMaxLines = if (onClick != null) 1 else 3,
+        modifier = modifier,
+    )
+}
+
+/**
+ * Formats the destination's stay as "arrival – departure" (or a single date when only one is
+ * known), or returns `null` when neither date is set.
+ */
+internal fun Destination.stayDateRange(dateFormatter: DateTimeFormatter): String? {
+    val arrival = arrivalDateTime?.toLocalDate()
+    val departure = departureDateTime?.toLocalDate()
+    return when {
+        arrival != null && departure != null ->
+            "${arrival.format(dateFormatter)} – ${departure.format(dateFormatter)}"
+        arrival != null -> arrival.format(dateFormatter)
+        departure != null -> departure.format(dateFormatter)
+        else -> null
     }
 }

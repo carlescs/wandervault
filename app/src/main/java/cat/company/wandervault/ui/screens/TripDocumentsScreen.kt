@@ -29,6 +29,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -51,6 +53,11 @@ import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.TextSnippet
 import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.CreateNewFolder
+import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.DriveFileRenameOutline
+import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -68,7 +75,6 @@ import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.ui.window.DialogProperties
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -78,18 +84,20 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cat.company.wandervault.R
 import cat.company.wandervault.domain.model.OrganizationPlan
@@ -486,6 +494,7 @@ internal fun TripDocumentsContent(
     if (showCreateFolderDialog) {
         NameInputDialog(
             title = stringResource(R.string.documents_new_folder_title),
+            icon = Icons.Outlined.CreateNewFolder,
             label = stringResource(R.string.documents_folder_name_label),
             initialName = "",
             onConfirm = { name ->
@@ -499,6 +508,7 @@ internal fun TripDocumentsContent(
     folderToRename?.let { folder ->
         NameInputDialog(
             title = stringResource(R.string.documents_rename_folder_title),
+            icon = Icons.Outlined.DriveFileRenameOutline,
             label = stringResource(R.string.documents_folder_name_label),
             initialName = folder.name,
             onConfirm = { newName ->
@@ -605,6 +615,7 @@ internal fun TripDocumentsContent(
         }
         AlertDialog(
             onDismissRequest = onErrorDismiss,
+            icon = { DialogIcon(Icons.Outlined.ErrorOutline, isDestructive = true) },
             title = { Text(stringResource(R.string.documents_write_error_title)) },
             text = { Text(errorText) },
             confirmButton = {
@@ -690,31 +701,25 @@ private fun AutoOrganizeDialog(
             dismissOnBackPress = !isInProgress,
             dismissOnClickOutside = !isInProgress,
         ),
+        icon = {
+            DialogIcon(
+                icon = if (state is AutoOrganizeUiState.Error) Icons.Outlined.ErrorOutline else Icons.Outlined.AutoAwesome,
+                isDestructive = state is AutoOrganizeUiState.Error,
+            )
+        },
         title = { Text(stringResource(titleRes)) },
         text = {
             when (state) {
                 is AutoOrganizeUiState.Loading -> {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-                        Text(stringResource(R.string.documents_auto_organize_loading))
-                    }
+                    DialogProgressRow(message = stringResource(R.string.documents_auto_organize_loading))
                 }
                 is AutoOrganizeUiState.Downloading -> {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-                        Text(
-                            stringResource(
-                                R.string.documents_auto_organize_downloading,
-                                formatBytes(state.bytesDownloaded),
-                            ),
-                        )
-                    }
+                    DialogProgressRow(
+                        message = stringResource(
+                            R.string.documents_auto_organize_downloading,
+                            formatBytes(state.bytesDownloaded),
+                        ),
+                    )
                 }
                 is AutoOrganizeUiState.ReadyToConfirm -> {
                     AutoOrganizePlanPreview(plan = state.plan)
@@ -766,19 +771,18 @@ private fun AutoOrganizePlanPreview(plan: OrganizationPlan) {
             item(key = "folder-header-$folderIndex") {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(top = 8.dp),
+                    modifier = Modifier.padding(top = if (folderIndex == 0) 0.dp else 12.dp, bottom = 4.dp),
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Folder,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                        tint = MaterialTheme.colorScheme.primary,
+                    IconBadge(
+                        icon = Icons.Default.Folder,
+                        size = 28.dp,
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = assignment.folderName,
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.titleSmall,
                     )
                 }
             }
@@ -786,13 +790,24 @@ private fun AutoOrganizePlanPreview(plan: OrganizationPlan) {
                 items = assignment.documents,
                 key = { document -> "folder-$folderIndex-doc-${document.id}" },
             ) { document ->
-                Text(
-                    text = "  • ${document.name}",
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(start = 24.dp, top = 2.dp),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(start = 36.dp, top = 2.dp, bottom = 2.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Description,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = document.name,
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
         }
     }
@@ -1131,6 +1146,7 @@ private fun DocumentRow(
 @Composable
 private fun NameInputDialog(
     title: String,
+    icon: ImageVector,
     label: String,
     initialName: String,
     onConfirm: (String) -> Unit,
@@ -1139,6 +1155,7 @@ private fun NameInputDialog(
     var text by rememberSaveable(initialName) { mutableStateOf(initialName) }
     AlertDialog(
         onDismissRequest = onDismiss,
+        icon = { DialogIcon(icon) },
         title = { Text(title) },
         text = {
             OutlinedTextField(
@@ -1146,6 +1163,9 @@ private fun NameInputDialog(
                 onValueChange = { text = it },
                 label = { Text(label) },
                 singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { if (text.isNotBlank()) onConfirm(text) }),
+                modifier = Modifier.fillMaxWidth(),
             )
         },
         confirmButton = {
@@ -1198,6 +1218,7 @@ private fun DocumentNameInputDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        icon = { DialogIcon(Icons.Outlined.DriveFileRenameOutline) },
         title = { Text(title) },
         text = {
             Column {
@@ -1289,20 +1310,12 @@ private fun ConfirmDeleteDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = { Text(message) },
-        confirmButton = {
-            TextButton(onClick = onConfirm) {
-                Text(stringResource(R.string.documents_delete_confirm))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.dialog_cancel))
-            }
-        },
+    DestructiveConfirmationDialog(
+        title = title,
+        message = message,
+        confirmLabel = stringResource(R.string.documents_delete_confirm),
+        onConfirm = onConfirm,
+        onDismiss = onDismiss,
     )
 }
 
@@ -1329,50 +1342,25 @@ private fun MoveFolderPickerDialog(
     val folderMap = remember(allFolders) { allFolders.associateBy { it.id } }
     AlertDialog(
         onDismissRequest = onDismiss,
+        icon = { DialogIcon(Icons.AutoMirrored.Filled.DriveFileMove) },
         title = { Text(stringResource(R.string.documents_move_document_title)) },
         text = {
-            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 // Root option
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onMove(null) }
-                        .padding(vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.FolderOpen,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text(
-                        text = stringResource(R.string.documents_move_to_root),
-                        style = MaterialTheme.typography.bodyLarge,
-                    )
-                }
+                DialogOptionItem(
+                    icon = Icons.Default.FolderOpen,
+                    title = stringResource(R.string.documents_move_to_root),
+                    onClick = { onMove(null) },
+                )
                 selectableFolders.forEach { folder ->
-                    HorizontalDivider()
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onMove(folder.id) }
-                            .padding(vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Folder,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text(
-                            text = buildFolderPath(folder, folderMap),
-                            style = MaterialTheme.typography.bodyLarge,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
+                    DialogOptionItem(
+                        icon = Icons.Default.Folder,
+                        title = buildFolderPath(folder, folderMap),
+                        onClick = { onMove(folder.id) },
+                    )
                 }
             }
         },
