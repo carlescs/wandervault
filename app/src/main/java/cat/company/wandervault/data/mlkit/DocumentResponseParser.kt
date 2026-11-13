@@ -61,36 +61,73 @@ internal const val ACTIVITY_MARKER = "ACTIVITY|"
 internal fun parseDocumentResponse(raw: String): DocumentExtractionResult {
     val parts = raw.split(SECTION_SEPARATOR, limit = 2)
     val summary = parts.getOrNull(0)?.trim()?.ifBlank { null } ?: raw.trim()
-    val infoRaw = parts.getOrNull(1)?.trim()
+    return buildExtractionResult(summary, parts.getOrNull(1))
+}
 
-    // Treat blank responses or "None" (with optional trailing punctuation) as no info.
-    if (infoRaw.isNullOrBlank() ||
-        infoRaw.trimEnd('.', '!', ',', ' ').equals("None", ignoreCase = true)
-    ) {
+/**
+ * Combines a [summary] with the structured/general info text [infoRaw] into a
+ * [DocumentExtractionResult].
+ *
+ * - Blank or "None" (case-insensitive, optional trailing punctuation) [infoRaw] → no info.
+ * - Any FLIGHT/HOTEL/ACTIVITY marker lines → structured lists (see [parseStructuredInfo]).
+ * - Otherwise the whole of [infoRaw] becomes [DocumentExtractionResult.relevantTripInfo].
+ */
+internal fun buildExtractionResult(summary: String, infoRaw: String?): DocumentExtractionResult {
+    val info = infoRaw?.trim()
+    if (info.isNullOrBlank() || info.isNoneAnswer()) {
         return DocumentExtractionResult(summary = summary)
     }
+    val structured = parseStructuredInfo(info)
+    if (!structured.isEmpty) {
+        return DocumentExtractionResult(
+            summary = summary,
+            flightInfoList = structured.flights,
+            hotelInfoList = structured.hotels,
+            activityInfoList = structured.activities,
+        )
+    }
+    // Fallback: treat the entire text as general trip-relevant info.
+    return DocumentExtractionResult(summary = summary, relevantTripInfo = info)
+}
 
-    // Collect ALL non-blank lines from section 2 that start with a structured marker.
-    // A document may contain multiple FLIGHT lines (multi-leg itinerary), multiple HOTEL
-    // lines (multi-property booking), or a mix of both.
-    val nonBlankLines = infoRaw.lines().map { it.trim() }.filter { it.isNotBlank() }
+/** Returns `true` when the model answered "None" (with optional trailing punctuation). */
+private fun String.isNoneAnswer(): Boolean =
+    trimEnd('.', '!', ',', ' ').equals("None", ignoreCase = true)
+
+/**
+ * Structured booking rows parsed from model output by [parseStructuredInfo].
+ */
+internal data class StructuredInfo(
+    val flights: List<FlightInfo> = emptyList(),
+    val hotels: List<HotelInfo> = emptyList(),
+    val activities: List<ActivityInfo> = emptyList(),
+) {
+    /** `true` when no rows of any kind were found. */
+    val isEmpty: Boolean get() = flights.isEmpty() && hotels.isEmpty() && activities.isEmpty()
+}
+
+/**
+ * Collects **all** non-blank lines of [raw] that start with a FLIGHT, HOTEL or ACTIVITY marker
+ * and parses their pipe-delimited fields. Lines without a marker (model preamble, commentary) are
+ * ignored, so multi-leg itineraries, multi-hotel bookings and mixed documents are all supported.
+ * Blank or unparsable fields become `null`.
+ */
+internal fun parseStructuredInfo(raw: String): StructuredInfo {
+    val nonBlankLines = raw.lines().map { it.trim() }.filter { it.isNotBlank() }
 
     val flightInfoList = nonBlankLines
         .filter { it.startsWith(FLIGHT_MARKER, ignoreCase = true) }
         .map { line ->
             val fields = line.substring(FLIGHT_MARKER.length).split("|")
             FlightInfo(
-                airline = fields.getOrNull(0)?.trim()?.ifBlank { null },
-                flightNumber = fields.getOrNull(1)?.trim()?.ifBlank { null },
-                bookingReference = fields.getOrNull(2)?.trim()?.ifBlank { null },
-                departurePlace = fields.getOrNull(3)?.trim()?.ifBlank { null },
-                arrivalPlace = fields.getOrNull(4)?.trim()?.ifBlank { null },
-                departureDate = fields.getOrNull(5)?.trim()?.ifBlank { null }
-                    ?.parseLocalDateOrNull(),
-                departureTime = fields.getOrNull(6)?.trim()?.ifBlank { null }
-                    ?.parseLocalTimeOrNull(),
-                arrivalTime = fields.getOrNull(7)?.trim()?.ifBlank { null }
-                    ?.parseLocalTimeOrNull(),
+                airline = fields.field(0),
+                flightNumber = fields.field(1),
+                bookingReference = fields.field(2),
+                departurePlace = fields.field(3),
+                arrivalPlace = fields.field(4),
+                departureDate = fields.field(5)?.parseLocalDateOrNull(),
+                departureTime = fields.field(6)?.parseLocalTimeOrNull(),
+                arrivalTime = fields.field(7)?.parseLocalTimeOrNull(),
             )
         }
 
@@ -99,13 +136,11 @@ internal fun parseDocumentResponse(raw: String): DocumentExtractionResult {
         .map { line ->
             val fields = line.substring(HOTEL_MARKER.length).split("|")
             HotelInfo(
-                name = fields.getOrNull(0)?.trim()?.ifBlank { null },
-                address = fields.getOrNull(1)?.trim()?.ifBlank { null },
-                bookingReference = fields.getOrNull(2)?.trim()?.ifBlank { null },
-                checkInDate = fields.getOrNull(3)?.trim()?.ifBlank { null }
-                    ?.parseLocalDateOrNull(),
-                checkOutDate = fields.getOrNull(4)?.trim()?.ifBlank { null }
-                    ?.parseLocalDateOrNull(),
+                name = fields.field(0),
+                address = fields.field(1),
+                bookingReference = fields.field(2),
+                checkInDate = fields.field(3)?.parseLocalDateOrNull(),
+                checkOutDate = fields.field(4)?.parseLocalDateOrNull(),
             )
         }
 
@@ -114,27 +149,43 @@ internal fun parseDocumentResponse(raw: String): DocumentExtractionResult {
         .map { line ->
             val fields = line.substring(ACTIVITY_MARKER.length).split("|")
             ActivityInfo(
-                title = fields.getOrNull(0)?.trim()?.ifBlank { null },
-                description = fields.getOrNull(1)?.trim()?.ifBlank { null },
-                date = fields.getOrNull(2)?.trim()?.ifBlank { null }
-                    ?.parseLocalDateOrNull(),
-                time = fields.getOrNull(3)?.trim()?.ifBlank { null }
-                    ?.parseLocalTimeOrNull(),
-                confirmationNumber = fields.getOrNull(4)?.trim()?.ifBlank { null },
+                title = fields.field(0),
+                description = fields.field(1),
+                date = fields.field(2)?.parseLocalDateOrNull(),
+                time = fields.field(3)?.parseLocalTimeOrNull(),
+                confirmationNumber = fields.field(4),
             )
         }
 
-    if (flightInfoList.isNotEmpty() || hotelInfoList.isNotEmpty() || activityInfoList.isNotEmpty()) {
-        return DocumentExtractionResult(
-            summary = summary,
-            flightInfoList = flightInfoList,
-            hotelInfoList = hotelInfoList,
-            activityInfoList = activityInfoList,
-        )
-    }
+    return StructuredInfo(flightInfoList, hotelInfoList, activityInfoList)
+}
 
-    // Fallback: treat the entire section 2 as general trip-relevant info.
-    return DocumentExtractionResult(summary = summary, relevantTripInfo = infoRaw)
+/** Returns the trimmed field at [index], or `null` when it is missing or blank. */
+private fun List<String>.field(index: Int): String? = getOrNull(index)?.trim()?.ifBlank { null }
+
+/**
+ * Kinds of booking the extraction pipeline can turn into structured rows.
+ *
+ * @property marker The line prefix used for this kind in model output.
+ */
+internal enum class StructuredDocumentType(val marker: String) {
+    FLIGHT(FLIGHT_MARKER),
+    HOTEL(HOTEL_MARKER),
+    ACTIVITY(ACTIVITY_MARKER),
+}
+
+private val DOCUMENT_TYPE_RE = Regex("\\b(FLIGHT|HOTEL|ACTIVITY)\\b", RegexOption.IGNORE_CASE)
+
+/**
+ * Parses the classification answer (e.g. `"FLIGHT, HOTEL"`) into the set of booking kinds it
+ * names, in a stable order. Unknown words and `OTHER` are ignored, so an empty set means the
+ * document has no structured bookings.
+ */
+internal fun parseDocumentTypes(raw: String): Set<StructuredDocumentType> {
+    val found = DOCUMENT_TYPE_RE.findAll(raw)
+        .map { StructuredDocumentType.valueOf(it.value.uppercase()) }
+        .toSet()
+    return StructuredDocumentType.entries.filterTo(linkedSetOf<StructuredDocumentType>()) { it in found }
 }
 
 /**

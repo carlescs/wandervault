@@ -15,8 +15,6 @@ import cat.company.wandervault.domain.repository.DocumentSummaryRepository
 import com.google.mlkit.genai.common.DownloadStatus
 import com.google.mlkit.genai.common.FeatureStatus
 import com.google.mlkit.genai.prompt.Generation
-import com.google.mlkit.genai.prompt.TextPart
-import com.google.mlkit.genai.prompt.generateContentRequest
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
@@ -61,6 +59,15 @@ class DocumentSummaryRepositoryImpl(
      * Reads the document at [fileUri] and uses on-device Gemini Nano to extract a summary and
      * any trip-relevant information.
      *
+     * Rather than asking the small model for everything in one response, the work is split into
+     * focused calls that each get the full output budget:
+     * 1. **Summary** – 2–3 sentences in the user's AI language.
+     * 2. **Classification** – which booking kinds (flight / hotel / activity) the document holds.
+     * 3. **Extraction** – one call per detected kind, with a type-specific prompt and a worked
+     *    example. If nothing structured is found, a general trip-info call runs instead.
+     *
+     * The structured result is then checked against the source text by [validateExtraction].
+     *
      * Returns `null` only when the on-device AI feature is permanently
      * [FeatureStatus.UNAVAILABLE] on this device, or when the document text cannot be read.
      * Any transient failure (model download error, generation error, etc.) is thrown as an
@@ -80,14 +87,47 @@ class DocumentSummaryRepositoryImpl(
                 FeatureStatus.DOWNLOADABLE -> awaitDownload(onDownloadProgress)
                 FeatureStatus.AVAILABLE -> Unit
             }
-            val request = generateContentRequest(TextPart(buildPrompt(text, tripYear))) {
-                maxOutputTokens = MAX_OUTPUT_TOKENS
+            val summary = generate(buildSummaryPrompt(text), SUMMARY_MAX_TOKENS, SamplingProfile.FACTUAL)
+                ?: return@withContext null
+            val types = parseDocumentTypes(
+                generate(buildClassificationPrompt(text), CLASSIFY_MAX_TOKENS, SamplingProfile.DETERMINISTIC)
+                    .orEmpty(),
+            )
+            val structured = parseStructuredInfo(
+                types.mapNotNull { type ->
+                    generate(
+                        buildExtractionPrompt(type, text, tripYear),
+                        MAX_OUTPUT_TOKENS,
+                        SamplingProfile.DETERMINISTIC,
+                    )
+                }.joinToString("\n"),
+            )
+            val result = if (!structured.isEmpty) {
+                DocumentExtractionResult(
+                    summary = summary,
+                    flightInfoList = structured.flights,
+                    hotelInfoList = structured.hotels,
+                    activityInfoList = structured.activities,
+                )
+            } else {
+                val generalInfo = generate(
+                    buildGeneralInfoPrompt(text, tripYear),
+                    GENERAL_INFO_MAX_TOKENS,
+                    SamplingProfile.FACTUAL,
+                )
+                buildExtractionResult(summary, generalInfo)
             }
-            val response = generationClient.generateContent(request)
-            val rawOutput = response.candidates.firstOrNull()?.text
-                ?.trim() ?: return@withContext null
-            parseDocumentResponse(rawOutput)
+            validateExtraction(result, text, tripYear)
         }
+    }
+
+    /**
+     * Sends [prompt] to Gemini Nano and returns the trimmed text of the first candidate, or `null`
+     * when the model produced no (or only blank) output.
+     */
+    private suspend fun generate(prompt: String, maxTokens: Int, profile: SamplingProfile): String? {
+        val response = generationClient.generateContent(buildGenerationRequest(prompt, maxTokens, profile))
+        return response.candidates.firstOrNull()?.text?.trim()?.ifBlank { null }
     }
 
     /**
@@ -262,68 +302,95 @@ class DocumentSummaryRepositoryImpl(
             FeatureStatus.AVAILABLE -> Unit
         }
         val text = readDocumentText(fileUri, mimeType) ?: return@withContext null
-        val prompt = buildString {
-            appendLine(
-                "Read the following travel document and suggest a concise filename for it " +
-                    "(2 to 5 words, no file extension, use spaces between words). " +
-                    "Return only the filename, nothing else. " +
-                    "Respond in ${appPreferences.resolvedAiLanguageName()}.",
-            )
-            appendLine()
-            appendLine("Document text:")
-            append(text)
-        }
-        val request = generateContentRequest(TextPart(prompt)) {
-            maxOutputTokens = NAME_SUGGESTION_MAX_TOKENS
-        }
-        val response = generationClient.generateContent(request)
-        val candidateText = response.candidates.firstOrNull()?.text ?: return@withContext null
+        val prompt = delimitedPrompt(
+            tag = DOCUMENT_TAG,
+            data = text,
+            instructions = "Suggest a concise filename for the travel document above " +
+                "(2 to 5 words, no file extension, use spaces between words), naming what it is " +
+                "and, if present, the place or provider (e.g. \"Iberia flight to London\"). " +
+                "Return only the filename, nothing else. " +
+                "Write it in ${appPreferences.resolvedAiLanguageName()}.",
+        )
+        val candidateText = generate(prompt, NAME_SUGGESTION_MAX_TOKENS, SamplingProfile.DETERMINISTIC)
+            ?: return@withContext null
         normalizeSuggestedFilename(candidateText)
     }
 
-    private fun buildPrompt(documentText: String, tripYear: Int?): String = buildString {
-        appendLine(
-            "Analyze the following travel document and respond with exactly two sections " +
-                "separated by the marker \"---\". Respond in ${appPreferences.resolvedAiLanguageName()}.",
-        )
-        appendLine(
-            "Section 1: A brief summary (2–3 sentences) of what this document contains.",
-        )
-        appendLine("Section 2: Identify the document type and extract structured info:")
-        appendLine(
-            "- If it contains FLIGHT information (boarding pass, e-ticket, flight itinerary), " +
-                "output one line per flight leg: " +
-                "${FLIGHT_MARKER}<airline>|<flight number>|<booking reference>|<departure city>|<arrival city>|<departure date (YYYY-MM-DD)>|<departure time (HH:MM)>|<arrival time (HH:MM)>",
-        )
-        appendLine(
-            "- If it contains HOTEL information (booking confirmation, reservation, hotel voucher), " +
-                "output one line per hotel booking: " +
-                "${HOTEL_MARKER}<hotel name>|<address>|<booking reference>|<check-in date (YYYY-MM-DD)>|<check-out date (YYYY-MM-DD)>",
-        )
-        appendLine(
-            "- If it contains ACTIVITY information (tour booking, museum ticket, restaurant reservation, " +
-                "experience or attraction confirmation), output one line per activity: " +
-                "${ACTIVITY_MARKER}<title>|<description>|<date (YYYY-MM-DD)>|<time (HH:MM)>|<confirmation number>",
-        )
-        appendLine(
-            "- A document may contain multiple FLIGHT lines, multiple HOTEL lines, multiple ACTIVITY lines, or a combination of these.",
-        )
-        appendLine(
-            "- Otherwise, list any trip-relevant info (travel dates, destinations, " +
-                "booking references). If none, write \"None\".",
-        )
-        appendLine(
-            "Leave a field blank (empty between pipes) if the information is not found.",
-        )
-        if (tripYear != null) {
-            appendLine(
-                "When a date in the document has no explicit year, assume the year is $tripYear.",
-            )
+    /** Prompt for the 2–3 sentence document summary, written in the user's AI language. */
+    private fun buildSummaryPrompt(documentText: String): String = delimitedPrompt(
+        tag = DOCUMENT_TAG,
+        data = documentText,
+        instructions = "Summarize the travel document above in 2–3 sentences: what kind of " +
+            "document it is, what it is for, and its key dates and places. " +
+            "Only state facts that are written in the document. " +
+            "Keep names, codes and booking references exactly as written. " +
+            "Write the summary in ${appPreferences.resolvedAiLanguageName()}.",
+    )
+
+    /** Prompt asking which structured booking kinds the document contains. */
+    private fun buildClassificationPrompt(documentText: String): String = delimitedPrompt(
+        tag = DOCUMENT_TAG,
+        data = documentText,
+        instructions = """
+            Which kinds of booking does the document above contain? Choose from:
+            FLIGHT – boarding pass, e-ticket or flight itinerary
+            HOTEL – hotel or accommodation booking, reservation or voucher
+            ACTIVITY – tour, museum or attraction ticket, restaurant reservation or experience
+            OTHER – anything else (train or bus ticket, insurance, visa, car rental, …)
+            Reply only with the matching words separated by commas, for example "FLIGHT" or "FLIGHT, HOTEL".
+        """.trimIndent(),
+    )
+
+    /**
+     * Type-specific extraction prompt with a worked example.
+     *
+     * Values are extracted in the document's own language (no "respond in" instruction) so that
+     * names, codes and references stay verbatim and can be checked by [validateExtraction].
+     */
+    private fun buildExtractionPrompt(
+        type: StructuredDocumentType,
+        documentText: String,
+        tripYear: Int?,
+    ): String {
+        val spec = EXTRACTION_SPECS.getValue(type)
+        val instructions = buildString {
+            appendLine("Extract every ${spec.itemName} from the document above.")
+            appendLine("Output one line per ${spec.itemName} in exactly this format, and nothing else:")
+            appendLine(spec.format)
+            appendLine("Rules:")
+            appendLine("- Copy names, codes and references exactly as written in the document. Do not translate them.")
+            appendLine("- Leave a field empty (nothing between the pipes) if it is not in the document. Never guess.")
+            appendLine("- Write dates as YYYY-MM-DD and times as 24-hour HH:MM.")
+            if (tripYear != null) {
+                appendLine("- When a date has no year, use $tripYear.")
+            }
+            appendLine()
+            appendLine("Example (from a different document):")
+            appendLine("Document: ${spec.exampleDocument}")
+            appendLine("Output:")
+            append(spec.exampleOutput)
         }
-        appendLine()
-        appendLine("Document text:")
-        append(documentText)
+        return delimitedPrompt(DOCUMENT_TAG, documentText, instructions)
     }
+
+    /** Prompt for documents with no structured bookings: free-form trip-relevant facts. */
+    private fun buildGeneralInfoPrompt(documentText: String, tripYear: Int?): String = delimitedPrompt(
+        tag = DOCUMENT_TAG,
+        data = documentText,
+        instructions = buildString {
+            append(
+                "List the trip-relevant information in the document above (travel dates, " +
+                    "destinations, booking references, coverage or validity periods) as short lines. " +
+                    "Only include facts that are written in the document. " +
+                    "Keep names, codes and references exactly as written. ",
+            )
+            if (tripYear != null) append("When a date has no year, use $tripYear. ")
+            append(
+                "If there is no such information, reply exactly: None. " +
+                    "Write in ${appPreferences.resolvedAiLanguageName()}.",
+            )
+        },
+    )
 
     override suspend fun askQuestion(
         fileUri: String,
@@ -338,19 +405,16 @@ class DocumentSummaryRepositoryImpl(
             FeatureStatus.AVAILABLE -> Unit
         }
         val text = readDocumentText(fileUri, mimeType) ?: return@withContext null
-        val prompt = buildString {
-            appendLine("Answer the following question about the travel document below.")
-            appendLine("Question: $question")
-            appendLine("Respond in ${appPreferences.resolvedAiLanguageName()}.")
-            appendLine()
-            appendLine("Document text:")
-            append(text)
-        }
-        val request = generateContentRequest(TextPart(prompt)) {
-            maxOutputTokens = QUESTION_MAX_OUTPUT_TOKENS
-        }
-        val response = generationClient.generateContent(request)
-        response.candidates.firstOrNull()?.text?.trim()?.ifBlank { null }
+        val prompt = delimitedPrompt(
+            tag = DOCUMENT_TAG,
+            data = text,
+            instructions = "Answer the question below using only the travel document above. " +
+                "If the document does not contain the answer, say that it is not in the document. " +
+                "Keep names, codes and references exactly as written. " +
+                "Respond in ${appPreferences.resolvedAiLanguageName()}.\n\n" +
+                "Question: $question",
+        )
+        generate(prompt, QUESTION_MAX_OUTPUT_TOKENS, SamplingProfile.FACTUAL)
     }
 
     override suspend fun suggestOrganization(
@@ -366,11 +430,7 @@ class DocumentSummaryRepositoryImpl(
             FeatureStatus.AVAILABLE -> Unit
         }
         val prompt = buildOrganizationPrompt(documents, existingFolderNames)
-        val request = generateContentRequest(TextPart(prompt)) {
-            maxOutputTokens = AUTO_ORGANIZE_MAX_TOKENS
-        }
-        val response = generationClient.generateContent(request)
-        val rawOutput = response.candidates.firstOrNull()?.text?.trim()
+        val rawOutput = generate(prompt, AUTO_ORGANIZE_MAX_TOKENS, SamplingProfile.DETERMINISTIC)
             ?: return@withContext OrganizationPlan(emptyList())
         parseOrganizationResponse(rawOutput, documents)
     }
@@ -378,44 +438,112 @@ class DocumentSummaryRepositoryImpl(
     private fun buildOrganizationPrompt(
         documents: List<TripDocument>,
         existingFolderNames: List<String> = emptyList(),
-    ): String = buildString {
-        appendLine(
-            "You are organizing travel documents into folders. Group related documents together " +
-                "(e.g. flights, hotels, insurance, visas).",
-        )
-        if (existingFolderNames.isNotEmpty()) {
-            appendLine(
-                "The following folders already exist. Prefer reusing these exact names over " +
-                    "creating new ones with the same meaning (including synonyms or translations):",
-            )
-            existingFolderNames.forEach { appendLine("- $it") }
-            appendLine()
-        }
-        appendLine(
-            "Every document must be assigned to exactly one folder. " +
-                "All numbers from 1 to ${documents.size} must appear in the output.",
-        )
-        appendLine(
-            "Use ${appPreferences.resolvedAiLanguageName()} for folder names. " +
-                "The keywords FOLDER: and DOC: must appear exactly as shown — do not translate them.",
-        )
-        appendLine("Output ONLY lines in this format — no preamble, no explanation, no other text:")
-        appendLine("FOLDER:<folder name>")
-        appendLine("DOC:<comma-separated document numbers>")
-        appendLine()
-        appendLine("Documents:")
-        documents.forEachIndexed { index, doc ->
-            val summary = doc.summary
-            if (summary != null) {
-                appendLine("${index + 1}. ${doc.name} — $summary")
-            } else {
-                appendLine("${index + 1}. ${doc.name}")
+    ): String {
+        val documentList = buildString {
+            documents.forEachIndexed { index, doc ->
+                val summary = doc.summary
+                if (summary != null) {
+                    appendLine("${index + 1}. ${doc.name} — $summary")
+                } else {
+                    appendLine("${index + 1}. ${doc.name}")
+                }
             }
         }
+        val instructions = buildString {
+            appendLine(
+                "Organize the numbered travel documents above into folders. Group related " +
+                    "documents together (e.g. flights, hotels, insurance, visas).",
+            )
+            if (existingFolderNames.isNotEmpty()) {
+                appendLine(
+                    "The following folders already exist. Prefer reusing these exact names over " +
+                        "creating new ones with the same meaning (including synonyms or translations):",
+                )
+                existingFolderNames.forEach { appendLine("- $it") }
+            }
+            appendLine(
+                "Every document must be assigned to exactly one folder. " +
+                    "All numbers from 1 to ${documents.size} must appear in the output.",
+            )
+            appendLine(
+                "Use ${appPreferences.resolvedAiLanguageName()} for folder names. " +
+                    "The keywords FOLDER: and DOC: must appear exactly as shown — do not translate them.",
+            )
+            appendLine("Output ONLY lines in this format — no preamble, no explanation, no other text:")
+            appendLine("FOLDER:<folder name>")
+            appendLine("DOC:<comma-separated document numbers>")
+            appendLine()
+            appendLine("Example output:")
+            appendLine("FOLDER:Flights")
+            appendLine("DOC:1,3")
+            appendLine("FOLDER:Hotels")
+            append("DOC:2")
+        }
+        return delimitedPrompt(DOCUMENTS_TAG, documentList, instructions)
     }
+
+    /**
+     * Prompt pieces for one [StructuredDocumentType] used by [buildExtractionPrompt].
+     *
+     * @property itemName Human-readable name of one row (e.g. "flight leg").
+     * @property format The exact line format, starting with the type's marker.
+     * @property exampleDocument A short, made-up document snippet.
+     * @property exampleOutput The exact output expected for [exampleDocument].
+     */
+    private data class ExtractionSpec(
+        val itemName: String,
+        val format: String,
+        val exampleDocument: String,
+        val exampleOutput: String,
+    )
 
     companion object {
         private const val TAG = "DocumentSummaryRepo"
+
+        /** Delimiter tag wrapping document text in prompts. */
+        private const val DOCUMENT_TAG = "document"
+
+        /** Delimiter tag wrapping the numbered document list in the auto-organize prompt. */
+        private const val DOCUMENTS_TAG = "documents"
+
+        /** Maximum tokens Gemini Nano may generate for the document summary. */
+        private const val SUMMARY_MAX_TOKENS = 160
+
+        /** Maximum tokens Gemini Nano may generate for the document classification. */
+        private const val CLASSIFY_MAX_TOKENS = 16
+
+        /** Maximum tokens Gemini Nano may generate for general (non-structured) trip info. */
+        private const val GENERAL_INFO_MAX_TOKENS = 200
+
+        /** Per-type extraction prompt pieces, each with a short worked example. */
+        private val EXTRACTION_SPECS = mapOf(
+            StructuredDocumentType.FLIGHT to ExtractionSpec(
+                itemName = "flight leg",
+                format = "${FLIGHT_MARKER}<airline>|<flight number>|<booking reference>|" +
+                    "<departure city>|<arrival city>|<departure date>|<departure time>|<arrival time>",
+                exampleDocument = "\"IBERIA BOARDING PASS · Flight IB 3166 · Barcelona → London Heathrow · " +
+                    "12 MAR 2025 · Departs 7:05 PM · Arrives 8:30 PM · Booking ref XK7P2Q\"",
+                exampleOutput = "${FLIGHT_MARKER}Iberia|IB 3166|XK7P2Q|Barcelona|London Heathrow|" +
+                    "2025-03-12|19:05|20:30",
+            ),
+            StructuredDocumentType.HOTEL to ExtractionSpec(
+                itemName = "hotel booking",
+                format = "${HOTEL_MARKER}<hotel name>|<address>|<booking reference>|" +
+                    "<check-in date>|<check-out date>",
+                exampleDocument = "\"Booking confirmed! Hotel Miramar, Passeig de Colom 7, Barcelona. " +
+                    "Check-in: Fri 14 March 2025. Check-out: Mon 17 March 2025. Confirmation no. 4417820935\"",
+                exampleOutput = "${HOTEL_MARKER}Hotel Miramar|Passeig de Colom 7, Barcelona|4417820935|" +
+                    "2025-03-14|2025-03-17",
+            ),
+            StructuredDocumentType.ACTIVITY to ExtractionSpec(
+                itemName = "activity",
+                format = "${ACTIVITY_MARKER}<title>|<short description>|<date>|<time>|<confirmation number>",
+                exampleDocument = "\"Your tickets: Sagrada Família – Guided tour with tower access. " +
+                    "15/03/2025, entry 10:30. 2 adults. Order SF-88231\"",
+                exampleOutput = "${ACTIVITY_MARKER}Sagrada Família guided tour|Guided tour with tower access, " +
+                    "2 adults|2025-03-15|10:30|SF-88231",
+            ),
+        )
 
         /** Maximum characters passed to Gemini Nano to stay within context limits. */
         private const val MAX_DOCUMENT_CHARS = 4_000

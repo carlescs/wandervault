@@ -91,6 +91,10 @@ class TripChatFeatureTest {
         assertTrue(prompt.contains("Hotel: Sakura Inn Kyoto"))
         assertTrue(prompt.contains("Tea ceremony"))
         assertTrue(prompt.contains("Summary: Hotel booking for Sakura Inn Kyoto from April 7 to April 10."))
+        // Trip data is delimited and comes first; the question is the last thing the model reads.
+        assertTrue(prompt.startsWith("<trip>"))
+        assertTrue(prompt.indexOf("</trip>") < prompt.indexOf("Question: Where am I staying in Kyoto?"))
+        assertTrue(prompt.trimEnd().endsWith("Question: Where am I staying in Kyoto?"))
     }
 
     @Test
