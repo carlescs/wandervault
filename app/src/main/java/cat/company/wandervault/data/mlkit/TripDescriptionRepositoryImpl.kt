@@ -11,8 +11,6 @@ import cat.company.wandervault.domain.repository.TripDescriptionRepository
 import com.google.mlkit.genai.common.DownloadStatus
 import com.google.mlkit.genai.common.FeatureStatus
 import com.google.mlkit.genai.prompt.Generation
-import com.google.mlkit.genai.prompt.TextPart
-import com.google.mlkit.genai.prompt.generateContentRequest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.onEach
@@ -52,7 +50,11 @@ class TripDescriptionRepositoryImpl(
                 FeatureStatus.DOWNLOADABLE -> awaitDownload()
                 FeatureStatus.AVAILABLE -> Unit
             }
-            val request = createRequest(buildPrompt(trip, destinations), MAX_DESCRIPTION_TOKENS)
+            val request = buildGenerationRequest(
+                buildPrompt(trip, destinations),
+                MAX_DESCRIPTION_TOKENS,
+                SamplingProfile.CREATIVE,
+            )
             val response = client.generateContent(request)
             val text = response.candidates.firstOrNull()?.text
             if (text.isNullOrBlank()) {
@@ -75,7 +77,11 @@ class TripDescriptionRepositoryImpl(
             FeatureStatus.DOWNLOADABLE -> awaitDownload()
             FeatureStatus.AVAILABLE -> Unit
         }
-        val request = createRequest(buildWhatsNextPrompt(trip, destinations, now, activities), MAX_WHATS_NEXT_TOKENS)
+        val request = buildGenerationRequest(
+            buildWhatsNextPrompt(trip, destinations, now, activities),
+            MAX_WHATS_NEXT_TOKENS,
+            SamplingProfile.FACTUAL,
+        )
         val response = client.generateContent(request)
         val text = response.candidates.firstOrNull()?.text
         if (text.isNullOrBlank()) {
@@ -101,7 +107,7 @@ class TripDescriptionRepositoryImpl(
             FeatureStatus.DOWNLOADABLE -> awaitDownload(onDownloadProgress)
             FeatureStatus.AVAILABLE -> Unit
         }
-        val request = createRequest(
+        val request = buildGenerationRequest(
             buildTripQuestionPrompt(
                 trip = trip,
                 destinations = destinations,
@@ -111,6 +117,7 @@ class TripDescriptionRepositoryImpl(
                 question = question,
             ),
             MAX_TRIP_CHAT_TOKENS,
+            SamplingProfile.FACTUAL,
         )
         val response = client.generateContent(request)
         val text = response.candidates.firstOrNull()?.text?.trim()
@@ -132,7 +139,11 @@ class TripDescriptionRepositoryImpl(
             FeatureStatus.DOWNLOADABLE -> awaitDownload(onDownloadProgress)
             FeatureStatus.AVAILABLE -> Unit
         }
-        val request = createRequest(buildChatSessionNamePrompt(messages), MAX_SESSION_NAME_TOKENS)
+        val request = buildGenerationRequest(
+            buildChatSessionNamePrompt(messages),
+            MAX_SESSION_NAME_TOKENS,
+            SamplingProfile.DETERMINISTIC,
+        )
         val response = client.generateContent(request)
         val text = response.candidates.firstOrNull()?.text?.trim()
         if (text.isNullOrBlank()) {
@@ -142,14 +153,6 @@ class TripDescriptionRepositoryImpl(
         }
         text
     }
-
-    /**
-     * Creates a [generateContentRequest] with the given [prompt] text and [maxTokens] limit.
-     */
-    private fun createRequest(prompt: String, maxTokens: Int) =
-        generateContentRequest(TextPart(prompt)) {
-            maxOutputTokens = maxTokens
-        }
 
     /**
      * Waits for the Gemini Nano model to finish downloading by collecting the download Flow
@@ -168,15 +171,7 @@ class TripDescriptionRepositoryImpl(
 
     private fun buildPrompt(trip: Trip, destinations: List<Destination>): String {
         val dateFormatter = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
-        return buildString {
-            appendLine(
-                "Write a short, engaging 2–3 sentence description for the following trip. " +
-                    "Focus on the places visited and the overall experience. " +
-                    "Only use the facts provided below. Do not invent or assume any destinations, " +
-                    "activities, or details that are not explicitly listed. " +
-                    "Respond in ${appPreferences.resolvedAiLanguageName()}.",
-            )
-            appendLine()
+        val data = buildString {
             appendLine("Trip name: ${trip.title}")
             if (trip.startDate != null && trip.endDate != null) {
                 appendLine(
@@ -202,6 +197,15 @@ class TripDescriptionRepositoryImpl(
                 }
             }
         }
+        return delimitedPrompt(
+            tag = TRIP_TAG,
+            data = data,
+            instructions = "Write a short, engaging 2–3 sentence description of the trip above. " +
+                "Focus on the places visited and the overall experience. " +
+                "Only use the facts listed above. Do not invent or assume any destinations, " +
+                "activities, or details that are not explicitly listed. " +
+                "Respond in ${appPreferences.resolvedAiLanguageName()}.",
+        )
     }
 
     /**
@@ -224,17 +228,7 @@ class TripDescriptionRepositoryImpl(
         val position = describeTravellerPosition(destinations, now)
         val nextEvent = findNextUpcomingEvent(destinations, now, activities)
         val activitiesByDestination = activities.groupBy { it.destinationId }
-        return buildString {
-            appendLine(
-                "You are a helpful travel assistant. Based on the traveller's current position " +
-                    "and itinerary, write a concise 1–2 sentence notice describing what their " +
-                    "next step is. Focus on the single most immediate upcoming event (departure, " +
-                    "arrival, transport leg, or scheduled activity). Only use the facts provided " +
-                    "below. Do not invent or assume any events, times, places, or details not " +
-                    "explicitly present in the facts provided below. " +
-                    "Respond in ${appPreferences.resolvedAiLanguageName()}.",
-            )
-            appendLine()
+        val data = buildString {
             appendLine("Current date and time: $nowFormatted (timezone: $nowZone)")
             appendLine("Traveller's current position: $position")
             if (nextEvent != null) {
@@ -290,6 +284,17 @@ class TripDescriptionRepositoryImpl(
                 }
             }
         }
+        return delimitedPrompt(
+            tag = TRIP_TAG,
+            data = data,
+            instructions = "You are a helpful travel assistant. Based on the traveller's current position " +
+                "and itinerary above, write a concise 1–2 sentence notice describing what their " +
+                "next step is. Focus on the single most immediate upcoming event (departure, " +
+                "arrival, transport leg, or scheduled activity). Only use the facts provided " +
+                "above. Do not invent or assume any events, times, places, or details that are " +
+                "not explicitly present above. " +
+                "Respond in ${appPreferences.resolvedAiLanguageName()}.",
+        )
     }
 
     internal fun buildTripQuestionPrompt(
@@ -304,17 +309,7 @@ class TripDescriptionRepositoryImpl(
         val activitiesByDestination = activities.groupBy { it.destinationId }
         val sortedDocuments = documents.sortedBy { it.name.lowercase(Locale.ROOT) }
         val dateFormatter = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
-        return buildString {
-            appendLine(
-                "You are a helpful travel assistant. Answer the user's question about their trip " +
-                    "using only the trip information and uploaded documents listed below. " +
-                    "Use the uploaded document summaries whenever they are available. Do not " +
-                    "invent facts or assume details that are not present. " +
-                    "Respond in ${appPreferences.resolvedAiLanguageName()}.",
-            )
-            appendLine()
-            appendLine("Question: $question")
-            appendLine()
+        val data = buildString {
             appendLine("Trip: ${trip.title}")
             if (trip.startDate != null && trip.endDate != null) {
                 appendLine(
@@ -401,20 +396,31 @@ class TripDescriptionRepositoryImpl(
                 }
             }
         }
+        return delimitedPrompt(
+            tag = TRIP_TAG,
+            data = data,
+            instructions = "You are a helpful travel assistant. Answer the user's question about their trip " +
+                "using only the trip information and uploaded documents listed above. " +
+                "Use the uploaded document summaries whenever they are available. Do not " +
+                "invent facts or assume details that are not present. If the answer is not in " +
+                "the information above, say that you could not find it in the trip data. " +
+                "Respond in ${appPreferences.resolvedAiLanguageName()}.\n\n" +
+                "Question: $question",
+        )
     }
 
-    private fun buildChatSessionNamePrompt(messages: List<String>): String = buildString {
-        appendLine(
-            "Suggest a concise 3–6 word title for a chat conversation based on the messages below. " +
-                "The title should capture the main topic. " +
-                "Respond with just the title and nothing else. " +
-                "Respond in ${appPreferences.resolvedAiLanguageName()}.",
-        )
-        appendLine()
-        messages.forEachIndexed { index, text ->
-            appendLine("Message ${index + 1}: $text")
-        }
-    }
+    private fun buildChatSessionNamePrompt(messages: List<String>): String = delimitedPrompt(
+        tag = MESSAGES_TAG,
+        data = buildString {
+            messages.forEachIndexed { index, text ->
+                appendLine("Message ${index + 1}: $text")
+            }
+        },
+        instructions = "Suggest a concise 3–6 word title for the chat conversation above. " +
+            "The title should capture the main topic. " +
+            "Respond with just the title and nothing else. " +
+            "Respond in ${appPreferences.resolvedAiLanguageName()}.",
+    )
 
     /**
      * Finds the single most immediate upcoming itinerary event after [now] and returns a
@@ -597,6 +603,12 @@ class TripDescriptionRepositoryImpl(
     }
 
     companion object {
+        /** Delimiter tag wrapping the trip data in prompts. */
+        private const val TRIP_TAG = "trip"
+
+        /** Delimiter tag wrapping chat messages in the session-name prompt. */
+        private const val MESSAGES_TAG = "messages"
+
         /** Maximum number of tokens the model may generate for a trip description. */
         private const val MAX_DESCRIPTION_TOKENS = 200
 
